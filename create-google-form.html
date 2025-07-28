@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>יצירת טופס גיוס - הוראות</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #1976d2;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        h2 {
+            color: #1976d2;
+            border-bottom: 2px solid #1976d2;
+            padding-bottom: 10px;
+        }
+        .step {
+            background: #e3f2fd;
+            padding: 15px;
+            margin: 15px 0;
+            border-left: 4px solid #1976d2;
+        }
+        .field {
+            background: #f8f9fa;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .important {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        .code-block {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .url {
+            color: #1976d2;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🪖 יצירת טופס גיוס לפלוגה</h1>
+        
+        <div class="important">
+            <strong>⚠️ חשוב:</strong> קובץ זה מכיל הוראות מפורטות ליצירת טופס Google Forms עבור גיוס חיילים למערכת ניהול הפלוגה.
+        </div>
+
+        <h2>🎯 מטרת הטופס</h2>
+        <p>הטופס ישמש לקליטת מועמדים חדשים לפלוגה. הנתונים יועברו אוטומטית למערכת הניהול לשיבוץ ואישור.</p>
+
+        <h2>📋 שלב 1: יצירת הטופס</h2>
+        <div class="step">
+            <strong>1.</strong> היכנס ל-Google Forms: <span class="url">https://forms.google.com</span><br>
+            <strong>2.</strong> לחץ על "+" ליצירת טופס חדש<br>
+            <strong>3.</strong> שנה את הכותרת ל: <strong>"טופס גיוס - פלוגה לוחמת"</strong><br>
+            <strong>4.</strong> הוסף תיאור: <strong>"מלא את הטופס הבא להצטרפות לפלוגה"</strong>
+        </div>
+
+        <h2>📝 שלב 2: הוספת השדות</h2>
+        <p>הוסף את השדות הבאים בדיוק בסדר הזה:</p>
+
+        <h3>פרטים אישיים (חובה)</h3>
+        <div class="field">
+            <strong>1. כתובת אימייל</strong><br>
+            סוג: Text - Short answer<br>
+            ✅ סמן כשדה חובה<br>
+            ✅ הפעל אימות אימייל
+        </div>
+
+        <div class="field">
+            <strong>2. שם מלא</strong><br>
+            סוג: Text - Short answer<br>
+            ✅ סמן כשדה חובה
+        </div>
+
+        <div class="field">
+            <strong>3. מספר אישי</strong><br>
+            סוג: Text - Short answer<br>
+            ✅ סמן כשדה חובה<br>
+            תיאור: "9 ספרות ללא רווחים"
+        </div>
+
+        <div class="field">
+            <strong>4. מספר טלפון</strong><br>
+            סוג: Text - Short answer<br>
+            תיאור: "לדוגמה: 050-1234567"
+        </div>
+
+        <h3>פרטים נוספים</h3>
+        <div class="field"><strong>5. תאריך לידה</strong> - סוג: Date</div>
+        <div class="field"><strong>6. כתובת מגורים</strong> - סוג: Text - Short answer</div>
+        <div class="field"><strong>7. איש קשר לחירום</strong> - סוג: Text - Short answer</div>
+        <div class="field"><strong>8. טלפון חירום</strong> - סוג: Text - Short answer</div>
+
+        <h3>רקע ומיומנויות</h3>
+        <div class="field">
+            <strong>9. השכלה</strong><br>
+            סוג: Multiple choice<br>
+            אפשרויות: תיכון, תעודת הנדסאי, תואר ראשון, תואר שני, אחר
+        </div>
+
+        <div class="field">
+            <strong>10. שפות</strong><br>
+            סוג: Checkboxes<br>
+            אפשרויות: עברית, אנגלית, ערבית, רוסית, צרפתית, אחר
+        </div>
+
+        <div class="field">
+            <strong>11. רקע צבאי</strong><br>
+            סוג: Text - Paragraph<br>
+            תיאור: "ציין יחידות קודמות, קורסים, הסמכות"
+        </div>
+
+        <div class="field">
+            <strong>12. פרופיל רפואי</strong><br>
+            סוג: Multiple choice<br>
+            אפשרויות: 97, 82, 72, 64, 45, 21, אחר
+        </div>
+
+        <h3>מוטיבציה והתאמה</h3>
+        <div class="field">
+            <strong>13. מוטיבציה לשירות</strong><br>
+            סוג: Text - Paragraph<br>
+            תיאור: "מדוע אתה רוצה לשרת ביחידה?"
+        </div>
+
+        <div class="field">
+            <strong>14. ציפיות מהשירות</strong><br>
+            סוג: Text - Paragraph<br>
+            תיאור: "מה אתה מצפה ללמוד ולחוות?"
+        </div>
+
+        <div class="field"><strong>15. תחומי עניין/תחביבים</strong> - סוג: Text - Short answer</div>
+        <div class="field">
+            <strong>16. מידע נוסף</strong><br>
+            סוג: Text - Paragraph<br>
+            תיאור: "כל מידע נוסף שחשוב לך לשתף"
+        </div>
+
+        <h2>⚙️ שלב 3: הגדרות הטופס</h2>
+        <div class="step">
+            לחץ על הגדרות (⚙️) ובחר:<br>
+            ✅ אסוף כתובות אימייל<br>
+            ✅ הגבל לתשובה אחת<br>
+            ✅ דרוש כניסה עם Google
+        </div>
+
+        <h2>🔗 שלב 4: חיבור למערכת</h2>
+        <div class="step">
+            <strong>1.</strong> עבור לכרטיסייה "תשובות"<br>
+            <strong>2.</strong> לחץ על שלוש הנקודות ← "בחר יעד תשובה"<br>
+            <strong>3.</strong> בחר "יצירת גיליון אלקטרוני חדש"<br>
+            <strong>4.</strong> פתח את הגיליון ולחץ על הרחבות ← Apps Script
+        </div>
+
+        <h2>💻 שלב 5: הוספת הקוד</h2>
+        <p>מחק את הקוד הקיים והוסף את הקוד הבא:</p>
+
+        <div class="code-block">function onFormSubmit(e) {
+  const formData = {
+    email: e.values[1], // כתובת אימייל
+    fullName: e.values[2], // שם מלא
+    personalNumber: e.values[3], // מספר אישי
+    phone: e.values[4], // טלפון
+    birthDate: e.values[5], // תאריך לידה
+    address: e.values[6], // כתובת
+    emergencyContact: e.values[7], // איש קשר חירום
+    emergencyPhone: e.values[8], // טלפון חירום
+    education: e.values[9], // השכלה
+    languages: e.values[10], // שפות
+    militaryBackground: e.values[11], // רקע צבאי
+    medicalProfile: e.values[12], // פרופיל רפואי
+    motivation: e.values[13], // מוטיבציה
+    expectations: e.values[14], // ציפיות
+    hobbies: e.values[15], // תחביבים
+    additionalInfo: e.values[16] // מידע נוסף
+  };
+
+  // שליחה למערכת
+  const functionUrl = 'https://us-central1-zikit-4c55c.cloudfunctions.net/processGoogleFormSubmission';
+  
+  const options = {
+    method: 'POST',
+    contentType: 'application/json',
+    payload: JSON.stringify(formData)
+  };
+
+  try {
+    const response = UrlFetchApp.fetch(functionUrl, options);
+    Logger.log('תשובה מהמערכת: ' + response.getContentText());
+  } catch (error) {
+    Logger.log('שגיאה בשליחה למערכת: ' + error.toString());
+  }
+}</div>
+
+        <h2>🎬 שלב 6: הגדרת טריגר</h2>
+        <div class="step">
+            <strong>1.</strong> שמור את הסקריפט (Ctrl+S)<br>
+            <strong>2.</strong> לחץ על "טריגרים" בתפריט השמאלי<br>
+            <strong>3.</strong> לחץ על "+ הוסף טריגר"<br>
+            <strong>4.</strong> בחר:<br>
+            &nbsp;&nbsp;&nbsp;• פונקציה: onFormSubmit<br>
+            &nbsp;&nbsp;&nbsp;• סוג אירוע: הגשת טופס<br>
+            <strong>5.</strong> שמור
+        </div>
+
+        <h2>🚀 שלב 7: פרסום הטופס</h2>
+        <div class="step">
+            <strong>1.</strong> חזור לטופס Google Forms<br>
+            <strong>2.</strong> לחץ על "שלח" בפינה הימנית העליונה<br>
+            <strong>3.</strong> העתק את הקישור<br>
+            <strong>4.</strong> שתף עם מועמדים לגיוס
+        </div>
+
+        <div class="important">
+            <strong>🎯 תוצאה:</strong> כל מועמד שימלא את הטופס יופיע אוטומטיה במסך "חיילים ממתינים לשיבוץ" במערכת הניהול.
+        </div>
+
+        <h2>📞 תמיכה</h2>
+        <p>במידה ויש בעיות ביצירת הטופס, פנה למפתח המערכת עם פרטי השגיאה.</p>
+        
+        <div class="important">
+            <strong>URL המערכת:</strong> <span class="url">https://zikit-4c55c.web.app</span><br>
+            <strong>Cloud Function URL:</strong> <span class="url">https://us-central1-zikit-4c55c.cloudfunctions.net/processGoogleFormSubmission</span>
+        </div>
+    </div>
+</body>
+</html> 

@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // משתמשים - כל משתמש מחובר יכול לקרוא ולעדכן את עצמו
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isAdmin();
+      allow read: if isMefakedPluga();
+    }
+    
+    // חיילים ממתינים לשיבוץ
+    match /soldiers/{soldierId} {
+      allow read, write: if isAdmin();
+      allow read, write: if isMefakedPluga();
+      allow read: if isMefakedTzevet();
+      allow read: if request.auth != null && resource.data.email == request.auth.token.email;
+    }
+    
+    // צוותים
+    match /teams/{teamId} {
+      allow read: if request.auth != null; // כל משתמש מחובר יכול לקרוא
+      allow write: if isAdmin() || isMefakedPluga();
+    }
+    
+    // נהגים
+    match /drivers/{driverId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isMefakedPluga();
+    }
+    
+    // רכבים
+    match /vehicles/{vehicleId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isMefakedPluga();
+    }
+    
+    // משימות
+    match /missions/{missionId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isMefakedPluga();
+    }
+    
+    // תורנויות
+    match /duties/{dutyId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isMefakedPluga();
+    }
+    
+    // טפסים
+    match /forms/{formId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isMefakedPluga();
+    }
+    
+    // פונקציות עזר
+    function isAdmin() {
+      return request.auth != null && 
+             (request.auth.token.role == 'admin' || 
+              request.auth.token.email == 'yair.hutterer@gmail.com');
+    }
+    
+    function isMefakedPluga() {
+      return request.auth != null && 
+             (request.auth.token.role == 'mefaked_pluga' ||
+              request.auth.token.canAssignRoles == true);
+    }
+    
+    function isMefakedTzevet() {
+      return request.auth != null && 
+             request.auth.token.role == 'mefaked_tzevet';
+    }
+    
+    function isHamal() {
+      return request.auth != null && 
+             request.auth.token.role == 'hamal';
+    }
+  }
+} 
