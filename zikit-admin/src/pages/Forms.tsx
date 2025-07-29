@@ -53,15 +53,33 @@ const Forms: React.FC = () => {
   const demo: Form[] = [
     {
       id: '1',
-      soldierId: '1',
-      fileUrl: 'https://example.com/file.pdf',
-      uploadedAt: '2024-07-23',
+      soldierId: 'mefaked_pluga',
+      fileUrl: 'https://example.com/interview_form.pdf',
+      uploadedAt: '2024-01-15',
       fileType: 'pdf',
-      description: 'טופס ראיון אישי',
+      description: 'טופס ראיון אישי - מפקד פלוגה',
     },
+    {
+      id: '2',
+      soldierId: 'samal_pluga',
+      fileUrl: 'https://example.com/medical_form.pdf',
+      uploadedAt: '2024-01-16',
+      fileType: 'pdf',
+      description: 'טופס רפואי - סגן מפקד פלוגה',
+    },
+    {
+      id: '3',
+      soldierId: 'mefaked_tzevet_10',
+      fileUrl: 'https://example.com/training_form.pdf',
+      uploadedAt: '2024-01-17',
+      fileType: 'pdf',
+      description: 'טופס הכשרה - מפקד צוות 10',
+    }
   ];
   const demoSoldiers: Soldier[] = [
-    { id: '1', name: 'יוסי כהן', personalNumber: '1234567', team: 'צוות א', role: 'לוחם', profile: '97', qualifications: ['ירי', 'קשר'], licenses: ['B'], certifications: ['הסמכת חובש'] },
+    { id: 'mefaked_pluga', name: 'מפקד פלוגה', personalNumber: '1000001', team: 'מפקדה', role: 'מפקד פלוגה', profile: '97', qualifications: ['פיקוד', 'ניווט', 'קשר'], licenses: ['B', 'C'], certifications: ['קורס מפקדי פלוגות'] },
+    { id: 'samal_pluga', name: 'סגן מפקד פלוגה', personalNumber: '1000002', team: 'מפקדה', role: 'סגן מפקד פלוגה', profile: '97', qualifications: ['פיקוד', 'ניווט', 'קשר'], licenses: ['B', 'C'], certifications: ['קורס מפקדי צוותים'] },
+    { id: 'mefaked_tzevet_10', name: 'מפקד צוות 10', personalNumber: '1000015', team: 'צוות 10', role: 'מפקד צוות', profile: '97', qualifications: ['פיקוד', 'ניווט', 'קשר'], licenses: ['B'], certifications: ['קורס מפקדי צוותים'] }
   ];
 
   const data = forms.length > 0 ? forms : demo;

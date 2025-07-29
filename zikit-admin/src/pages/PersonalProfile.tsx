@@ -87,13 +87,15 @@ const PersonalProfile: React.FC = () => {
     // כאן נטען משימות ותורנויות מה-DB
     // לעת עתה - דמה
     setMissions([
-      { id: 1, name: 'משימה א', date: '2024-01-15', status: 'הושלמה' },
-      { id: 2, name: 'משימה ב', date: '2024-01-20', status: 'פעילה' }
+      { id: 1, name: 'אימון צוות 10', date: '2024-01-15', status: 'הושלמה' },
+      { id: 2, name: 'משימת שמירה', date: '2024-01-20', status: 'פעילה' },
+      { id: 3, name: 'תחזוקת רכבים', date: '2024-01-25', status: 'מתוכננת' }
     ]);
     
     setDuties([
       { id: 1, type: 'שמירה', date: '2024-01-10', shift: 'לילה' },
-      { id: 2, type: 'מטבח', date: '2024-01-18', shift: 'בוקר' }
+      { id: 2, type: 'מטבח', date: '2024-01-18', shift: 'בוקר' },
+      { id: 3, type: 'ניקיון', date: '2024-01-22', shift: 'צהריים' }
     ]);
   }, [user]);
 

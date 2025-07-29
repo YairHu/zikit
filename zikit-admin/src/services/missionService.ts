@@ -1,28 +1,58 @@
-import { db } from '../firebase';
-import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { Mission } from '../models/Mission';
+import { USE_MOCK } from './mockDatabase';
+import { 
+  mockGetAllMissions, 
+  mockGetMissionById, 
+  mockAddMission, 
+  mockUpdateMission, 
+  mockDeleteMission 
+} from './mockDatabase';
 
-const missionsCollection = collection(db, 'missions');
+// Firebase imports (if needed in the future)
+// import { collection, getDocs, getDoc, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+// import { db } from '../firebase';
 
 export const getAllMissions = async (): Promise<Mission[]> => {
-  const snapshot = await getDocs(missionsCollection);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Mission));
+  if (USE_MOCK) {
+    return mockGetAllMissions();
+  }
+  
+  // Firebase implementation would go here
+  throw new Error('Firebase implementation not yet implemented');
 };
 
 export const getMissionById = async (id: string): Promise<Mission | null> => {
-  const missionDoc = await getDoc(doc(missionsCollection, id));
-  return missionDoc.exists() ? ({ id: missionDoc.id, ...missionDoc.data() } as Mission) : null;
+  if (USE_MOCK) {
+    return mockGetMissionById(id);
+  }
+  
+  // Firebase implementation would go here
+  throw new Error('Firebase implementation not yet implemented');
 };
 
-export const addMission = async (mission: Omit<Mission, 'id'>): Promise<string> => {
-  const docRef = await addDoc(missionsCollection, mission);
-  return docRef.id;
+export const addMission = async (mission: Omit<Mission, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
+  if (USE_MOCK) {
+    return mockAddMission(mission);
+  }
+  
+  // Firebase implementation would go here
+  throw new Error('Firebase implementation not yet implemented');
 };
 
-export const updateMission = async (id: string, mission: Partial<Mission>) => {
-  await updateDoc(doc(missionsCollection, id), mission);
+export const updateMission = async (id: string, updates: Partial<Mission>): Promise<void> => {
+  if (USE_MOCK) {
+    return mockUpdateMission(id, updates);
+  }
+  
+  // Firebase implementation would go here
+  throw new Error('Firebase implementation not yet implemented');
 };
 
-export const deleteMission = async (id: string) => {
-  await deleteDoc(doc(missionsCollection, id));
+export const deleteMission = async (id: string): Promise<void> => {
+  if (USE_MOCK) {
+    return mockDeleteMission(id);
+  }
+  
+  // Firebase implementation would go here
+  throw new Error('Firebase implementation not yet implemented');
 }; 

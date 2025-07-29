@@ -2,6 +2,9 @@ export interface Vehicle {
   id: string;
   type: string;
   number: string;
+  mileage: number; // קילומטרז
+  lastMaintenance: string; // תאריך טיפול אחרון
+  nextMaintenance: string; // תאריך טיפול הבא
   status: 'available' | 'on_mission' | 'maintenance';
   currentMissionId?: string;
   driverId?: string;

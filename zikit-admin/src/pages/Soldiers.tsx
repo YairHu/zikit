@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Soldier } from '../models/Soldier';
 import { getAllSoldiers, addSoldier, updateSoldier, deleteSoldier } from '../services/soldierService';
 import { Link } from 'react-router-dom';
@@ -24,7 +25,16 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Divider
+  Divider,
+  Tabs,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -48,9 +58,11 @@ const emptySoldier: Omit<Soldier, 'id'> = {
   qualifications: [],
   licenses: [],
   certifications: [],
+  drivingLicenses: [],
 };
 
 const Soldiers: React.FC = () => {
+  const navigate = useNavigate();
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -61,12 +73,26 @@ const Soldiers: React.FC = () => {
   const [filterRole, setFilterRole] = useState('');
   const [filterQualification, setFilterQualification] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   const refresh = () => {
     setLoading(true);
     getAllSoldiers()
-      .then(data => setSoldiers(data))
-      .catch(() => setSoldiers([]))
+      .then(data => {
+        console.log('Loaded soldiers from Firebase:', data.length);
+        // אם אין נתונים ב-Firebase, השתמש בדמו
+        if (data.length === 0) {
+          console.log('No soldiers in Firebase, using demo data');
+          setSoldiers(demo);
+        } else {
+          setSoldiers(data);
+        }
+      })
+      .catch((error) => {
+        console.error('Error loading soldiers from Firebase:', error);
+        console.log('Using demo data due to error');
+        setSoldiers(demo);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -74,44 +100,748 @@ const Soldiers: React.FC = () => {
     refresh();
   }, []);
 
-  // דמו אם אין נתונים
+  // בדיקה אם יש פרמטר edit ב-URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const editId = urlParams.get('edit');
+    if (editId) {
+      const soldierToEdit = soldiers.find(s => s.id === editId);
+      if (soldierToEdit) {
+        handleOpenForm(soldierToEdit);
+        // ניקוי הפרמטר מה-URL
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
+  }, [soldiers]);
+
+  // דמו אם אין נתונים - נתוני חיילים לפי מבנה הפלוגה
   const demo: Soldier[] = [
+    // מפקדי פלוגה
     {
-      id: '1',
-      name: 'יוסי כהן',
-      personalNumber: '1234567',
-      team: 'צוות א',
-      role: 'לוחם',
+      id: 'mefaked_pluga',
+      name: 'מפקד פלוגה',
+      personalNumber: '1000001',
+      team: 'מפקדה',
+      role: 'מפקד פלוגה',
       profile: '97',
-      qualifications: ['ירי', 'קשר'],
+      qualifications: ['פיקוד', 'ניווט', 'קשר'],
+      licenses: ['B', 'C'],
+      certifications: ['קורס מפקדי פלוגות'],
+    },
+    {
+      id: 'samal_pluga',
+      name: 'סגן מפקד פלוגה',
+      personalNumber: '1000002',
+      team: 'מפקדה',
+      role: 'סגן מפקד פלוגה',
+      profile: '97',
+      qualifications: ['פיקוד', 'ניווט', 'קשר'],
+      licenses: ['B', 'C'],
+      certifications: ['קורס מפקדי צוותים'],
+    },
+    
+    // מפקדי פלגות
+    {
+      id: 'mefaked_plaga_a',
+      name: 'מפקד פלגה א',
+      personalNumber: '1000003',
+      team: 'פלגה א',
+      role: 'מפקד פלגה',
+      profile: '97',
+      qualifications: ['פיקוד', 'ניווט', 'קשר'],
+      licenses: ['B', 'C'],
+      certifications: ['קורס מפקדי צוותים'],
+    },
+    {
+      id: 'mefaked_plaga_b',
+      name: 'מפקד פלגה ב',
+      personalNumber: '1000004',
+      team: 'פלגה ב',
+      role: 'מפקד פלגה',
+      profile: '97',
+      qualifications: ['פיקוד', 'ניווט', 'קשר'],
+      licenses: ['B', 'C'],
+      certifications: ['קורס מפקדי צוותים'],
+    },
+    {
+      id: 'mefaked_plaga_zavit',
+      name: 'מפקד פלגה זווית',
+      personalNumber: '1000005',
+      team: 'פלגה זווית',
+      role: 'מפקד פלגה',
+      profile: '97',
+      qualifications: ['פיקוד', 'ניווט', 'קשר'],
+      licenses: ['B', 'C'],
+      certifications: ['קורס מפקדי צוותים'],
+    },
+    
+    // מפל"ג
+    {
+      id: 'rasap',
+      name: 'רספ',
+      personalNumber: '1000006',
+      team: 'מפקדה',
+      role: 'רספ',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'טכנולוג'],
+      licenses: ['B'],
+      certifications: ['קורס רספ'],
+    },
+    {
+      id: 'sarsap',
+      name: 'סרספ',
+      personalNumber: '1000007',
+      team: 'מפקדה',
+      role: 'סרספ',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'טכנולוג'],
+      licenses: ['B'],
+      certifications: ['קורס סרספ'],
+    },
+    {
+      id: 'katzin_niul',
+      name: 'קצין ניהול',
+      personalNumber: '1000008',
+      team: 'מפקדה',
+      role: 'קצין ניהול',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'בנאי'],
+      licenses: ['B'],
+      certifications: ['קורס קציני ניהול'],
+    },
+    {
+      id: 'manip',
+      name: 'מניפ',
+      personalNumber: '1000009',
+      team: 'מפקדה',
+      role: 'מניפ',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'טכנולוג'],
+      licenses: ['B'],
+      certifications: ['קורס מניפ'],
+    },
+    {
+      id: 'chofel',
+      name: 'חופל',
+      personalNumber: '1000010',
+      team: 'מפקדה',
+      role: 'חופל',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'טכנולוג'],
+      licenses: ['B'],
+      certifications: ['קורס חופל'],
+    },
+    {
+      id: 'pap',
+      name: 'פפ',
+      personalNumber: '1000011',
+      team: 'מפקדה',
+      role: 'פפ',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'טכנולוג'],
+      licenses: ['B'],
+      certifications: ['קורס פפ'],
+    },
+    {
+      id: 'samal_rechavim',
+      name: 'סמל רכבים',
+      personalNumber: '1000012',
+      team: 'מפקדה',
+      role: 'סמל רכבים',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'נהג'],
+      licenses: ['B', 'C'],
+      certifications: ['קורס סמלי רכבים'],
+    },
+    {
+      id: 'samal_nahagim',
+      name: 'סמל נהגים',
+      personalNumber: '1000013',
+      team: 'מפקדה',
+      role: 'סמל נהגים',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'נהג'],
+      licenses: ['B', 'C'],
+      certifications: ['קורס סמלי נהגים'],
+    },
+    {
+      id: 'mashkash',
+      name: 'משק"ש',
+      personalNumber: '1000014',
+      team: 'מפקדה',
+      role: 'משק"ש',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'קשר'],
+      licenses: ['B'],
+      certifications: ['קורס משק"ש'],
+    },
+    
+    // צוות 10 - מתחת מפלג א'
+    {
+      id: 'mefaked_tzevet_10',
+      name: 'מפקד צוות 10',
+      personalNumber: '1000015',
+      team: 'צוות 10',
+      role: 'מפקד צוות',
+      profile: '97',
+      qualifications: ['פיקוד', 'ניווט', 'קשר'],
+      licenses: ['B'],
+      certifications: ['קורס מפקדי צוותים'],
+    },
+    {
+      id: 'samal_10',
+      name: 'סמל צוות 10',
+      personalNumber: '1000016',
+      team: 'צוות 10',
+      role: 'סמל',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'חובש'],
+      licenses: ['B'],
+      certifications: ['קורס סמלים'],
+    },
+    {
+      id: 'mefaked_1_10',
+      name: 'מפקד 1 צוות 10',
+      personalNumber: '1000017',
+      team: 'צוות 10',
+      role: 'מפקד',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'קלע'],
+      licenses: ['B'],
+      certifications: ['קורס מפקדים'],
+    },
+    {
+      id: 'mefaked_2_10',
+      name: 'מפקד 2 צוות 10',
+      personalNumber: '1000018',
+      team: 'צוות 10',
+      role: 'מפקד',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'נגביסט'],
+      licenses: ['B'],
+      certifications: ['קורס מפקדים'],
+    },
+    {
+      id: 'chayal_1_10',
+      name: 'חייל 1 צוות 10',
+      personalNumber: '1000019',
+      team: 'צוות 10',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['חובש', 'קלע', 'צלם'],
       licenses: ['B'],
       certifications: ['הסמכת חובש'],
     },
     {
-      id: '2',
-      name: 'משה לוי',
-      personalNumber: '2345678',
-      team: 'צוות ב',
-      role: 'מפקד צוות',
+      id: 'chayal_2_10',
+      name: 'חייל 2 צוות 10',
+      personalNumber: '1000020',
+      team: 'צוות 10',
+      role: 'חייל',
       profile: '97',
-      qualifications: ['ירי', 'פיקוד', 'ניווט'],
-      licenses: ['B', 'C'],
-      certifications: ['קורס מפקדי צוותים', 'הסמכת חובש'],
+      qualifications: ['מטמין', 'טכנולוג', 'בנאי'],
+      licenses: ['B'],
+      certifications: ['הסמכת מטמין'],
     },
     {
-      id: '3',
-      name: 'דוד אברהם',
-      personalNumber: '3456789',
-      team: 'צוות א',
-      role: 'נהג',
-      profile: '82',
-      qualifications: ['ירי', 'נהיגה'],
-      licenses: ['B', 'C1'],
+      id: 'chayal_3_10',
+      name: 'חייל 3 צוות 10',
+      personalNumber: '1000021',
+      team: 'צוות 10',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['רחפניסט', 'קשר', 'רוגר'],
+      licenses: ['B'],
+      certifications: ['הסמכת רחפניסט'],
+    },
+    {
+      id: 'chayal_4_10',
+      name: 'חייל 4 צוות 10',
+      personalNumber: '1000022',
+      team: 'צוות 10',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['נהג', 'קשר', 'קלע'],
+      licenses: ['B', 'C'],
       certifications: ['קורס נהגים'],
+    },
+    {
+      id: 'chayal_5_10',
+      name: 'חייל 5 צוות 10',
+      personalNumber: '1000023',
+      team: 'צוות 10',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['נגביסט', 'צלם', 'מטמין'],
+      licenses: ['B'],
+      certifications: ['הסמכת נגביסט'],
+    },
+    
+    // צוות 20 - מתחת מפלג א'
+    {
+      id: 'mefaked_tzevet_20',
+      name: 'מפקד צוות 20',
+      personalNumber: '1000024',
+      team: 'צוות 20',
+      role: 'מפקד צוות',
+      profile: '97',
+      qualifications: ['פיקוד', 'ניווט', 'קשר'],
+      licenses: ['B'],
+      certifications: ['קורס מפקדי צוותים'],
+    },
+    {
+      id: 'samal_20',
+      name: 'סמל צוות 20',
+      personalNumber: '1000025',
+      team: 'צוות 20',
+      role: 'סמל',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'חובש'],
+      licenses: ['B'],
+      certifications: ['קורס סמלים'],
+    },
+    {
+      id: 'mefaked_1_20',
+      name: 'מפקד 1 צוות 20',
+      personalNumber: '1000026',
+      team: 'צוות 20',
+      role: 'מפקד',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'קלע'],
+      licenses: ['B'],
+      certifications: ['קורס מפקדים'],
+    },
+    {
+      id: 'mefaked_2_20',
+      name: 'מפקד 2 צוות 20',
+      personalNumber: '1000027',
+      team: 'צוות 20',
+      role: 'מפקד',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'נגביסט'],
+      licenses: ['B'],
+      certifications: ['קורס מפקדים'],
+    },
+    {
+      id: 'chayal_1_20',
+      name: 'חייל 1 צוות 20',
+      personalNumber: '1000028',
+      team: 'צוות 20',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['טכנולוג', 'בנאי', 'רחפניסט'],
+      licenses: ['B'],
+      certifications: ['הסמכת טכנולוג'],
+    },
+    {
+      id: 'chayal_2_20',
+      name: 'חייל 2 צוות 20',
+      personalNumber: '1000029',
+      team: 'צוות 20',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['קשר', 'רוגר', 'נהג'],
+      licenses: ['B', 'C'],
+      certifications: ['הסמכת קשר'],
+    },
+    {
+      id: 'chayal_3_20',
+      name: 'חייל 3 צוות 20',
+      personalNumber: '1000030',
+      team: 'צוות 20',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['חובש', 'קלע', 'צלם'],
+      licenses: ['B'],
+      certifications: ['הסמכת חובש'],
+    },
+    {
+      id: 'chayal_4_20',
+      name: 'חייל 4 צוות 20',
+      personalNumber: '1000031',
+      team: 'צוות 20',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['מטמין', 'טכנולוג', 'בנאי'],
+      licenses: ['B'],
+      certifications: ['הסמכת מטמין'],
+    },
+    {
+      id: 'chayal_5_20',
+      name: 'חייל 5 צוות 20',
+      personalNumber: '1000032',
+      team: 'צוות 20',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['נגביסט', 'רחפניסט', 'קשר'],
+      licenses: ['B'],
+      certifications: ['הסמכת נגביסט'],
+    },
+    
+    // צוות 30 - מתחת מפלג א'
+    {
+      id: 'mefaked_tzevet_30',
+      name: 'מפקד צוות 30',
+      personalNumber: '1000033',
+      team: 'צוות 30',
+      role: 'מפקד צוות',
+      profile: '97',
+      qualifications: ['פיקוד', 'ניווט', 'קשר'],
+      licenses: ['B'],
+      certifications: ['קורס מפקדי צוותים'],
+    },
+    {
+      id: 'samal_30',
+      name: 'סמל צוות 30',
+      personalNumber: '1000034',
+      team: 'צוות 30',
+      role: 'סמל',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'חובש'],
+      licenses: ['B'],
+      certifications: ['קורס סמלים'],
+    },
+    {
+      id: 'mefaked_1_30',
+      name: 'מפקד 1 צוות 30',
+      personalNumber: '1000035',
+      team: 'צוות 30',
+      role: 'מפקד',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'קלע'],
+      licenses: ['B'],
+      certifications: ['קורס מפקדים'],
+    },
+    {
+      id: 'mefaked_2_30',
+      name: 'מפקד 2 צוות 30',
+      personalNumber: '1000036',
+      team: 'צוות 30',
+      role: 'מפקד',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'נגביסט'],
+      licenses: ['B'],
+      certifications: ['קורס מפקדים'],
+    },
+    {
+      id: 'chayal_1_30',
+      name: 'חייל 1 צוות 30',
+      personalNumber: '1000037',
+      team: 'צוות 30',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['רוגר', 'נהג', 'חובש'],
+      licenses: ['B', 'C'],
+      certifications: ['הסמכת רוגר'],
+    },
+    {
+      id: 'chayal_2_30',
+      name: 'חייל 2 צוות 30',
+      personalNumber: '1000038',
+      team: 'צוות 30',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['קלע', 'צלם', 'מטמין'],
+      licenses: ['B'],
+      certifications: ['הסמכת קלע'],
+    },
+    {
+      id: 'chayal_3_30',
+      name: 'חייל 3 צוות 30',
+      personalNumber: '1000039',
+      team: 'צוות 30',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['טכנולוג', 'בנאי', 'רחפניסט'],
+      licenses: ['B'],
+      certifications: ['הסמכת טכנולוג'],
+    },
+    {
+      id: 'chayal_4_30',
+      name: 'חייל 4 צוות 30',
+      personalNumber: '1000040',
+      team: 'צוות 30',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['קשר', 'נגביסט', 'צלם'],
+      licenses: ['B'],
+      certifications: ['הסמכת קשר'],
+    },
+    {
+      id: 'chayal_5_30',
+      name: 'חייל 5 צוות 30',
+      personalNumber: '1000041',
+      team: 'צוות 30',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['נהג', 'חובש', 'קלע'],
+      licenses: ['B', 'C'],
+      certifications: ['קורס נהגים'],
+    },
+    
+    // צוות 40 - מתחת מפלג ב'
+    {
+      id: 'mefaked_tzevet_40',
+      name: 'מפקד צוות 40',
+      personalNumber: '1000042',
+      team: 'צוות 40',
+      role: 'מפקד צוות',
+      profile: '97',
+      qualifications: ['פיקוד', 'ניווט', 'קשר'],
+      licenses: ['B'],
+      certifications: ['קורס מפקדי צוותים'],
+    },
+    {
+      id: 'samal_40',
+      name: 'סמל צוות 40',
+      personalNumber: '1000043',
+      team: 'צוות 40',
+      role: 'סמל',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'חובש'],
+      licenses: ['B'],
+      certifications: ['קורס סמלים'],
+    },
+    {
+      id: 'mefaked_1_40',
+      name: 'מפקד 1 צוות 40',
+      personalNumber: '1000044',
+      team: 'צוות 40',
+      role: 'מפקד',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'קלע'],
+      licenses: ['B'],
+      certifications: ['קורס מפקדים'],
+    },
+    {
+      id: 'mefaked_2_40',
+      name: 'מפקד 2 צוות 40',
+      personalNumber: '1000045',
+      team: 'צוות 40',
+      role: 'מפקד',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'נגביסט'],
+      licenses: ['B'],
+      certifications: ['קורס מפקדים'],
+    },
+    {
+      id: 'chayal_1_40',
+      name: 'חייל 1 צוות 40',
+      personalNumber: '1000046',
+      team: 'צוות 40',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['מטמין', 'טכנולוג', 'בנאי'],
+      licenses: ['B'],
+      certifications: ['הסמכת מטמין'],
+    },
+    {
+      id: 'chayal_2_40',
+      name: 'חייל 2 צוות 40',
+      personalNumber: '1000047',
+      team: 'צוות 40',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['רחפניסט', 'קשר', 'רוגר'],
+      licenses: ['B'],
+      certifications: ['הסמכת רחפניסט'],
+    },
+    {
+      id: 'chayal_3_40',
+      name: 'חייל 3 צוות 40',
+      personalNumber: '1000048',
+      team: 'צוות 40',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['נהג', 'קשר', 'קלע'],
+      licenses: ['B', 'C'],
+      certifications: ['קורס נהגים'],
+    },
+    {
+      id: 'chayal_4_40',
+      name: 'חייל 4 צוות 40',
+      personalNumber: '1000049',
+      team: 'צוות 40',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['נגביסט', 'צלם', 'מטמין'],
+      licenses: ['B'],
+      certifications: ['הסמכת נגביסט'],
+    },
+    {
+      id: 'chayal_5_40',
+      name: 'חייל 5 צוות 40',
+      personalNumber: '1000050',
+      team: 'צוות 40',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['חובש', 'טכנולוג', 'בנאי'],
+      licenses: ['B'],
+      certifications: ['הסמכת חובש'],
+    },
+    
+    // צוות 50 - מתחת מפלג ב'
+    {
+      id: 'mefaked_tzevet_50',
+      name: 'מפקד צוות 50',
+      personalNumber: '1000051',
+      team: 'צוות 50',
+      role: 'מפקד צוות',
+      profile: '97',
+      qualifications: ['פיקוד', 'ניווט', 'קשר'],
+      licenses: ['B'],
+      certifications: ['קורס מפקדי צוותים'],
+    },
+    {
+      id: 'samal_50',
+      name: 'סמל צוות 50',
+      personalNumber: '1000052',
+      team: 'צוות 50',
+      role: 'סמל',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'חובש'],
+      licenses: ['B'],
+      certifications: ['קורס סמלים'],
+    },
+    {
+      id: 'mefaked_1_50',
+      name: 'מפקד 1 צוות 50',
+      personalNumber: '1000053',
+      team: 'צוות 50',
+      role: 'מפקד',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'קלע'],
+      licenses: ['B'],
+      certifications: ['קורס מפקדים'],
+    },
+    {
+      id: 'mefaked_2_50',
+      name: 'מפקד 2 צוות 50',
+      personalNumber: '1000054',
+      team: 'צוות 50',
+      role: 'מפקד',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'נגביסט'],
+      licenses: ['B'],
+      certifications: ['קורס מפקדים'],
+    },
+    {
+      id: 'chayal_1_50',
+      name: 'חייל 1 צוות 50',
+      personalNumber: '1000055',
+      team: 'צוות 50',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['רוגר', 'נהג', 'חובש'],
+      licenses: ['B', 'C'],
+      certifications: ['הסמכת רוגר'],
+    },
+    {
+      id: 'chayal_2_50',
+      name: 'חייל 2 צוות 50',
+      personalNumber: '1000056',
+      team: 'צוות 50',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['קלע', 'צלם', 'מטמין'],
+      licenses: ['B'],
+      certifications: ['הסמכת קלע'],
+    },
+    {
+      id: 'chayal_3_50',
+      name: 'חייל 3 צוות 50',
+      personalNumber: '1000057',
+      team: 'צוות 50',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['טכנולוג', 'בנאי', 'רחפניסט'],
+      licenses: ['B'],
+      certifications: ['הסמכת טכנולוג'],
+    },
+    {
+      id: 'chayal_4_50',
+      name: 'חייל 4 צוות 50',
+      personalNumber: '1000058',
+      team: 'צוות 50',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['קשר', 'נגביסט', 'צלם'],
+      licenses: ['B'],
+      certifications: ['הסמכת קשר'],
+    },
+    {
+      id: 'chayal_5_50',
+      name: 'חייל 5 צוות 50',
+      personalNumber: '1000059',
+      team: 'צוות 50',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['נהג', 'חובש', 'קלע'],
+      licenses: ['B', 'C'],
+      certifications: ['קורס נהגים'],
+    },
+    
+    // פלגה זווית אחרת
+    {
+      id: 'nagad_technologia',
+      name: 'נגד טכנולוגיה',
+      personalNumber: '1000060',
+      team: 'פלגה זווית',
+      role: 'נגד טכנולוגיה',
+      profile: '97',
+      qualifications: ['טכנולוג', 'קשר', 'רחפניסט'],
+      licenses: ['B'],
+      certifications: ['קורס נגדי טכנולוגיה'],
+    },
+    {
+      id: 'nagad_hasvaa',
+      name: 'נגד הסוואה',
+      personalNumber: '1000061',
+      team: 'פלגה זווית',
+      role: 'נגד הסוואה',
+      profile: '97',
+      qualifications: ['הסוואה', 'קשר', 'צלם'],
+      licenses: ['B'],
+      certifications: ['קורס נגדי הסוואה'],
+    },
+    {
+      id: 'mashak_technologia',
+      name: 'משק טכנולוגיה',
+      personalNumber: '1000062',
+      team: 'פלגה זווית',
+      role: 'משק טכנולוגיה',
+      profile: '97',
+      qualifications: ['טכנולוג', 'קשר', 'רחפניסט'],
+      licenses: ['B'],
+      certifications: ['קורס משקי טכנולוגיה'],
+    },
+    {
+      id: 'mashak_hasvaa',
+      name: 'משק הסוואה',
+      personalNumber: '1000063',
+      team: 'פלגה זווית',
+      role: 'משק הסוואה',
+      profile: '97',
+      qualifications: ['הסוואה', 'קשר', 'צלם'],
+      licenses: ['B'],
+      certifications: ['קורס משקי הסוואה'],
+    },
+    {
+      id: 'samalet_mador',
+      name: 'סמלת מדור',
+      personalNumber: '1000064',
+      team: 'פלגה זווית',
+      role: 'סמלת מדור',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'חובש'],
+      licenses: ['B'],
+      certifications: ['קורס סמלים'],
     }
   ];
 
+  // השתמש בדמו אם אין נתונים מ-Firebase או אם יש שגיאה בטעינה
   const data = soldiers.length > 0 ? soldiers : demo;
+  console.log('Using data:', data.length, 'items (soldiers from Firebase:', soldiers.length, ', demo:', demo.length, ')');
 
   const filteredData = data.filter(s =>
     (!filterTeam || s.team.includes(filterTeam)) &&
@@ -202,6 +932,18 @@ const Soldiers: React.FC = () => {
         </Button>
       </Box>
 
+      {/* View Mode Tabs */}
+      <Box sx={{ mb: 3 }}>
+        <Tabs 
+          value={viewMode} 
+          onChange={(e, newValue) => setViewMode(newValue)}
+          sx={{ mb: 2 }}
+        >
+          <Tab label="תצוגת כרטיסים" value="cards" />
+          <Tab label="תצוגה טבלאית" value="table" />
+        </Tabs>
+      </Box>
+
       {/* Search and Filters */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -269,7 +1011,114 @@ const Soldiers: React.FC = () => {
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
           <CircularProgress />
         </Box>
+      ) : viewMode === 'table' ? (
+        // Table View
+        <TableContainer component={Paper} sx={{ mb: 4 }}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 'bold' }}>שם</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>מספר אישי</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>צוות</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>תפקיד</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>פרופיל</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>כשירויות</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>רישיונות</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>היתרים</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>פעולות</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filteredData.map((soldier) => (
+                                    <TableRow key={soldier.id} hover>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Avatar sx={{ width: 32, height: 32, bgcolor: getProfileColor(soldier.profile) }}>
+                            {soldier.name.charAt(0)}
+                          </Avatar>
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              fontWeight: 500,
+                              cursor: 'pointer',
+                              '&:hover': { 
+                                color: 'primary.main',
+                                textDecoration: 'underline'
+                              }
+                            }}
+                            onClick={() => navigate(`/soldiers/${soldier.id}`)}
+                          >
+                            {soldier.name}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                  <TableCell>{soldier.personalNumber}</TableCell>
+                  <TableCell>
+                    <Chip label={soldier.team} size="small" color="primary" variant="outlined" />
+                  </TableCell>
+                  <TableCell>
+                    <Chip label={soldier.role} size="small" color="secondary" variant="outlined" />
+                  </TableCell>
+                  <TableCell>
+                    <Chip 
+                      label={soldier.profile} 
+                      size="small" 
+                      color={getProfileColor(soldier.profile) as any}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {soldier.qualifications?.slice(0, 2).map((qual, index) => (
+                        <Chip key={index} label={qual} size="small" variant="outlined" />
+                      ))}
+                      {soldier.qualifications && soldier.qualifications.length > 2 && (
+                        <Chip label={`+${soldier.qualifications.length - 2}`} size="small" />
+                      )}
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {soldier.licenses?.map((license, index) => (
+                        <Chip key={index} label={license} size="small" color="success" variant="outlined" />
+                      ))}
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {soldier.qualifications?.includes('נהג') ? (
+                        soldier.drivingLicenses && soldier.drivingLicenses.length > 0 ? (
+                          soldier.drivingLicenses.map((license, index) => (
+                            <Chip key={index} label={license} size="small" color="warning" variant="filled" />
+                          ))
+                        ) : (
+                          <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                            אין היתרים
+                          </Typography>
+                        )
+                      ) : (
+                        <Typography variant="body2" sx={{ color: 'text.disabled' }}>
+                          לא נהג
+                        </Typography>
+                      )}
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', gap: 0.5 }}>
+                      <IconButton size="small" color="primary" onClick={() => handleOpenForm(soldier)}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" color="error" onClick={() => setDeleteId(soldier.id)}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
       ) : (
+        // Cards View
         <Box sx={{ 
           display: 'grid', 
           gridTemplateColumns: { 
@@ -392,7 +1241,7 @@ const Soldiers: React.FC = () => {
                 )}
 
                 {soldier.certifications && soldier.certifications.length > 0 && (
-                  <Box>
+                  <Box sx={{ mb: 2 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
                       הסמכות:
                     </Typography>
@@ -407,6 +1256,32 @@ const Soldiers: React.FC = () => {
                           variant="outlined"
                         />
                       ))}
+                    </Box>
+                  </Box>
+                )}
+
+                {/* היתרים לנהיגה */}
+                {soldier.qualifications?.includes('נהג') && (
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                      היתרים לנהיגה:
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {soldier.drivingLicenses && soldier.drivingLicenses.length > 0 ? (
+                        soldier.drivingLicenses.map((license, index) => (
+                          <Chip 
+                            key={index}
+                            label={license} 
+                            size="small" 
+                            color="success"
+                            variant="filled"
+                          />
+                        ))
+                      ) : (
+                        <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                          אין היתרים מוגדרים
+                        </Typography>
+                      )}
                     </Box>
                   </Box>
                 )}
@@ -505,6 +1380,14 @@ const Soldiers: React.FC = () => {
                 name="certifications"
                 value={formData.certifications.join(', ')}
                 onChange={handleArrayChange}
+              />
+              <TextField
+                fullWidth
+                label="היתרים לנהיגה (35, דימקס, סוואנה, C - מופרד בפסיקים)"
+                name="drivingLicenses"
+                value={formData.drivingLicenses?.join(', ') || ''}
+                onChange={handleArrayChange}
+                helperText="רק לנהגים עם כשירות 'נהג'"
               />
             </Box>
           </Box>

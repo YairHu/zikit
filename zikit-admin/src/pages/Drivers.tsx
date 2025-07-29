@@ -1,646 +1,475 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Container,
   Typography,
   Card,
   CardContent,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
   Box,
   Avatar,
   Chip,
   Alert,
-  TextField,
-  Switch,
-  FormControlLabel,
+  Divider,
+  List,
+  ListItem,
+  ListItemAvatar,
+  ListItemText,
+  ListItemButton,
   Tabs,
   Tab,
-  LinearProgress,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
   IconButton,
-  Tooltip,
+  Badge,
+  Button,
   Fab
 } from '@mui/material';
 import {
-  DriveEta as DriveIcon,
-  Add as AddIcon,
+  Group as GroupIcon,
+  Person as PersonIcon,
+  Star as StarIcon,
+  ExpandMore as ExpandMoreIcon,
+  ArrowBack as ArrowBackIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  AccessTime as TimeIcon,
-  DirectionsCar as CarIcon,
-  CheckCircle as CheckIcon,
-  Warning as WarningIcon,
-  Block as BlockIcon,
+  DirectionsCar as DirectionsCarIcon,
   Schedule as ScheduleIcon,
-  Assignment as MissionIcon
+  Assignment as AssignmentIcon,
+  Add as AddIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
-import { collection, query, getDocs, doc, updateDoc, addDoc, deleteDoc, Timestamp, where, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
-
-interface Driver {
-  id: string;
-  soldierName: string;
-  personalNumber: string;
-  licenseTypes: string[];
-  status: 'available' | 'driving' | 'resting' | 'unavailable';
-  currentMission?: string;
-  lastDriveEnd?: Date;
-  restEndTime?: Date;
-  totalDrivingHours: number;
-  drivingHistory: DrivingRecord[];
-  restrictions?: string[];
-  notes?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface DrivingRecord {
-  id: string;
-  missionId: string;
-  missionName: string;
-  vehicleId: string;
-  vehicleName: string;
-  startTime: Date;
-  endTime?: Date;
-  duration?: number; // minutes
-  route?: string;
-  kilometers?: number;
-  fuel?: {
-    start: number;
-    end?: number;
-  };
-  notes?: string;
-}
-
-interface Mission {
-  id: string;
-  name: string;
-  status: 'planning' | 'active' | 'completed';
-  requiredDrivers: number;
-  assignedDrivers: string[];
-  vehiclesNeeded: string[];
-  startTime: Date;
-  estimatedDuration: number; // hours
-}
+import { Soldier } from '../models/Soldier';
+import { Activity } from '../models/Activity';
+import { getAllSoldiers } from '../services/soldierService';
+import { getAllActivities } from '../services/activityService';
 
 const Drivers: React.FC = () => {
+  const navigate = useNavigate();
   const { user } = useUser();
-  const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [missions, setMissions] = useState<Mission[]>([]);
+  const [soldiers, setSoldiers] = useState<Soldier[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tabValue, setTabValue] = useState(0);
-  const [driverDialogOpen, setDriverDialogOpen] = useState(false);
-  const [missionDialogOpen, setMissionDialogOpen] = useState(false);
-  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
-  
-  // Form state
-  const [driverForm, setDriverForm] = useState({
-    soldierName: '',
-    personalNumber: '',
-    licenseTypes: [] as string[],
-    restrictions: '',
-    notes: ''
-  });
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
-  const [missionForm, setMissionForm] = useState({
-    name: '',
-    requiredDrivers: 1,
-    vehiclesNeeded: [] as string[],
-    estimatedDuration: 4
-  });
-
-  const licenseTypeOptions = [
-    { value: 'B', label: 'B - רכב פרטי' },
-    { value: 'C', label: 'C - משאית קלה' },
-    { value: 'C1', label: 'C1 - משאית בינונית' },
-    { value: 'D', label: 'D - אוטובוס' },
-    { value: 'MILITARY', label: 'רישיון צבאי' },
-    { value: 'MOTORCYCLE', label: 'אופנוע' }
-  ];
-
-  const loadDrivers = useCallback(async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const driversQuery = query(collection(db, 'drivers'), orderBy('soldierName'));
-      const driversSnapshot = await getDocs(driversQuery);
-      const driversData: Driver[] = [];
+      const [soldiersData, activitiesData] = await Promise.all([
+        getAllSoldiers(),
+        getAllActivities()
+      ]);
       
-      driversSnapshot.forEach((doc) => {
-        const data = doc.data();
-        driversData.push({
-          id: doc.id,
-          ...data,
-          lastDriveEnd: data.lastDriveEnd?.toDate(),
-          restEndTime: data.restEndTime?.toDate(),
-          createdAt: data.createdAt?.toDate(),
-          updatedAt: data.updatedAt?.toDate(),
-          drivingHistory: data.drivingHistory?.map((record: any) => ({
-            ...record,
-            startTime: record.startTime?.toDate(),
-            endTime: record.endTime?.toDate()
-          })) || []
-        } as Driver);
-      });
-      
-      setDrivers(driversData);
+      setSoldiers(soldiersData);
+      setActivities(activitiesData);
     } catch (error) {
-      console.error('שגיאה בטעינת נהגים:', error);
+      console.error('שגיאה בטעינת נתונים:', error);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const loadMissions = useCallback(async () => {
-    try {
-      const missionsQuery = query(
-        collection(db, 'missions'),
-        where('status', 'in', ['planning', 'active']),
-        orderBy('startTime')
-      );
-      const missionsSnapshot = await getDocs(missionsQuery);
-      const missionsData: Mission[] = [];
-      
-      missionsSnapshot.forEach((doc) => {
-        const data = doc.data();
-        missionsData.push({
-          id: doc.id,
-          ...data,
-          startTime: data.startTime?.toDate()
-        } as Mission);
-      });
-      
-      setMissions(missionsData);
-    } catch (error) {
-      console.error('שגיאה בטעינת משימות:', error);
-    }
-  }, []);
-
   useEffect(() => {
-    loadDrivers();
-    loadMissions();
-    
-    // Update driver statuses every minute
-    const interval = setInterval(() => {
-      updateDriverStatuses();
-    }, 60000);
+    loadData();
+  }, [loadData]);
 
-    return () => clearInterval(interval);
-  }, [loadDrivers, loadMissions]);
+  // סינון חיילים שיש להם כשירות "נהג"
+  const drivers = soldiers.filter(soldier => 
+    soldier.qualifications?.includes('נהג')
+  );
 
-  const updateDriverStatuses = async () => {
-    const now = new Date();
-    
-    drivers.forEach(async (driver) => {
-      if (driver.status === 'resting' && driver.restEndTime && now >= driver.restEndTime) {
-        // Driver finished resting
-        await updateDoc(doc(db, 'drivers', driver.id), {
-          status: 'available',
-          restEndTime: null,
-          updatedAt: Timestamp.now()
-        });
-      }
-    });
-    
-    // Reload drivers to reflect changes
-    loadDrivers();
+  // קבלת פעילויות פעילות (מתוכננות או בביצוע)
+  const activeActivities = activities.filter(activity => 
+    ['מתוכננת', 'בביצוע'].includes(activity.status)
+  );
+
+  // קבלת נהגים שמשובצים לפעילויות
+  const assignedDrivers = drivers.filter(driver => 
+    activeActivities.some(activity => activity.driverId === driver.id)
+  );
+
+  // קבלת נהגים פנויים
+  const availableDrivers = drivers.filter(driver => 
+    !activeActivities.some(activity => activity.driverId === driver.id)
+  );
+
+  const handleSoldierClick = (soldier: Soldier) => {
+    navigate(`/soldiers/${soldier.id}`);
   };
 
-  const handleStartMission = async (driverId: string, missionId: string) => {
-    try {
-      const driver = drivers.find(d => d.id === driverId);
-      const mission = missions.find(m => m.id === missionId);
-      
-      if (!driver || !mission) return;
-
-      // Update driver status
-      await updateDoc(doc(db, 'drivers', driverId), {
-        status: 'driving',
-        currentMission: missionId,
-        updatedAt: Timestamp.now()
-      });
-
-      // Add driving record
-      const newRecord: DrivingRecord = {
-        id: Date.now().toString(),
-        missionId,
-        missionName: mission.name,
-        vehicleId: '', // Will be set when vehicle is assigned
-        vehicleName: '',
-        startTime: new Date(),
-        route: '',
-        notes: ''
-      };
-
-      const updatedHistory = [...driver.drivingHistory, newRecord];
-      
-      await updateDoc(doc(db, 'drivers', driverId), {
-        drivingHistory: updatedHistory
-      });
-
-      loadDrivers();
-      alert('משימה החלה בהצלחה!');
-    } catch (error) {
-      alert('שגיאה בהתחלת משימה: ' + error);
-    }
-  };
-
-  const handleEndMission = async (driverId: string) => {
-    try {
-      const driver = drivers.find(d => d.id === driverId);
-      if (!driver) return;
-
-      const now = new Date();
-      const restEndTime = new Date(now.getTime() + 7 * 60 * 60 * 1000); // 7 hours from now
-
-      // Update current driving record
-      const updatedHistory = driver.drivingHistory.map(record => {
-        if (!record.endTime && record.missionId === driver.currentMission) {
-          const duration = Math.floor((now.getTime() - record.startTime.getTime()) / (1000 * 60));
-          return {
-            ...record,
-            endTime: now,
-            duration
-          };
-        }
-        return record;
-      });
-
-      // Update driver
-      await updateDoc(doc(db, 'drivers', driverId), {
-        status: 'resting',
-        currentMission: null,
-        lastDriveEnd: Timestamp.fromDate(now),
-        restEndTime: Timestamp.fromDate(restEndTime),
-        drivingHistory: updatedHistory,
-        updatedAt: Timestamp.now()
-      });
-
-      loadDrivers();
-      alert('משימה הסתיימה. הנהג נכנס למנוחה של 7 שעות.');
-    } catch (error) {
-      alert('שגיאה בסיום משימה: ' + error);
-    }
-  };
-
-  const handleCreateDriver = async () => {
-    try {
-      const newDriver: Partial<Driver> = {
-        soldierName: driverForm.soldierName,
-        personalNumber: driverForm.personalNumber,
-        licenseTypes: driverForm.licenseTypes,
-        status: 'available',
-        totalDrivingHours: 0,
-        drivingHistory: [],
-        restrictions: driverForm.restrictions ? [driverForm.restrictions] : [],
-        notes: driverForm.notes,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-
-      await addDoc(collection(db, 'drivers'), {
-        ...newDriver,
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now()
-      });
-
-      setDriverDialogOpen(false);
-      setDriverForm({
-        soldierName: '',
-        personalNumber: '',
-        licenseTypes: [],
-        restrictions: '',
-        notes: ''
-      });
-      
-      loadDrivers();
-      alert('נהג נוצר בהצלחה!');
-    } catch (error) {
-      alert('שגיאה ביצירת נהג: ' + error);
-    }
+  const handleActivityClick = (activityId: string) => {
+    navigate(`/activities/${activityId}`);
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'available': return 'success';
-      case 'driving': return 'primary';
-      case 'resting': return 'warning';
-      case 'unavailable': return 'error';
+      case 'מתוכננת': return 'primary';
+      case 'בביצוע': return 'warning';
+      case 'הסתיימה': return 'success';
+      case 'בוטלה': return 'error';
       default: return 'default';
     }
   };
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'available': return 'זמין';
-      case 'driving': return 'בנסיעה';
-      case 'resting': return 'במנוחה';
-      case 'unavailable': return 'לא זמין';
-      default: return status;
+  const getProfileColor = (profile: string) => {
+    switch (profile) {
+      case '97': return '#4caf50';
+      case '82': return '#ff9800';
+      case '72': return '#f44336';
+      default: return '#9e9e9e';
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'available': return <CheckIcon />;
-      case 'driving': return <CarIcon />;
-      case 'resting': return <TimeIcon />;
-      case 'unavailable': return <BlockIcon />;
-      default: return <WarningIcon />;
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'מפקד צוות': return '#1976d2';
+      case 'סמל': return '#388e3c';
+      case 'מפקד': return '#7b1fa2';
+      case 'חייל': return '#ff9800';
+      default: return '#9e9e9e';
     }
-  };
-
-  const getRestTimeRemaining = (restEndTime?: Date) => {
-    if (!restEndTime) return null;
-    
-    const now = new Date();
-    const remaining = restEndTime.getTime() - now.getTime();
-    
-    if (remaining <= 0) return 'המנוחה הסתיימה';
-    
-    const hours = Math.floor(remaining / (1000 * 60 * 60));
-    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-    
-    return `${hours}:${minutes.toString().padStart(2, '0')} שעות נותרו`;
-  };
-
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('he-IL') + ' ' + date.toLocaleTimeString('he-IL', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
   };
 
   if (loading) {
     return (
-      <Container maxWidth="lg" sx={{ py: 3, textAlign: 'center' }}>
-        <Typography>טוען...</Typography>
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Typography>טוען נתוני נהגים...</Typography>
       </Container>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 3, direction: 'rtl' }}>
+    <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
-          <DriveIcon />
-        </Avatar>
+        <IconButton onClick={() => navigate('/')} sx={{ mr: 2 }}>
+          <ArrowBackIcon />
+        </IconButton>
         <Box sx={{ flex: 1 }}>
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }}>
-            ניהול נהגים
+          <Typography variant="h4" component="h1" gutterBottom>
+            נהגים
           </Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            {drivers.filter(d => d.status === 'available').length} זמינים, {' '}
-            {drivers.filter(d => d.status === 'driving').length} בנסיעה, {' '}
-            {drivers.filter(d => d.status === 'resting').length} במנוחה
+          <Typography variant="body1" color="text.secondary">
+            {drivers.length} נהגים • {assignedDrivers.length} משובצים • {availableDrivers.length} פנויים
           </Typography>
         </Box>
-        <Fab
-          color="primary"
-          aria-label="add"
-          onClick={() => setDriverDialogOpen(true)}
-          sx={{ ml: 2 }}
-        >
-          <AddIcon />
-        </Fab>
+        <Badge badgeContent={drivers.length} color="primary">
+          <DirectionsCarIcon />
+        </Badge>
       </Box>
 
-      {/* Tabs */}
-      <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)} sx={{ mb: 3 }}>
-        <Tab label={`כל הנהגים (${drivers.length})`} />
-        <Tab label={`זמינים (${drivers.filter(d => d.status === 'available').length})`} />
-        <Tab label={`בנסיעה (${drivers.filter(d => d.status === 'driving').length})`} />
-        <Tab label={`במנוחה (${drivers.filter(d => d.status === 'resting').length})`} />
-      </Tabs>
+      {/* View Mode Tabs */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={viewMode === 'cards' ? 0 : 1} onChange={(_, newValue) => setViewMode(newValue === 0 ? 'cards' : 'table')}>
+          <Tab label="תצוגת כרטיסים" />
+          <Tab label="תצוגה טבלאית" />
+        </Tabs>
+      </Box>
 
-      {/* Active Missions Alert */}
-      {missions.length > 0 && (
-        <Alert severity="info" sx={{ mb: 3 }}>
-          <Typography variant="body2">
-            <strong>משימות פעילות:</strong> {missions.map(m => m.name).join(', ')}
-          </Typography>
-        </Alert>
-      )}
-
-      {/* Drivers List */}
-      <Box sx={{ mb: 4 }}>
-        {drivers
-          .filter(driver => {
-            switch (tabValue) {
-              case 1: return driver.status === 'available';
-              case 2: return driver.status === 'driving';
-              case 3: return driver.status === 'resting';
-              default: return true;
-            }
-          })
-          .map((driver) => (
-            <Card key={driver.id} sx={{ mb: 2 }}>
-              <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
-                      {driver.soldierName}
-                    </Typography>
-                    
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                      <Chip
-                        icon={getStatusIcon(driver.status)}
-                        label={getStatusText(driver.status)}
-                        color={getStatusColor(driver.status) as any}
-                        size="small"
-                      />
-                      <Chip
-                        label={`מס' אישי: ${driver.personalNumber}`}
-                        variant="outlined"
-                        size="small"
-                      />
-                      <Chip
-                        label={`רישיונות: ${driver.licenseTypes.join(', ')}`}
-                        variant="outlined"
-                        size="small"
-                      />
+      {/* Cards View */}
+      {viewMode === 'cards' && (
+        <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))' }}>
+          {drivers.map((driver) => {
+            const assignedActivity = activeActivities.find(activity => activity.driverId === driver.id);
+            
+            return (
+              <Card key={driver.id} sx={{ cursor: 'pointer' }} onClick={() => handleSoldierClick(driver)}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 2 }}>
+                    <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
+                      {driver.name.charAt(0)}
+                    </Avatar>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="h6" fontWeight="bold">
+                        {driver.name}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {driver.personalNumber} • {driver.team}
+                      </Typography>
                     </Box>
-
-                    {/* Status specific info */}
-                    {driver.status === 'driving' && driver.currentMission && (
-                      <Alert severity="info" sx={{ mb: 1 }}>
-                        נוסע במשימה: {missions.find(m => m.id === driver.currentMission)?.name}
-                      </Alert>
-                    )}
-
-                    {driver.status === 'resting' && driver.restEndTime && (
-                      <Alert severity="warning" sx={{ mb: 1 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <ScheduleIcon fontSize="small" />
-                          <Typography variant="body2">
-                            {getRestTimeRemaining(driver.restEndTime)}
-                          </Typography>
-                        </Box>
-                        <LinearProgress 
-                          variant="determinate" 
-                          value={Math.max(0, Math.min(100, 
-                            ((new Date().getTime() - (driver.lastDriveEnd?.getTime() || 0)) / (7 * 60 * 60 * 1000)) * 100
-                          ))}
-                          sx={{ mt: 1 }}
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Chip 
+                        label={driver.role} 
+                        size="small" 
+                        sx={{ 
+                          bgcolor: getRoleColor(driver.role),
+                          color: 'white',
+                          fontWeight: 600
+                        }}
+                      />
+                      {assignedActivity && (
+                        <Chip 
+                          label="משובץ לנסיעה" 
+                          size="small" 
+                          color="warning"
+                          variant="outlined"
                         />
-                      </Alert>
-                    )}
-
-                    {/* Driving statistics */}
-                    <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
-                      סה"כ שעות נהיגה: {driver.totalDrivingHours} | {' '}
-                      נסיעות השבוע: {driver.drivingHistory.filter(r => 
-                        r.startTime > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-                      ).length}
-                    </Typography>
-
-                    {driver.restrictions && driver.restrictions.length > 0 && (
-                      <Alert severity="warning" sx={{ mt: 1 }}>
-                        <strong>מגבלות:</strong> {driver.restrictions.join(', ')}
-                      </Alert>
-                    )}
+                      )}
+                    </Box>
                   </Box>
 
-                  {/* Action buttons */}
-                  <Box sx={{ display: 'flex', gap: 1, flexDirection: 'column' }}>
-                    {driver.status === 'available' && missions.length > 0 && (
-                      <Button
-                        variant="contained"
-                        size="small"
-                        startIcon={<MissionIcon />}
-                        onClick={() => {
-                          // Show mission selection dialog
-                          const missionId = missions[0].id; // For now, assign to first mission
-                          handleStartMission(driver.id, missionId);
+                  <Divider sx={{ my: 2 }} />
+
+                  {/* פרופיל רפואי */}
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                      פרופיל רפואי:
+                    </Typography>
+                    <Chip 
+                      label={driver.profile}
+                      sx={{ 
+                        bgcolor: getProfileColor(driver.profile),
+                        color: 'white',
+                        fontWeight: 600
+                      }}
+                    />
+                  </Box>
+
+                  {/* כשירויות */}
+                  {driver.qualifications && driver.qualifications.length > 0 && (
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                        כשירויות:
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {driver.qualifications.map((qual, index) => (
+                          <Chip 
+                            key={index}
+                            icon={<StarIcon />}
+                            label={qual} 
+                            size="small" 
+                            color="success"
+                            variant="outlined"
+                          />
+                        ))}
+                      </Box>
+                    </Box>
+                  )}
+
+                  {/* רישיונות נהיגה */}
+                  {driver.licenses && driver.licenses.length > 0 && (
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                        רישיונות נהיגה:
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {driver.licenses.map((license, index) => (
+                          <Chip 
+                            key={index}
+                            label={license} 
+                            size="small" 
+                            color="info"
+                            variant="outlined"
+                          />
+                        ))}
+                      </Box>
+                    </Box>
+                  )}
+
+                  {/* היתרים לנהיגה */}
+                  {driver.drivingLicenses && driver.drivingLicenses.length > 0 && (
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                        היתרים לנהיגה:
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {driver.drivingLicenses.map((license, index) => (
+                          <Chip 
+                            key={index}
+                            label={license} 
+                            size="small" 
+                            color="secondary"
+                            variant="outlined"
+                          />
+                        ))}
+                      </Box>
+                    </Box>
+                  )}
+
+                  {/* פעילות משובצת */}
+                  {assignedActivity && (
+                    <Box sx={{ mt: 2, p: 2, bgcolor: 'warning.light', borderRadius: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                        פעילות משובצת:
+                      </Typography>
+                      <Box 
+                        sx={{ 
+                          cursor: 'pointer',
+                          p: 1, 
+                          bgcolor: 'white', 
+                          borderRadius: 1,
+                          border: '1px solid',
+                          borderColor: 'warning.main'
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleActivityClick(assignedActivity.id);
                         }}
                       >
-                        התחל משימה
-                      </Button>
-                    )}
-                    
-                    {driver.status === 'driving' && (
-                      <Button
-                        variant="contained"
-                        color="secondary"
-                        size="small"
-                        startIcon={<CheckIcon />}
-                        onClick={() => handleEndMission(driver.id)}
-                      >
-                        סיים משימה
-                      </Button>
-                    )}
+                        <Typography variant="body2" fontWeight="bold">
+                          {assignedActivity.name}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {assignedActivity.plannedDate} - {assignedActivity.location}
+                        </Typography>
+                        <Chip 
+                          label={assignedActivity.status} 
+                          size="small" 
+                          color={getStatusColor(assignedActivity.status)}
+                          sx={{ mt: 0.5 }}
+                        />
+                      </Box>
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </Box>
+      )}
 
-                    <Tooltip title="ערוך נהג">
-                      <IconButton size="small" onClick={() => {
-                        setSelectedDriver(driver);
-                        setDriverForm({
-                          soldierName: driver.soldierName,
-                          personalNumber: driver.personalNumber,
-                          licenseTypes: driver.licenseTypes,
-                          restrictions: driver.restrictions?.join(', ') || '',
-                          notes: driver.notes || ''
-                        });
-                        setDriverDialogOpen(true);
-                      }}>
+      {/* Table View */}
+      {viewMode === 'table' && (
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>שם</TableCell>
+                <TableCell>מס' אישי</TableCell>
+                <TableCell>צוות</TableCell>
+                <TableCell>תפקיד</TableCell>
+                <TableCell>פרופיל</TableCell>
+                <TableCell>רישיונות</TableCell>
+                <TableCell>סטטוס</TableCell>
+                <TableCell>פעילות משובצת</TableCell>
+                <TableCell>פעולות</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {drivers.map((driver) => {
+                const assignedActivity = activeActivities.find(activity => activity.driverId === driver.id);
+                
+                return (
+                  <TableRow key={driver.id} hover>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Avatar sx={{ bgcolor: 'primary.main', mr: 1, width: 32, height: 32 }}>
+                          {driver.name.charAt(0)}
+                        </Avatar>
+                        <Typography variant="body2" fontWeight="bold">
+                          {driver.name}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell>{driver.personalNumber}</TableCell>
+                    <TableCell>{driver.team}</TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={driver.role} 
+                        size="small" 
+                        sx={{ 
+                          bgcolor: getRoleColor(driver.role),
+                          color: 'white',
+                          fontWeight: 600
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={driver.profile}
+                        size="small"
+                        sx={{ 
+                          bgcolor: getProfileColor(driver.profile),
+                          color: 'white',
+                          fontWeight: 600
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {driver.licenses?.map((license, index) => (
+                          <Chip 
+                            key={index}
+                            label={license} 
+                            size="small" 
+                            color="info"
+                            variant="outlined"
+                          />
+                        ))}
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      {assignedActivity ? (
+                        <Chip 
+                          label="משובץ לנסיעה" 
+                          size="small" 
+                          color="warning"
+                          variant="outlined"
+                        />
+                      ) : (
+                        <Chip 
+                          label="פנוי" 
+                          size="small" 
+                          color="success"
+                          variant="outlined"
+                        />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {assignedActivity ? (
+                        <Box 
+                          sx={{ 
+                            cursor: 'pointer',
+                            p: 1, 
+                            bgcolor: 'warning.light', 
+                            borderRadius: 1,
+                            border: '1px solid',
+                            borderColor: 'warning.main'
+                          }}
+                          onClick={() => handleActivityClick(assignedActivity.id)}
+                        >
+                          <Typography variant="body2" fontWeight="bold">
+                            {assignedActivity.name}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {assignedActivity.plannedDate}
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          אין פעילות משובצת
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <IconButton 
+                        size="small" 
+                        color="primary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSoldierClick(driver);
+                        }}
+                      >
                         <EditIcon />
                       </IconButton>
-                    </Tooltip>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
-          ))}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
 
-        {drivers.length === 0 && (
-          <Alert severity="info">
-            אין נהגים במערכת. לחץ על הכפתור + להוספת נהג חדש.
-          </Alert>
-        )}
-      </Box>
-
-      {/* Create/Edit Driver Dialog */}
-      <Dialog open={driverDialogOpen} onClose={() => setDriverDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {selectedDriver ? 'עריכת נהג' : 'נהג חדש'}
-        </DialogTitle>
-        <DialogContent>
-          <Box sx={{ 
-            display: 'grid', 
-            gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, 
-            gap: 2, 
-            mt: 1 
-          }}>
-            <TextField
-              fullWidth
-              label="שם החייל"
-              value={driverForm.soldierName}
-              onChange={(e) => setDriverForm({ ...driverForm, soldierName: e.target.value })}
-            />
-
-            <TextField
-              fullWidth
-              label="מספר אישי"
-              value={driverForm.personalNumber}
-              onChange={(e) => setDriverForm({ ...driverForm, personalNumber: e.target.value })}
-            />
-
-            <FormControl fullWidth sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
-              <InputLabel>סוגי רישיון</InputLabel>
-              <Select
-                multiple
-                value={driverForm.licenseTypes}
-                onChange={(e) => setDriverForm({ 
-                  ...driverForm, 
-                  licenseTypes: e.target.value as string[] 
-                })}
-                label="סוגי רישיון"
-              >
-                {licenseTypeOptions.map((option) => (
-                  <MenuItem key={option.value} value={option.value}>
-                    {option.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <TextField
-              fullWidth
-              label="מגבלות"
-              value={driverForm.restrictions}
-              onChange={(e) => setDriverForm({ ...driverForm, restrictions: e.target.value })}
-              sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}
-            />
-
-            <TextField
-              fullWidth
-              label="הערות"
-              multiline
-              rows={3}
-              value={driverForm.notes}
-              onChange={(e) => setDriverForm({ ...driverForm, notes: e.target.value })}
-              sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => {
-            setDriverDialogOpen(false);
-            setSelectedDriver(null);
-          }}>
-            ביטול
-          </Button>
-          <Button onClick={handleCreateDriver} variant="contained">
-            {selectedDriver ? 'עדכן' : 'צור נהג'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {drivers.length === 0 && (
+        <Alert severity="info" sx={{ mt: 3 }}>
+          לא נמצאו נהגים
+        </Alert>
+      )}
     </Container>
   );
 };

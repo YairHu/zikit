@@ -8,6 +8,7 @@ export interface Soldier {
   qualifications: string[];
   licenses: string[];
   certifications: string[];
+  drivingLicenses?: string[]; // היתרים לנהיגה: 35, דימקס, סוואנה, C
   family?: string;
   militaryBackground?: string;
   dates?: Record<string, string>; // לדוג' תאריכים חשובים

@@ -1,44 +1,658 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import {
+  Container,
+  Typography,
+  Card,
+  CardContent,
+  Box,
+  Avatar,
+  Chip,
+  Alert,
+  Divider,
+  List,
+  ListItem,
+  ListItemAvatar,
+  ListItemText,
+  ListItemButton,
+  Tabs,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  IconButton,
+  Badge,
+  Button,
+  CircularProgress
+} from '@mui/material';
+import {
+  Group as GroupIcon,
+  Person as PersonIcon,
+  Star as StarIcon,
+  ExpandMore as ExpandMoreIcon,
+  ArrowBack as ArrowBackIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Assignment as AssignmentIcon,
+  Schedule as ScheduleIcon,
+  DirectionsCar as DirectionsCarIcon,
+  Security as SecurityIcon,
+  FamilyRestroom as FamilyIcon,
+  Description as DescriptionIcon,
+  LocalHospital as MedicalIcon,
+  AttachFile as DocumentIcon,
+  LocalHospital as ReferralIcon
+} from '@mui/icons-material';
 import { getSoldierById } from '../services/soldierService';
+import { getActivitiesBySoldier } from '../services/activityService';
+import { getDutiesBySoldier } from '../services/dutyService';
+import { getReferralsBySoldier } from '../services/referralService';
 import { Soldier } from '../models/Soldier';
+import { Activity } from '../models/Activity';
+import { Duty } from '../models/Duty';
+import { Referral } from '../models/Referral';
+import { useUser } from '../contexts/UserContext';
 
 const SoldierProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useUser();
   const [soldier, setSoldier] = useState<Soldier | null>(null);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [duties, setDuties] = useState<Duty[]>([]);
+  const [referrals, setReferrals] = useState<Referral[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   useEffect(() => {
     if (id) {
-      getSoldierById(id)
-        .then(setSoldier)
-        .finally(() => setLoading(false));
+      Promise.all([
+        getSoldierById(id),
+        getActivitiesBySoldier(id),
+        getDutiesBySoldier(id),
+        getReferralsBySoldier(id)
+      ]).then(([soldierData, activitiesData, dutiesData, referralsData]) => {
+        setSoldier(soldierData);
+        setActivities(activitiesData);
+        setDuties(dutiesData);
+        setReferrals(referralsData);
+      }).finally(() => setLoading(false));
     }
   }, [id]);
 
-  if (loading) return <div>טוען...</div>;
-  if (!soldier) return <div>לא נמצא חייל</div>;
+  const isDriver = soldier?.qualifications?.includes('נהג');
+  const hasDrivingLicenses = soldier?.drivingLicenses && soldier.drivingLicenses.length > 0;
+
+  const getProfileColor = (profile: string) => {
+    switch (profile) {
+      case 'לוחם': return '#4caf50';
+      case 'מפקד': return '#2196f3';
+      case 'חובש': return '#ff9800';
+      case 'נהג': return '#9c27b0';
+      default: return '#757575';
+    }
+  };
+
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'מפקד צוות': return '#d32f2f';
+      case 'סמל': return '#1976d2';
+      case 'חייל': return '#388e3c';
+      case 'מפקד פלוגה': return '#7b1fa2';
+      default: return '#757575';
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'מתוכננת': return 'primary';
+      case 'בביצוע': return 'warning';
+      case 'הסתיימה': return 'success';
+      case 'בוטלה': return 'error';
+      case 'פעילה': return 'info';
+      case 'pending': return 'warning';
+      case 'in_progress': return 'info';
+      case 'completed': return 'success';
+      case 'cancelled': return 'error';
+      default: return 'default';
+    }
+  };
+
+  const statusLabels = {
+    pending: 'ממתין',
+    in_progress: 'בביצוע',
+    completed: 'הושלם',
+    cancelled: 'בוטל'
+  };
+
+  if (loading) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+          <CircularProgress />
+        </Box>
+      </Container>
+    );
+  }
+
+  if (!soldier) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Alert severity="error">לא נמצא חייל</Alert>
+      </Container>
+    );
+  }
 
   return (
-    <div style={{ direction: 'rtl', padding: 32, maxWidth: 600, margin: '0 auto', background: '#fff', borderRadius: 8 }}>
-      <button onClick={() => navigate(-1)} style={{ marginBottom: 16 }}>חזור</button>
-      <h2>פרופיל חייל: {soldier.name}</h2>
-      <div><b>מס' אישי:</b> {soldier.personalNumber}</div>
-      <div><b>צוות:</b> {soldier.team}</div>
-      <div><b>תפקיד:</b> {soldier.role}</div>
-      <div><b>פרופיל:</b> {soldier.profile}</div>
-      <div><b>כשירויות:</b> {soldier.qualifications?.join(', ')}</div>
-      <div><b>רישיונות:</b> {soldier.licenses?.join(', ')}</div>
-      <div><b>הסמכות:</b> {soldier.certifications?.join(', ')}</div>
-      {soldier.family && <div><b>משפחה:</b> {soldier.family}</div>}
-      {soldier.militaryBackground && <div><b>רקע צבאי:</b> {soldier.militaryBackground}</div>}
-      {soldier.notes && <div><b>הערות:</b> {soldier.notes}</div>}
-      {soldier.medicalProfile && <div><b>פרופיל רפואי:</b> {soldier.medicalProfile}</div>}
-      {soldier.documents && (
-        <div><b>מסמכים:</b> {soldier.documents.map((url, i) => <div key={i}><a href={url} target="_blank" rel="noopener noreferrer">קובץ {i+1}</a></div>)}</div>
-      )}
-    </div>
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      {/* Header */}
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
+        <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
+          <ArrowBackIcon />
+        </IconButton>
+        <Box sx={{ flex: 1 }}>
+          <Typography variant="h4" component="h1" fontWeight="bold">
+            פרופיל חייל
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            {soldier.name} • {soldier.personalNumber} • {soldier.team}
+          </Typography>
+        </Box>
+        {user && (user.role === 'mefaked_tzevet' || user.role === 'mefaked_pluga' || user.role === 'admin') && (
+          <IconButton 
+            color="primary"
+            onClick={() => navigate(`/soldiers?edit=${soldier.id}`)}
+            sx={{ bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' } }}
+          >
+            <EditIcon />
+          </IconButton>
+        )}
+      </Box>
+
+      <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', md: 'row' } }}>
+        {/* Soldier Info Card */}
+        <Box sx={{ flex: { md: '0 0 400px' } }}>
+          <Card sx={{ height: 'fit-content' }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                <Avatar 
+                  sx={{ 
+                    bgcolor: 'primary.main', 
+                    width: 80, 
+                    height: 80, 
+                    fontSize: '2rem',
+                    mr: 2
+                  }}
+                >
+                  {soldier.name.charAt(0)}
+                </Avatar>
+                <Box>
+                  <Typography variant="h5" fontWeight="bold">
+                    {soldier.name}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {soldier.personalNumber}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Divider sx={{ my: 2 }} />
+
+              {/* Basic Info */}
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="h6" sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+                  <GroupIcon sx={{ mr: 1, fontSize: 20 }} />
+                  מידע בסיסי
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2" color="text.secondary">צוות:</Typography>
+                    <Typography variant="body2" fontWeight="bold">{soldier.team}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2" color="text.secondary">תפקיד:</Typography>
+                    <Chip 
+                      label={soldier.role} 
+                      size="small" 
+                      sx={{ 
+                        bgcolor: getRoleColor(soldier.role),
+                        color: 'white',
+                        fontWeight: 600
+                      }}
+                    />
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2" color="text.secondary">פרופיל:</Typography>
+                    <Chip 
+                      label={soldier.profile} 
+                      size="small" 
+                      sx={{ 
+                        bgcolor: getProfileColor(soldier.profile),
+                        color: 'white',
+                        fontWeight: 600
+                      }}
+                    />
+                  </Box>
+                </Box>
+              </Box>
+
+              {/* Qualifications */}
+              {soldier.qualifications && soldier.qualifications.length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="h6" sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+                    <StarIcon sx={{ mr: 1, fontSize: 20 }} />
+                    כשירויות
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {soldier.qualifications.map((qual, index) => (
+                      <Chip
+                        key={index}
+                        icon={<StarIcon />}
+                        label={qual}
+                        size="small"
+                        color="success"
+                        variant="outlined"
+                      />
+                    ))}
+                  </Box>
+                </Box>
+              )}
+
+              {/* Licenses */}
+              {soldier.licenses && soldier.licenses.length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="h6" sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+                    <DirectionsCarIcon sx={{ mr: 1, fontSize: 20 }} />
+                    רישיונות
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {soldier.licenses.map((license, index) => (
+                      <Chip
+                        key={index}
+                        label={license}
+                        size="small"
+                        color="info"
+                        variant="outlined"
+                      />
+                    ))}
+                  </Box>
+                </Box>
+              )}
+
+              {/* Driving Licenses */}
+              {isDriver && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="h6" sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+                    <DirectionsCarIcon sx={{ mr: 1, fontSize: 20 }} />
+                    היתרים לנהיגה
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {hasDrivingLicenses ? (
+                      soldier.drivingLicenses?.map((license, index) => (
+                        <Chip
+                          key={index}
+                          label={license}
+                          size="small"
+                          color="secondary"
+                          variant="outlined"
+                        />
+                      ))
+                    ) : (
+                      <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                        אין היתרים מוגדרים
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+              )}
+
+              {/* Certifications */}
+              {soldier.certifications && soldier.certifications.length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="h6" sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+                    <DescriptionIcon sx={{ mr: 1, fontSize: 20 }} />
+                    הסמכות
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {soldier.certifications.map((cert, index) => (
+                      <Chip
+                        key={index}
+                        label={cert}
+                        size="small"
+                        color="warning"
+                        variant="outlined"
+                      />
+                    ))}
+                  </Box>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Box>
+
+        {/* Additional Info & Activities */}
+        <Box sx={{ flex: 1 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {/* Additional Info */}
+            <Card>
+              <CardContent>
+                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                  <PersonIcon sx={{ mr: 1, fontSize: 20 }} />
+                  מידע נוסף
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                  {soldier.family && (
+                    <Box sx={{ flex: '1 1 300px' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                        <FamilyIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
+                        <Typography variant="body2" color="text.secondary">משפחה:</Typography>
+                      </Box>
+                      <Typography variant="body1">{soldier.family}</Typography>
+                    </Box>
+                  )}
+                  {soldier.militaryBackground && (
+                    <Box sx={{ flex: '1 1 300px' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                        <SecurityIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
+                        <Typography variant="body2" color="text.secondary">רקע צבאי:</Typography>
+                      </Box>
+                      <Typography variant="body1">{soldier.militaryBackground}</Typography>
+                    </Box>
+                  )}
+                  {soldier.medicalProfile && (
+                    <Box sx={{ flex: '1 1 300px' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                        <MedicalIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
+                        <Typography variant="body2" color="text.secondary">פרופיל רפואי:</Typography>
+                      </Box>
+                      <Typography variant="body1">{soldier.medicalProfile}</Typography>
+                    </Box>
+                  )}
+                  {soldier.notes && (
+                    <Box sx={{ flex: '1 1 100%' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                        <DescriptionIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
+                        <Typography variant="body2" color="text.secondary">הערות:</Typography>
+                      </Box>
+                      <Typography variant="body1">{soldier.notes}</Typography>
+                    </Box>
+                  )}
+                  {soldier.documents && soldier.documents.length > 0 && (
+                    <Box sx={{ flex: '1 1 100%' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                        <DocumentIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
+                        <Typography variant="body2" color="text.secondary">מסמכים:</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        {soldier.documents.map((url, i) => (
+                          <Button
+                            key={i}
+                            variant="outlined"
+                            size="small"
+                            startIcon={<DocumentIcon />}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            קובץ {i+1}
+                          </Button>
+                        ))}
+                      </Box>
+                    </Box>
+                  )}
+                </Box>
+              </CardContent>
+            </Card>
+
+            {/* Activities */}
+            {activities.length > 0 && (
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
+                      <AssignmentIcon sx={{ mr: 1, fontSize: 20 }} />
+                      פעילויות מבצעיות ({activities.length})
+                    </Typography>
+                    <Badge badgeContent={activities.length} color="primary">
+                      <AssignmentIcon />
+                    </Badge>
+                  </Box>
+
+                  {/* View Mode Tabs */}
+                  <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+                    <Tabs value={viewMode === 'cards' ? 0 : 1} onChange={(_, newValue) => setViewMode(newValue === 0 ? 'cards' : 'table')}>
+                      <Tab label="תצוגת כרטיסים" />
+                      <Tab label="תצוגה טבלאית" />
+                    </Tabs>
+                  </Box>
+
+                  {/* Cards View */}
+                  {viewMode === 'cards' && (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {activities.map((activity) => (
+                        <Card key={activity.id} sx={{ cursor: 'pointer' }} onClick={() => navigate(`/activities/${activity.id}`)}>
+                          <CardContent>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                              <Typography variant="h6" fontWeight="bold">
+                                {activity.name}
+                              </Typography>
+                              <Chip 
+                                label={activity.status} 
+                                color={getStatusColor(activity.status) as any}
+                                size="small"
+                              />
+                            </Box>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>תאריך:</strong> {activity.plannedDate} - {activity.plannedTime}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>מיקום:</strong> {activity.location}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>תפקיד:</strong> {
+                                  activity.commanderId === soldier.id ? 'מפקד הפעילות' :
+                                  activity.taskLeaderId === soldier.id ? 'מוביל משימה' :
+                                  activity.driverId === soldier.id ? 'נהג' :
+                                  activity.participants.find(p => p.soldierId === soldier.id)?.role || 'משתתף'
+                                }
+                              </Typography>
+                              {activity.vehicleNumber && (
+                                <Typography variant="body2" color="text.secondary">
+                                  <strong>רכב:</strong> {activity.vehicleNumber}
+                                </Typography>
+                              )}
+                              {activity.driverName && (
+                                <Typography variant="body2" color="text.secondary">
+                                  <strong>נהג:</strong> {activity.driverName}
+                                </Typography>
+                              )}
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </Box>
+                  )}
+
+                  {/* Table View */}
+                  {viewMode === 'table' && (
+                    <TableContainer component={Paper}>
+                      <Table>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>שם פעילות</TableCell>
+                            <TableCell>תאריך</TableCell>
+                            <TableCell>מיקום</TableCell>
+                            <TableCell>תפקיד</TableCell>
+                            <TableCell>סטטוס</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {activities.map((activity) => (
+                            <TableRow key={activity.id} hover onClick={() => navigate(`/activities/${activity.id}`)} sx={{ cursor: 'pointer' }}>
+                              <TableCell>
+                                <Typography variant="body2" fontWeight="bold">
+                                  {activity.name}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>{activity.plannedDate} - {activity.plannedTime}</TableCell>
+                              <TableCell>{activity.location}</TableCell>
+                              <TableCell>
+                                {
+                                  activity.commanderId === soldier.id ? 'מפקד הפעילות' :
+                                  activity.taskLeaderId === soldier.id ? 'מוביל משימה' :
+                                  activity.driverId === soldier.id ? 'נהג' :
+                                  activity.participants.find(p => p.soldierId === soldier.id)?.role || 'משתתף'
+                                }
+                              </TableCell>
+                              <TableCell>
+                                <Chip 
+                                  label={activity.status} 
+                                  color={getStatusColor(activity.status) as any}
+                                  size="small"
+                                />
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Duties */}
+            {duties.length > 0 && (
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
+                      <ScheduleIcon sx={{ mr: 1, fontSize: 20 }} />
+                      תורנויות ({duties.length})
+                    </Typography>
+                    <Badge badgeContent={duties.length} color="secondary">
+                      <ScheduleIcon />
+                    </Badge>
+                  </Box>
+
+                  <List>
+                    {duties.map((duty) => (
+                      <ListItem 
+                        key={duty.id} 
+                        sx={{ 
+                          border: '1px solid #e0e0e0', 
+                          borderRadius: 1, 
+                          mb: 1, 
+                          cursor: 'pointer',
+                          '&:hover': { bgcolor: 'action.hover' }
+                        }}
+                        onClick={() => navigate(`/duties/${duty.id}`)}
+                      >
+                        <ListItemText
+                          primary={
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Typography variant="h6" fontWeight="bold">
+                                {duty.type}
+                              </Typography>
+                              <Chip 
+                                label={duty.status} 
+                                color={getStatusColor(duty.status) as any}
+                                size="small"
+                              />
+                            </Box>
+                          }
+                          secondary={
+                            <Box sx={{ mt: 1 }}>
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>תאריך:</strong> {duty.startDate} - {duty.startTime}
+                                {duty.endTime && ` עד ${duty.endTime}`}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>מיקום:</strong> {duty.location}
+                              </Typography>
+                              {duty.requiredEquipment && (
+                                <Typography variant="body2" color="text.secondary">
+                                  <strong>ציוד:</strong> {duty.requiredEquipment}
+                                </Typography>
+                              )}
+                              {duty.notes && (
+                                <Typography variant="body2" color="text.secondary">
+                                  <strong>הערות:</strong> {duty.notes}
+                                </Typography>
+                              )}
+                            </Box>
+                          }
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Referrals */}
+            {referrals.length > 0 && (
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
+                      <ReferralIcon sx={{ mr: 1, fontSize: 20 }} />
+                      הפניות ({referrals.length})
+                    </Typography>
+                    <Badge badgeContent={referrals.length} color="warning">
+                      <ReferralIcon />
+                    </Badge>
+                  </Box>
+
+                  <List>
+                    {referrals.map((referral) => (
+                      <ListItem 
+                        key={referral.id} 
+                        sx={{ 
+                          border: '1px solid #e0e0e0', 
+                          borderRadius: 1, 
+                          mb: 1
+                        }}
+                      >
+                        <ListItemText
+                          primary={
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Typography variant="h6" fontWeight="bold">
+                                {referral.reason}
+                              </Typography>
+                              <Chip 
+                                label={statusLabels[referral.status]} 
+                                color={getStatusColor(referral.status) as any}
+                                size="small"
+                              />
+                            </Box>
+                          }
+                          secondary={
+                            <Box sx={{ mt: 1 }}>
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>תאריך:</strong> {referral.date}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>מיקום:</strong> {referral.location}
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </CardContent>
+              </Card>
+            )}
+          </Box>
+        </Box>
+      </Box>
+    </Container>
   );
 };
 

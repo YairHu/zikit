@@ -1,116 +1,154 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Container,
   Typography,
   Card,
   CardContent,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
   Box,
   Avatar,
   Chip,
   Alert,
-  Fab,
-  IconButton,
+  Grid,
+  Divider,
+  List,
+  ListItem,
+  ListItemAvatar,
+  ListItemText,
+  ListItemButton,
   Accordion,
   AccordionSummary,
-  AccordionDetails
+  AccordionDetails,
+  Badge,
+  Button
 } from '@mui/material';
 import {
-  Add as AddIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  Person as PersonIcon,
   Group as GroupIcon,
-  ExpandMore as ExpandMoreIcon,
+  Person as PersonIcon,
   Star as StarIcon,
-  Assignment as AssignmentIcon
+  ExpandMore as ExpandMoreIcon,
+  ArrowForward as ArrowForwardIcon,
+  Assignment as AssignmentIcon,
+  Schedule as ScheduleIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
-import { User } from '../models/User';
-import { UserRole, getRoleDisplayName } from '../models/UserRole';
-import { getAllUsers, getUsersByTeam, assignToTeam } from '../services/userService';
+import { Soldier } from '../models/Soldier';
+import { Activity } from '../models/Activity';
+import { Duty } from '../models/Duty';
+import { getAllSoldiers } from '../services/soldierService';
+import { getActivitiesByTeam } from '../services/activityService';
+import { getDutiesByTeam } from '../services/dutyService';
 
 interface Team {
   id: string;
   name: string;
-  plagaId: string;
-  commanderUid?: string;
-  samalUid?: string;
-  squadLeaders: string[];
-  soldiers: string[];
-  description?: string;
-  createdAt: Date;
-  updatedAt: Date;
+  plagaId: 'A' | 'B' | 'ZAVIT';
+  plagaName: string;
+  soldiers: Soldier[];
+  totalSoldiers: number;
+  commanders: Soldier[];
+  fighters: Soldier[];
+  activities: Activity[];
+  duties: Duty[];
 }
 
 const Teams: React.FC = () => {
+  const navigate = useNavigate();
   const { user } = useUser();
   const [teams, setTeams] = useState<Team[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [soldiers, setSoldiers] = useState<Soldier[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // Dialogs state
-  const [teamDialogOpen, setTeamDialogOpen] = useState(false);
-  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
-  const [selectedSoldier, setSelectedSoldier] = useState<User | null>(null);
-  
-  // Form state
-  const [formData, setFormData] = useState({
-    name: '',
-    plagaId: 'A',
-    description: '',
-    commanderUid: '',
-    samalUid: ''
-  });
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [allUsers, /* teams will come from API */] = await Promise.all([
-        getAllUsers(),
-        // TODO: implement getTeams from API
+      
+      // טעינת כל החיילים, הפעילויות והתורנויות
+      const [allSoldiers, activities10, activities20, activities30, activities40, activities50, duties10, duties20, duties30, duties40, duties50] = await Promise.all([
+        getAllSoldiers(),
+        getActivitiesByTeam('צוות 10'),
+        getActivitiesByTeam('צוות 20'),
+        getActivitiesByTeam('צוות 30'),
+        getActivitiesByTeam('צוות 40'),
+        getActivitiesByTeam('צוות 50'),
+        getDutiesByTeam('צוות 10'),
+        getDutiesByTeam('צוות 20'),
+        getDutiesByTeam('צוות 30'),
+        getDutiesByTeam('צוות 40'),
+        getDutiesByTeam('צוות 50')
       ]);
+      setSoldiers(allSoldiers);
       
-      setUsers(allUsers);
-      
-      // Demo teams data - נתחיל עם דאטה לדוגמה
-      const demoTeams: Team[] = [
+      // יצירת צוותים לפי הנתונים
+      const teamsData: Team[] = [
         {
           id: '10',
           name: 'צוות 10',
           plagaId: 'A',
-          commanderUid: allUsers.find(u => u.role === UserRole.MEFAKED_TZEVET)?.uid,
-          samalUid: allUsers.find(u => u.role === UserRole.SAMAL)?.uid,
-          squadLeaders: allUsers.filter(u => u.role === UserRole.MEFAKED_CHAYAL).slice(0, 2).map(u => u.uid),
-          soldiers: allUsers.filter(u => u.role === UserRole.CHAYAL).slice(0, 8).map(u => u.uid),
-          description: 'צוות לוחם ראשי',
-          createdAt: new Date(),
-          updatedAt: new Date()
+          plagaName: 'פלגה א',
+          soldiers: allSoldiers.filter(s => s.team === 'צוות 10'),
+          totalSoldiers: allSoldiers.filter(s => s.team === 'צוות 10').length,
+          commanders: allSoldiers.filter(s => s.team === 'צוות 10' && 
+            (s.role === 'מפקד צוות' || s.role === 'סמל' || s.role === 'מפקד')),
+          fighters: allSoldiers.filter(s => s.team === 'צוות 10' && s.role === 'חייל'),
+          activities: activities10,
+          duties: duties10
         },
         {
           id: '20',
           name: 'צוות 20',
           plagaId: 'A',
-          commanderUid: allUsers.find(u => u.role === UserRole.MEFAKED_TZEVET && u.team === '20')?.uid,
-          squadLeaders: allUsers.filter(u => u.role === UserRole.MEFAKED_CHAYAL).slice(2, 4).map(u => u.uid),
-          soldiers: allUsers.filter(u => u.role === UserRole.CHAYAL).slice(8, 16).map(u => u.uid),
-          description: 'צוות תמיכה',
-          createdAt: new Date(),
-          updatedAt: new Date()
+          plagaName: 'פלגה א',
+          soldiers: allSoldiers.filter(s => s.team === 'צוות 20'),
+          totalSoldiers: allSoldiers.filter(s => s.team === 'צוות 20').length,
+          commanders: allSoldiers.filter(s => s.team === 'צוות 20' && 
+            (s.role === 'מפקד צוות' || s.role === 'סמל' || s.role === 'מפקד')),
+          fighters: allSoldiers.filter(s => s.team === 'צוות 20' && s.role === 'חייל'),
+          activities: activities20,
+          duties: duties20
+        },
+        {
+          id: '30',
+          name: 'צוות 30',
+          plagaId: 'A',
+          plagaName: 'פלגה א',
+          soldiers: allSoldiers.filter(s => s.team === 'צוות 30'),
+          totalSoldiers: allSoldiers.filter(s => s.team === 'צוות 30').length,
+          commanders: allSoldiers.filter(s => s.team === 'צוות 30' && 
+            (s.role === 'מפקד צוות' || s.role === 'סמל' || s.role === 'מפקד')),
+          fighters: allSoldiers.filter(s => s.team === 'צוות 30' && s.role === 'חייל'),
+          activities: activities30,
+          duties: duties30
+        },
+        {
+          id: '40',
+          name: 'צוות 40',
+          plagaId: 'B',
+          plagaName: 'פלגה ב',
+          soldiers: allSoldiers.filter(s => s.team === 'צוות 40'),
+          totalSoldiers: allSoldiers.filter(s => s.team === 'צוות 40').length,
+          commanders: allSoldiers.filter(s => s.team === 'צוות 40' && 
+            (s.role === 'מפקד צוות' || s.role === 'סמל' || s.role === 'מפקד')),
+          fighters: allSoldiers.filter(s => s.team === 'צוות 40' && s.role === 'חייל'),
+          activities: activities40,
+          duties: duties40
+        },
+        {
+          id: '50',
+          name: 'צוות 50',
+          plagaId: 'B',
+          plagaName: 'פלגה ב',
+          soldiers: allSoldiers.filter(s => s.team === 'צוות 50'),
+          totalSoldiers: allSoldiers.filter(s => s.team === 'צוות 50').length,
+          commanders: allSoldiers.filter(s => s.team === 'צוות 50' && 
+            (s.role === 'מפקד צוות' || s.role === 'סמל' || s.role === 'מפקד')),
+          fighters: allSoldiers.filter(s => s.team === 'צוות 50' && s.role === 'חייל'),
+          activities: activities50,
+          duties: duties50
         }
       ];
       
-      setTeams(demoTeams);
+      setTeams(teamsData);
     } catch (error) {
       console.error('שגיאה בטעינת נתונים:', error);
     } finally {
@@ -122,393 +160,277 @@ const Teams: React.FC = () => {
     loadData();
   }, [loadData]);
 
-  const handleCreateTeam = () => {
-    setSelectedTeam(null);
-    setFormData({
-      name: '',
-      plagaId: 'A',
-      description: '',
-      commanderUid: '',
-      samalUid: ''
-    });
-    setTeamDialogOpen(true);
+  const handleSoldierClick = (soldier: Soldier) => {
+    navigate(`/soldiers/${soldier.id}`);
   };
 
-  const handleEditTeam = (team: Team) => {
-    setSelectedTeam(team);
-    setFormData({
-      name: team.name,
-      plagaId: team.plagaId,
-      description: team.description || '',
-      commanderUid: team.commanderUid || '',
-      samalUid: team.samalUid || ''
-    });
-    setTeamDialogOpen(true);
-  };
-
-  const handleSaveTeam = async () => {
-    try {
-      // TODO: implement API call to save team
-      console.log('Saving team:', formData);
-      setTeamDialogOpen(false);
-      loadData();
-    } catch (error) {
-      alert('שגיאה בשמירת הצוות: ' + error);
+  const getProfileColor = (profile: string) => {
+    switch (profile) {
+      case '97': return '#4caf50';
+      case '82': return '#ff9800';
+      case '72': return '#f44336';
+      default: return '#9e9e9e';
     }
   };
 
-  const handleAssignSoldier = (team: Team, soldier: User) => {
-    setSelectedTeam(team);
-    setSelectedSoldier(soldier);
-    setAssignDialogOpen(true);
-  };
-
-  const handleConfirmAssign = async () => {
-    if (!selectedTeam || !selectedSoldier) return;
-    
-    try {
-      await assignToTeam(selectedSoldier.uid, selectedTeam.id, selectedTeam.plagaId);
-      setAssignDialogOpen(false);
-      loadData();
-    } catch (error) {
-      alert('שגיאה בשיבוץ החייל: ' + error);
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'מפקד צוות': return '#1976d2';
+      case 'סמל': return '#388e3c';
+      case 'מפקד': return '#7b1fa2';
+      case 'חייל': return '#ff9800';
+      default: return '#9e9e9e';
     }
-  };
-
-  const getUserByUid = (uid: string): User | undefined => {
-    return users.find(u => u.uid === uid);
-  };
-
-  const getAvailableSoldiers = (): User[] => {
-    const assignedSoldiers = teams.flatMap(team => [
-      team.commanderUid,
-      team.samalUid,
-      ...team.squadLeaders,
-      ...team.soldiers
-    ].filter(Boolean));
-    
-    return users.filter(user => 
-      !assignedSoldiers.includes(user.uid) && 
-      user.role !== UserRole.ADMIN &&
-      user.role !== UserRole.MEFAKED_PLUGA
-    );
-  };
-
-  const getCommanderCandidates = (): User[] => {
-    return users.filter(user => 
-      user.role === UserRole.MEFAKED_TZEVET ||
-      user.role === UserRole.MEFAKED_PELAGA
-    );
-  };
-
-  const getSamalCandidates = (): User[] => {
-    return users.filter(user => user.role === UserRole.SAMAL);
   };
 
   if (loading) {
     return (
-      <Container maxWidth="lg" sx={{ py: 3, textAlign: 'center' }}>
-        <Typography>טוען...</Typography>
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Typography>טוען צוותים...</Typography>
       </Container>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 3, direction: 'rtl' }}>
-      {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
-            <GroupIcon />
-          </Avatar>
-          <Box>
-            <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }}>
-              ניהול צוותים
-            </Typography>
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              {teams.length} צוותים פעילים
-            </Typography>
-          </Box>
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleCreateTeam}
-          sx={{ display: { xs: 'none', sm: 'flex' } }}
-        >
-          צוות חדש
-        </Button>
-      </Box>
-
-      {/* Teams List */}
-      <Box sx={{ mb: 4 }}>
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Typography variant="h4" component="h1" gutterBottom>
+        צוותים
+      </Typography>
+      
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 3 }}>
         {teams.map((team) => (
-          <Card key={team.id} sx={{ mb: 2 }}>
+          <Card key={team.id}>
             <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                <Box>
-                  <Typography variant="h5" sx={{ fontWeight: 600, mb: 1 }}>
-                    {team.name}
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                    <Chip label={`פלגה ${team.plagaId}`} size="small" />
-                    <Chip label={`${team.soldiers.length + team.squadLeaders.length + (team.commanderUid ? 1 : 0) + (team.samalUid ? 1 : 0)} חיילים`} variant="outlined" size="small" />
-                  </Box>
-                  {team.description && (
-                    <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-                      {team.description}
+                              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
+                    <GroupIcon />
+                  </Avatar>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography 
+                      variant="h6" 
+                      fontWeight="bold"
+                      onClick={() => navigate(`/teams/${team.id}`)}
+                      sx={{ 
+                        cursor: 'pointer',
+                        '&:hover': { 
+                          color: 'primary.main',
+                          textDecoration: 'underline'
+                        }
+                      }}
+                    >
+                      {team.name}
                     </Typography>
-                  )}
+                    <Typography variant="body2" color="text.secondary">
+                      {team.plagaName} • {team.totalSoldiers} חיילים
+                    </Typography>
+                  </Box>
+                  <Badge badgeContent={team.totalSoldiers} color="primary">
+                    <GroupIcon />
+                  </Badge>
                 </Box>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <IconButton onClick={() => handleEditTeam(team)} size="small">
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton size="small" color="error">
-                    <DeleteIcon />
-                  </IconButton>
+                
+                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => navigate(`/teams/${team.id}`)}
+                    sx={{ 
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      fontWeight: 600
+                    }}
+                  >
+                    צפה בפרטי הצוות
+                  </Button>
                 </Box>
-              </Box>
 
-              {/* Team Structure */}
-              <Accordion>
+              <Divider sx={{ my: 2 }} />
+
+              {/* פעילויות מבצעיות */}
+              {team.activities.length > 0 && (
+                <Accordion>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <AssignmentIcon sx={{ mr: 1, color: 'warning.main' }} />
+                      <Typography variant="h6">פעילויות מבצעיות</Typography>
+                      <Chip 
+                        label={team.activities.length} 
+                        size="small" 
+                        color="warning" 
+                        sx={{ ml: 1 }}
+                      />
+                    </Box>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <List dense>
+                      {team.activities.map((activity) => (
+                        <ListItem key={activity.id} disablePadding>
+                          <ListItemButton onClick={() => navigate(`/activities/${activity.id}`)}>
+                            <ListItemText
+                              primary={activity.name}
+                              secondary={`${activity.plannedDate} - ${activity.location} (${activity.status})`}
+                            />
+                          </ListItemButton>
+                        </ListItem>
+                      ))}
+                    </List>
+                  </AccordionDetails>
+                </Accordion>
+              )}
+
+              {/* תורנויות */}
+              {team.duties.length > 0 && (
+                <Accordion>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <ScheduleIcon sx={{ mr: 1, color: 'info.main' }} />
+                      <Typography variant="h6">תורנויות</Typography>
+                      <Chip 
+                        label={team.duties.length} 
+                        size="small" 
+                        color="info" 
+                        sx={{ ml: 1 }}
+                      />
+                    </Box>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <List dense>
+                      {team.duties.map((duty) => (
+                        <ListItem key={duty.id} disablePadding>
+                          <ListItemButton onClick={() => navigate(`/duties/${duty.id}`)}>
+                            <ListItemText
+                              primary={duty.type}
+                              secondary={`${duty.startDate} ${duty.startTime} - ${duty.location} (${duty.status})`}
+                            />
+                          </ListItemButton>
+                        </ListItem>
+                      ))}
+                    </List>
+                  </AccordionDetails>
+                </Accordion>
+              )}
+
+              {/* סגל הצוות */}
+              <Accordion defaultExpanded>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Typography variant="h6">מבנה הצוות</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <StarIcon sx={{ mr: 1, color: 'primary.main' }} />
+                    <Typography variant="h6">סגל הצוות</Typography>
+                    <Chip 
+                      label={team.commanders.length} 
+                      size="small" 
+                      color="primary" 
+                      sx={{ ml: 1 }}
+                    />
+                  </Box>
                 </AccordionSummary>
                 <AccordionDetails>
-                  <Box sx={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, 
-                    gap: 3 
-                  }}>
-                    {/* Command Structure */}
-                    <Box>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-                        פיקוד
-                      </Typography>
-                      
-                      {/* Commander */}
-                      {team.commanderUid && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                          <Avatar sx={{ width: 32, height: 32, mr: 1 }}>
-                            <StarIcon />
-                          </Avatar>
-                          <Box>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {getUserByUid(team.commanderUid)?.displayName || 'לא נמצא'}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                              מפקד צוות
-                            </Typography>
-                          </Box>
-                        </Box>
-                      )}
-
-                      {/* Samal */}
-                      {team.samalUid && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                          <Avatar sx={{ width: 32, height: 32, mr: 1 }}>
-                            <PersonIcon />
-                          </Avatar>
-                          <Box>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {getUserByUid(team.samalUid)?.displayName || 'לא נמצא'}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                              סמל
-                            </Typography>
-                          </Box>
-                        </Box>
-                      )}
-
-                      {/* Squad Leaders */}
-                      {team.squadLeaders.map((uid, index) => (
-                        <Box key={uid} sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                          <Avatar sx={{ width: 32, height: 32, mr: 1 }}>
-                            <AssignmentIcon />
-                          </Avatar>
-                          <Box>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {getUserByUid(uid)?.displayName || 'לא נמצא'}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                              מפקד חיילים {index + 1}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      ))}
-                    </Box>
-
-                    {/* Soldiers */}
-                    <Box>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-                        חיילים ({team.soldiers.length})
-                      </Typography>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                        {team.soldiers.map((uid) => {
-                          const soldier = getUserByUid(uid);
-                          return (
-                            <Chip
-                              key={uid}
-                              label={soldier?.displayName || 'לא נמצא'}
-                              size="small"
-                              variant="outlined"
-                              onClick={() => soldier && handleAssignSoldier(team, soldier)}
-                              sx={{ cursor: 'pointer' }}
-                            />
-                          );
-                        })}
-                      </Box>
-                    </Box>
-                  </Box>
+                  <List dense>
+                    {team.commanders.map((soldier) => (
+                      <ListItem key={soldier.id} disablePadding>
+                        <ListItemButton onClick={() => handleSoldierClick(soldier)}>
+                          <ListItemAvatar>
+                            <Avatar sx={{ bgcolor: getProfileColor(soldier.profile) }}>
+                              {soldier.name.charAt(0)}
+                            </Avatar>
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={soldier.name}
+                            secondary={
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Chip 
+                                  label={soldier.role} 
+                                  size="small" 
+                                  color="primary" 
+                                  variant="outlined"
+                                />
+                                <Typography variant="body2" color="text.secondary">
+                                  {soldier.personalNumber}
+                                </Typography>
+                              </Box>
+                            }
+                          />
+                          <ArrowForwardIcon color="action" />
+                        </ListItemButton>
+                      </ListItem>
+                    ))}
+                  </List>
                 </AccordionDetails>
               </Accordion>
+
+              {/* לוחמי הצוות */}
+              <Accordion>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <PersonIcon sx={{ mr: 1, color: 'secondary.main' }} />
+                    <Typography variant="h6">לוחמים</Typography>
+                    <Chip 
+                      label={team.fighters.length} 
+                      size="small" 
+                      color="secondary" 
+                      sx={{ ml: 1 }}
+                    />
+                  </Box>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <List dense>
+                    {team.fighters.map((soldier) => (
+                      <ListItem key={soldier.id} disablePadding>
+                        <ListItemButton onClick={() => handleSoldierClick(soldier)}>
+                          <ListItemAvatar>
+                            <Avatar sx={{ bgcolor: getProfileColor(soldier.profile) }}>
+                              {soldier.name.charAt(0)}
+                            </Avatar>
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={soldier.name}
+                            secondary={
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Chip 
+                                  label={soldier.role} 
+                                  size="small" 
+                                  color="secondary" 
+                                  variant="outlined"
+                                />
+                                <Typography variant="body2" color="text.secondary">
+                                  {soldier.personalNumber}
+                                </Typography>
+                              </Box>
+                            }
+                          />
+                          <ArrowForwardIcon color="action" />
+                        </ListItemButton>
+                      </ListItem>
+                    ))}
+                  </List>
+                </AccordionDetails>
+              </Accordion>
+
+              {/* כשירויות הצוות */}
+              {team.soldiers.length > 0 && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    כשירויות נבחרות:
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {Array.from(new Set(
+                      team.soldiers.flatMap(s => s.qualifications || [])
+                    )).slice(0, 5).map((qual) => (
+                      <Chip key={qual} label={qual} size="small" variant="outlined" />
+                    ))}
+                  </Box>
+                </Box>
+              )}
             </CardContent>
           </Card>
         ))}
       </Box>
 
-      {/* Available Soldiers */}
-      <Card>
-        <CardContent>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            חיילים זמינים לשיבוץ ({getAvailableSoldiers().length})
-          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            {getAvailableSoldiers().map((soldier) => (
-              <Chip
-                key={soldier.uid}
-                label={`${soldier.displayName} (${getRoleDisplayName(soldier.role)})`}
-                variant="outlined"
-                sx={{ cursor: 'pointer' }}
-                onClick={() => {
-                  // יכול לבחור לאיזה צוות לשבץ
-                  setSelectedSoldier(soldier);
-                  // TODO: add team selection dialog
-                }}
-              />
-            ))}
-          </Box>
-        </CardContent>
-      </Card>
-
-      {/* FAB for mobile */}
-      <Fab
-        color="primary"
-        aria-label="add team"
-        onClick={handleCreateTeam}
-        sx={{
-          position: 'fixed',
-          bottom: 16,
-          right: 16,
-          display: { xs: 'flex', sm: 'none' }
-        }}
-      >
-        <AddIcon />
-      </Fab>
-
-      {/* Create/Edit Team Dialog */}
-      <Dialog open={teamDialogOpen} onClose={() => setTeamDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {selectedTeam ? 'עריכת צוות' : 'צוות חדש'}
-        </DialogTitle>
-        <DialogContent>
-          <Box sx={{ 
-            display: 'grid', 
-            gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, 
-            gap: 2, 
-            mt: 1 
-          }}>
-            <TextField
-              fullWidth
-              label="שם הצוות"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              required
-            />
-            
-            <FormControl fullWidth>
-              <InputLabel>פלגה</InputLabel>
-              <Select
-                value={formData.plagaId}
-                onChange={(e) => setFormData({ ...formData, plagaId: e.target.value })}
-                label="פלגה"
-              >
-                <MenuItem value="A">פלגה א</MenuItem>
-                <MenuItem value="B">פלגה ב</MenuItem>
-                <MenuItem value="C">פלגה ג</MenuItem>
-              </Select>
-            </FormControl>
-
-            <FormControl fullWidth>
-              <InputLabel>מפקד צוות</InputLabel>
-              <Select
-                value={formData.commanderUid}
-                onChange={(e) => setFormData({ ...formData, commanderUid: e.target.value })}
-                label="מפקד צוות"
-              >
-                <MenuItem value="">ללא</MenuItem>
-                {getCommanderCandidates().map((commander) => (
-                  <MenuItem key={commander.uid} value={commander.uid}>
-                    {commander.displayName} ({getRoleDisplayName(commander.role)})
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <FormControl fullWidth>
-              <InputLabel>סמל</InputLabel>
-              <Select
-                value={formData.samalUid}
-                onChange={(e) => setFormData({ ...formData, samalUid: e.target.value })}
-                label="סמל"
-              >
-                <MenuItem value="">ללא</MenuItem>
-                {getSamalCandidates().map((samal) => (
-                  <MenuItem key={samal.uid} value={samal.uid}>
-                    {samal.displayName}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
-              <TextField
-                fullWidth
-                label="תיאור"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                multiline
-                rows={2}
-              />
-            </Box>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setTeamDialogOpen(false)}>ביטול</Button>
-          <Button onClick={handleSaveTeam} variant="contained">
-            {selectedTeam ? 'עדכן' : 'צור'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Assign Soldier Dialog */}
-      <Dialog open={assignDialogOpen} onClose={() => setAssignDialogOpen(false)}>
-        <DialogTitle>שיבוץ חייל</DialogTitle>
-        <DialogContent>
-          {selectedSoldier && selectedTeam && (
-            <Alert severity="info" sx={{ mt: 1 }}>
-              האם לשבץ את <strong>{selectedSoldier.displayName}</strong> ל-<strong>{selectedTeam.name}</strong>?
-            </Alert>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAssignDialogOpen(false)}>ביטול</Button>
-          <Button onClick={handleConfirmAssign} variant="contained">
-            שבץ
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {teams.length === 0 && (
+        <Alert severity="info" sx={{ mt: 3 }}>
+          לא נמצאו צוותים. ייתכן שצריך להכניס נתונים ראשוניים.
+        </Alert>
+      )}
     </Container>
   );
 };

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -18,14 +18,70 @@ import {
   People as PeopleIcon,
   Description as DescriptionIcon,
   Dashboard as DashboardIcon,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  LocalHospital as LocalHospitalIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
 import { UserRole, isHigherRole } from '../models/UserRole';
+import { getAllSoldiers } from '../services/soldierService';
+import { getAllVehicles } from '../services/vehicleService';
+import { getAllActivities } from '../services/activityService';
+import { getAllDuties } from '../services/dutyService';
+import { getAllMissions } from '../services/missionService';
+import { getAllReferrals } from '../services/referralService';
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useUser();
+  const [stats, setStats] = useState({
+    soldiers: 0,
+    teams: 5, // קבוע - מספר הצוותים
+    vehicles: 0,
+    drivers: 0,
+    activities: 0,
+    duties: 0,
+    missions: 0,
+    referrals: 0
+  });
+  const [loading, setLoading] = useState(true);
+
+  // טעינת סטטיסטיקות
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        const [soldiers, vehicles, activities, duties, missions, referrals] = await Promise.all([
+          getAllSoldiers(),
+          getAllVehicles(),
+          getAllActivities(),
+          getAllDuties(),
+          getAllMissions(),
+          getAllReferrals()
+        ]);
+
+        // חישוב נהגים (חיילים עם כשירות נהג)
+        const drivers = soldiers.filter(s => s.qualifications?.includes('נהג')).length;
+
+        setStats({
+          soldiers: soldiers.length,
+          teams: 5, // קבוע
+          vehicles: vehicles.length,
+          drivers,
+          activities: activities.length,
+          duties: duties.length,
+          missions: missions.length,
+          referrals: referrals.length
+        });
+      } catch (error) {
+        console.error('שגיאה בטעינת סטטיסטיקות:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user) {
+      loadStats();
+    }
+  }, [user]);
 
   if (!user) {
     return (
@@ -53,7 +109,7 @@ const Home: React.FC = () => {
       subtitle: 'כוח האדם הפעיל',
       icon: <GroupsIcon sx={{ fontSize: 32 }} />,
       color: '#3f51b5',
-      count: '42',
+      count: stats.soldiers.toString(),
       path: '/soldiers'
     },
     {
@@ -61,7 +117,7 @@ const Home: React.FC = () => {
       subtitle: 'מבנה ארגוני',
       icon: <PeopleIcon sx={{ fontSize: 32 }} />,
       color: '#4caf50',
-      count: '6',
+      count: stats.teams.toString(),
       path: '/teams'
     },
     {
@@ -69,15 +125,23 @@ const Home: React.FC = () => {
       subtitle: 'זמינים ובשימוש',
       icon: <DirectionsCarIcon sx={{ fontSize: 32 }} />,
       color: '#ff9800',
-      count: '8',
+      count: stats.vehicles.toString(),
       path: '/vehicles'
     },
     {
-      title: 'משימות פעילות',
-      subtitle: 'משימות נוכחיות',
-      icon: <AssignmentIcon sx={{ fontSize: 32 }} />,
+      title: 'נהגים',
+      subtitle: 'נהגים זמינים',
+      icon: <DriveEtaIcon sx={{ fontSize: 32 }} />,
       color: '#2196f3',
-      count: '3',
+      count: stats.drivers.toString(),
+      path: '/drivers'
+    },
+    {
+      title: 'משימות',
+      subtitle: 'מספר משימות פתוחות',
+      icon: <AssignmentIcon sx={{ fontSize: 32 }} />,
+      color: '#f44336',
+      count: stats.missions.toString(),
       path: '/missions'
     }
   ];
@@ -120,6 +184,13 @@ const Home: React.FC = () => {
       path: '/missions'
     },
     {
+      title: 'פעילויות מבצעיות',
+      subtitle: 'ניהול פעילויות',
+      icon: <AssignmentIcon sx={{ fontSize: 32 }} />,
+      color: '#f44336',
+      path: '/activities'
+    },
+    {
       title: 'תורנויות',
       subtitle: 'שיבוץ תורנויות',
       icon: <EventNoteIcon sx={{ fontSize: 32 }} />,
@@ -139,6 +210,34 @@ const Home: React.FC = () => {
       icon: <DashboardIcon sx={{ fontSize: 32 }} />,
       color: '#795548',
       path: '/hamal'
+    },
+    {
+      title: 'פעילויות',
+      subtitle: `${stats.activities} פעילויות פעילות`,
+      icon: <AssignmentIcon sx={{ fontSize: 32 }} />,
+      color: '#f44336',
+      path: '/activities'
+    },
+    {
+      title: 'תורנויות',
+      subtitle: `${stats.duties} תורנויות פעילות`,
+      icon: <EventNoteIcon sx={{ fontSize: 32 }} />,
+      color: '#607d8b',
+      path: '/duties'
+    },
+    {
+      title: 'משימות',
+      subtitle: `${stats.missions} משימות פתוחות`,
+      icon: <AssignmentIcon sx={{ fontSize: 32 }} />,
+      color: '#2196f3',
+      path: '/missions'
+    },
+    {
+      title: 'הפניות',
+      subtitle: `${stats.referrals} הפניות פעילות`,
+      icon: <LocalHospitalIcon sx={{ fontSize: 32 }} />,
+      color: '#ff9800',
+      path: '/referrals'
     }
   ];
 
@@ -151,6 +250,14 @@ const Home: React.FC = () => {
       color: '#e91e63',
       path: '/users'
     });
+  }
+
+  if (loading) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 3, textAlign: 'center' }}>
+        <Typography>טוען סטטיסטיקות...</Typography>
+      </Container>
+    );
   }
 
   return (

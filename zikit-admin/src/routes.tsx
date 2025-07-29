@@ -10,14 +10,20 @@ import Missions from './pages/Missions';
 import Duties from './pages/Duties';
 import Hamal from './pages/Hamal';
 import Forms from './pages/Forms';
+import Activities from './pages/Activities';
+import Referrals from './pages/Referrals';
 import Login from './pages/Login';
 import SoldierProfile from './pages/SoldierProfile';
+import TeamDetails from './pages/TeamDetails';
 import UserManagement from './pages/UserManagement';
 import PersonalProfile from './pages/PersonalProfile';
 import PendingSoldiers from './pages/PendingSoldiers';
 import SoldierLinking from './pages/SoldierLinking';
+import DataSeeder from './pages/DataSeeder';
+import ActivityDetails from './pages/ActivityDetails';
+import DutyDetails from './pages/DutyDetails';
 import { signOutUser } from './services/authService';
-import { Drawer, List, ListItem, ListItemIcon, ListItemText, IconButton, AppBar, Toolbar, Typography, Box, Divider, Avatar } from '@mui/material';
+import { Drawer, List, ListItem, ListItemIcon, ListItemText, IconButton, AppBar, Toolbar, Typography, Box, Divider, Avatar, Collapse } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import HomeIcon from '@mui/icons-material/Home';
 import GroupsIcon from '@mui/icons-material/Groups';
@@ -28,10 +34,13 @@ import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import PersonIcon from '@mui/icons-material/Person';
 import KeyIcon from '@mui/icons-material/VpnKey';
 import DescriptionIcon from '@mui/icons-material/Description';
+import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
 import ShieldIcon from '@mui/icons-material/Shield';
 import LogoutIcon from '@mui/icons-material/Logout';
 import MonitorIcon from '@mui/icons-material/Monitor';
 import SettingsIcon from '@mui/icons-material/Settings';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 
 const drawerWidth = 260;
 
@@ -42,54 +51,84 @@ const getMenuItems = (user: any) => {
   ];
 
   const managementItems = [
-    { text: 'חיילים ממתינים', icon: <PersonIcon />, path: '/pending-soldiers' },
-    { text: 'קישור חיילים', icon: <LinkIcon />, path: '/soldier-linking' },
     { text: 'כוח אדם', icon: <GroupsIcon />, path: '/soldiers' },
     { text: 'צוותים', icon: <GroupsIcon />, path: '/teams' },
     { text: 'נהגים', icon: <KeyIcon />, path: '/drivers' },
     { text: 'רכבים', icon: <DirectionsCarIcon />, path: '/vehicles' },
     { text: 'משימות', icon: <AssignmentIcon />, path: '/missions' },
+    { text: 'פעילויות מבצעיות', icon: <AssignmentIcon />, path: '/activities' },
     { text: 'תורנויות', icon: <CalendarMonthIcon />, path: '/duties' },
+    { text: 'הפניות', icon: <LocalHospitalIcon />, path: '/referrals' },
     { text: 'טפסים', icon: <DescriptionIcon />, path: '/forms' },
     { text: 'מסך חמ"ל', icon: <MonitorIcon />, path: '/hamal' }
   ];
 
   const adminItems = [
-    { text: 'ניהול משתמשים', icon: <SettingsIcon />, path: '/users' }
+    { text: 'חיילים ממתינים', icon: <PersonIcon />, path: '/pending-soldiers' },
+    { text: 'קישור חיילים', icon: <LinkIcon />, path: '/soldier-linking' },
+    { text: 'ניהול משתמשים', icon: <SettingsIcon />, path: '/users' },
+    { text: 'הכנסת נתונים', icon: <SettingsIcon />, path: '/data-seeder' }
   ];
 
-  // בנה תפריט לפי הרשאות
-  let menuItems = [...baseItems];
-  
-  if (user && (user.canAssignRoles || user.role !== 'chayal')) {
-    menuItems = [...menuItems, ...managementItems];
-  }
-  
-  if (user && user.canAssignRoles) {
-    menuItems = [...menuItems, ...adminItems];
-  }
-
-  return menuItems;
+  return { baseItems, managementItems, adminItems };
 };
 
 const SideDrawer: React.FC<{ onLogout: () => void, open: boolean, onClose: () => void, user: any }> = ({ onLogout, open, onClose, user }) => {
-  const menuItems = getMenuItems(user);
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+  const { baseItems, managementItems, adminItems } = getMenuItems(user);
   
   return (
     <Drawer anchor="right" open={open} onClose={onClose} sx={{ '& .MuiDrawer-paper': { width: drawerWidth, direction: 'rtl' } }}>
       <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56, mb: 1 }}><ShieldIcon /></Avatar>
-        <Typography variant="h6" fontWeight={700}>מערכת כוח אדם</Typography>
-        <Typography variant="body2" color="text.secondary">פלוגה לוחמת</Typography>
+        <Typography variant="h6" fontWeight={700}>zikit</Typography>
+        <Typography variant="body2" color="text.secondary">מערכת ניהול כוח אדם</Typography>
       </Box>
       <Divider />
       <List>
-        {menuItems.map((item) => (
+        {/* פריטים בסיסיים */}
+        {baseItems.map((item) => (
           <ListItem key={item.text} component={Link} to={item.path} onClick={onClose}>
             <ListItemIcon sx={{ minWidth: 36 }}>{item.icon}</ListItemIcon>
             <ListItemText primary={item.text} />
           </ListItem>
         ))}
+        
+        {/* פריטי ניהול */}
+        {user && (user.canAssignRoles || user.role !== 'chayal') && (
+          <>
+            <Divider sx={{ my: 1 }} />
+            {managementItems.map((item) => (
+              <ListItem key={item.text} component={Link} to={item.path} onClick={onClose}>
+                <ListItemIcon sx={{ minWidth: 36 }}>{item.icon}</ListItemIcon>
+                <ListItemText primary={item.text} />
+              </ListItem>
+            ))}
+          </>
+        )}
+        
+        {/* תפריט ניהול מתקפל */}
+        {user && user.canAssignRoles && (
+          <>
+            <Divider sx={{ my: 1 }} />
+            <ListItem component="button" onClick={() => setAdminMenuOpen(!adminMenuOpen)}>
+              <ListItemIcon sx={{ minWidth: 36 }}><SettingsIcon /></ListItemIcon>
+              <ListItemText primary="ניהול" />
+              {adminMenuOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </ListItem>
+            <Collapse in={adminMenuOpen} timeout="auto" unmountOnExit>
+              <List component="div" disablePadding>
+                {adminItems.map((item) => (
+                  <ListItem key={item.text} component={Link} to={item.path} onClick={onClose} sx={{ pl: 4 }}>
+                    <ListItemIcon sx={{ minWidth: 36 }}>{item.icon}</ListItemIcon>
+                    <ListItemText primary={item.text} />
+                  </ListItem>
+                ))}
+              </List>
+            </Collapse>
+          </>
+        )}
+        
         <ListItem component="button" onClick={onLogout} sx={{ mt: 2 }}>
           <ListItemIcon sx={{ minWidth: 36 }}><LogoutIcon /></ListItemIcon>
           <ListItemText primary="התנתק" />
@@ -127,7 +166,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           <IconButton edge="start" color="inherit" aria-label="menu" onClick={() => setDrawerOpen(true)}>
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" fontWeight={700} sx={{ flexGrow: 1, textAlign: 'right' }}>מערכת כוח אדם</Typography>
+          <Typography variant="h6" fontWeight={700} sx={{ flexGrow: 1, textAlign: 'right', mr: 2 }}>zikit</Typography>
         </Toolbar>
       </AppBar>
       <SideDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} onLogout={handleLogout} user={user} />
@@ -165,21 +204,22 @@ const AppRoutes: React.FC = () => {
           <Route path="/soldiers" element={<Soldiers />} />
           <Route path="/soldiers/:id" element={<SoldierProfile />} />
           <Route path="/teams" element={<Teams />} />
+          <Route path="/teams/:teamId" element={<TeamDetails />} />
           <Route path="/drivers" element={<Drivers />} />
           <Route path="/vehicles" element={<Vehicles />} />
           <Route path="/missions" element={<Missions />} />
+          <Route path="/activities" element={<Activities />} />
+          <Route path="/activities/:id" element={<ActivityDetails />} />
           <Route path="/duties" element={<Duties />} />
+          <Route path="/duties/:id" element={<DutyDetails />} />
+          <Route path="/referrals" element={<Referrals />} />
           <Route path="/hamal" element={<Hamal />} />
           <Route path="/forms" element={<Forms />} />
           <Route path="/users" element={<UserManagement />} />
           <Route path="/profile" element={<PersonalProfile />} />
           <Route path="/pending-soldiers" element={<PendingSoldiers />} />
           <Route path="/soldier-linking" element={<SoldierLinking />} />
-          <Route path="/drivers" element={<Drivers />} />
-          <Route path="/vehicles" element={<Vehicles />} />
-          <Route path="/missions" element={<Missions />} />
-          <Route path="/duties" element={<Duties />} />
-          <Route path="/hamal" element={<Hamal />} />
+          <Route path="/data-seeder" element={<DataSeeder />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Layout>

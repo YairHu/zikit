@@ -40,6 +40,12 @@ service cloud.firestore {
       allow write: if isAdmin() || isMefakedPluga();
     }
     
+    // פעילויות מבצעיות
+    match /activities/{activityId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isMefakedPluga();
+    }
+    
     // תורנויות
     match /duties/{dutyId} {
       allow read: if request.auth != null;
