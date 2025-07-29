@@ -10,11 +10,6 @@ import {
   Chip,
   Alert,
   Divider,
-  List,
-  ListItem,
-  ListItemAvatar,
-  ListItemText,
-  ListItemButton,
   Tabs,
   Tab,
   Table,
@@ -25,17 +20,14 @@ import {
   TableRow,
   Paper,
   IconButton,
-  Badge,
-  Button
+  Badge
 } from '@mui/material';
 import {
   Group as GroupIcon,
   Person as PersonIcon,
   Star as StarIcon,
-  ExpandMore as ExpandMoreIcon,
   ArrowBack as ArrowBackIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon
+  Edit as EditIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
 import { Soldier } from '../models/Soldier';
@@ -46,6 +38,7 @@ import { getAllSoldiers } from '../services/soldierService';
 import { getActivitiesByTeam } from '../services/activityService';
 import { getDutiesByTeam } from '../services/dutyService';
 import { getReferralsByTeam } from '../services/referralService';
+import { getPresenceColor, getProfileColor } from '../utils/colors';
 
 interface Team {
   id: string;
@@ -64,7 +57,6 @@ interface Team {
 const TeamDetails: React.FC = () => {
   const { teamId } = useParams<{ teamId: string }>();
   const navigate = useNavigate();
-  const { user } = useUser();
   const [team, setTeam] = useState<Team | null>(null);
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,28 +135,15 @@ const TeamDetails: React.FC = () => {
     loadData();
   }, [loadData]);
 
+
+
   const handleSoldierClick = (soldier: Soldier) => {
     navigate(`/soldiers/${soldier.id}`);
   };
 
-  const getProfileColor = (profile: string) => {
-    switch (profile) {
-      case '97': return '#4caf50';
-      case '82': return '#ff9800';
-      case '72': return '#f44336';
-      default: return '#9e9e9e';
-    }
-  };
 
-  const getRoleColor = (role: string) => {
-    switch (role) {
-      case 'מפקד צוות': return '#1976d2';
-      case 'סמל': return '#388e3c';
-      case 'מפקד': return '#7b1fa2';
-      case 'חייל': return '#ff9800';
-      default: return '#9e9e9e';
-    }
-  };
+
+
 
   if (loading) {
     return (
@@ -231,6 +210,7 @@ const TeamDetails: React.FC = () => {
                     <TableCell sx={{ fontWeight: 'bold' }}>מספר אישי</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>תפקיד</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>פרופיל</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>נוכחות</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>כשירויות</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>רישיונות</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>היתרים</TableCell>
@@ -269,6 +249,17 @@ const TeamDetails: React.FC = () => {
                           label={soldier.profile} 
                           size="small" 
                           sx={{ bgcolor: getProfileColor(soldier.profile), color: 'white' }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'} 
+                          size="small" 
+                          sx={{ 
+                            bgcolor: getPresenceColor(soldier.presence),
+                            color: 'white',
+                            fontWeight: 600
+                          }}
                         />
                       </TableCell>
                       <TableCell>
@@ -320,6 +311,7 @@ const TeamDetails: React.FC = () => {
                     sx={{ 
                       height: '100%',
                       transition: 'all 0.3s ease',
+                      border: `2px solid ${getPresenceColor(soldier.presence)}`,
                       '&:hover': {
                         transform: 'translateY(-4px)',
                         boxShadow: 4
@@ -375,6 +367,20 @@ const TeamDetails: React.FC = () => {
                           label={soldier.profile}
                           sx={{ 
                             bgcolor: getProfileColor(soldier.profile),
+                            color: 'white',
+                            fontWeight: 600
+                          }}
+                        />
+                      </Box>
+
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                          נוכחות:
+                        </Typography>
+                        <Chip 
+                          label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'}
+                          sx={{ 
+                            bgcolor: getPresenceColor(soldier.presence),
                             color: 'white',
                             fontWeight: 600
                           }}
@@ -490,6 +496,7 @@ const TeamDetails: React.FC = () => {
                     <TableCell sx={{ fontWeight: 'bold' }}>מספר אישי</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>תפקיד</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>פרופיל</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>נוכחות</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>כשירויות</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>רישיונות</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>היתרים</TableCell>
@@ -528,6 +535,17 @@ const TeamDetails: React.FC = () => {
                           label={soldier.profile} 
                           size="small" 
                           sx={{ bgcolor: getProfileColor(soldier.profile), color: 'white' }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'} 
+                          size="small" 
+                          sx={{ 
+                            bgcolor: getPresenceColor(soldier.presence),
+                            color: 'white',
+                            fontWeight: 600
+                          }}
                         />
                       </TableCell>
                       <TableCell>
@@ -579,6 +597,7 @@ const TeamDetails: React.FC = () => {
                     sx={{ 
                       height: '100%',
                       transition: 'all 0.3s ease',
+                      border: `2px solid ${getPresenceColor(soldier.presence)}`,
                       '&:hover': {
                         transform: 'translateY(-4px)',
                         boxShadow: 4
@@ -634,6 +653,20 @@ const TeamDetails: React.FC = () => {
                           label={soldier.profile}
                           sx={{ 
                             bgcolor: getProfileColor(soldier.profile),
+                            color: 'white',
+                            fontWeight: 600
+                          }}
+                        />
+                      </Box>
+
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                          נוכחות:
+                        </Typography>
+                        <Chip 
+                          label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'}
+                          sx={{ 
+                            bgcolor: getPresenceColor(soldier.presence),
                             color: 'white',
                             fontWeight: 600
                           }}

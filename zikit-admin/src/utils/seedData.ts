@@ -1,8 +1,7 @@
 import { db } from '../firebase';
-import { collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc } from 'firebase/firestore';
 import { Soldier } from '../models/Soldier';
 import { Vehicle } from '../models/Vehicle';
-import { Team } from '../models/Team';
 
 // נתוני חיילים דמו
 export const demoSoldiers: Omit<Soldier, 'id'>[] = [

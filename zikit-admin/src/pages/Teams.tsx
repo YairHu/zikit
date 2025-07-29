@@ -9,7 +9,6 @@ import {
   Avatar,
   Chip,
   Alert,
-  Grid,
   Divider,
   List,
   ListItem,
@@ -20,7 +19,16 @@ import {
   AccordionSummary,
   AccordionDetails,
   Badge,
-  Button
+  Button,
+  Tabs,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper
 } from '@mui/material';
 import {
   Group as GroupIcon,
@@ -29,7 +37,9 @@ import {
   ExpandMore as ExpandMoreIcon,
   ArrowForward as ArrowForwardIcon,
   Assignment as AssignmentIcon,
-  Schedule as ScheduleIcon
+  Schedule as ScheduleIcon,
+  ViewList as ViewListIcon,
+  ViewModule as ViewModuleIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
 import { Soldier } from '../models/Soldier';
@@ -38,6 +48,7 @@ import { Duty } from '../models/Duty';
 import { getAllSoldiers } from '../services/soldierService';
 import { getActivitiesByTeam } from '../services/activityService';
 import { getDutiesByTeam } from '../services/dutyService';
+import { getPresenceColor, getProfileColor } from '../utils/colors';
 
 interface Team {
   id: string;
@@ -54,10 +65,10 @@ interface Team {
 
 const Teams: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useUser();
   const [teams, setTeams] = useState<Team[]>([]);
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   const loadData = useCallback(async () => {
     try {
@@ -160,28 +171,15 @@ const Teams: React.FC = () => {
     loadData();
   }, [loadData]);
 
+
+
   const handleSoldierClick = (soldier: Soldier) => {
     navigate(`/soldiers/${soldier.id}`);
   };
 
-  const getProfileColor = (profile: string) => {
-    switch (profile) {
-      case '97': return '#4caf50';
-      case '82': return '#ff9800';
-      case '72': return '#f44336';
-      default: return '#9e9e9e';
-    }
-  };
 
-  const getRoleColor = (role: string) => {
-    switch (role) {
-      case 'מפקד צוות': return '#1976d2';
-      case 'סמל': return '#388e3c';
-      case 'מפקד': return '#7b1fa2';
-      case 'חייל': return '#ff9800';
-      default: return '#9e9e9e';
-    }
-  };
+
+
 
   if (loading) {
     return (
@@ -197,7 +195,16 @@ const Teams: React.FC = () => {
         צוותים
       </Typography>
       
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 3 }}>
+      {/* View Mode Tabs */}
+      <Box sx={{ mb: 3 }}>
+        <Tabs value={viewMode === 'cards' ? 0 : 1} onChange={(_, newValue) => setViewMode(newValue === 0 ? 'cards' : 'table')}>
+          <Tab icon={<ViewModuleIcon />} label="כרטיסים" />
+          <Tab icon={<ViewListIcon />} label="טבלה" />
+        </Tabs>
+      </Box>
+      
+      {viewMode === 'cards' ? (
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 3 }}>
         {teams.map((team) => (
           <Card key={team.id}>
             <CardContent>
@@ -249,7 +256,10 @@ const Teams: React.FC = () => {
               {/* פעילויות מבצעיות */}
               {team.activities.length > 0 && (
                 <Accordion>
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <AccordionSummary 
+                    expandIcon={<ExpandMoreIcon />}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                       <AssignmentIcon sx={{ mr: 1, color: 'warning.main' }} />
                       <Typography variant="h6">פעילויות מבצעיות</Typography>
@@ -281,7 +291,10 @@ const Teams: React.FC = () => {
               {/* תורנויות */}
               {team.duties.length > 0 && (
                 <Accordion>
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <AccordionSummary 
+                    expandIcon={<ExpandMoreIcon />}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                       <ScheduleIcon sx={{ mr: 1, color: 'info.main' }} />
                       <Typography variant="h6">תורנויות</Typography>
@@ -312,7 +325,10 @@ const Teams: React.FC = () => {
 
               {/* סגל הצוות */}
               <Accordion defaultExpanded>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <AccordionSummary 
+                  expandIcon={<ExpandMoreIcon />}
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
                     <StarIcon sx={{ mr: 1, color: 'primary.main' }} />
                     <Typography variant="h6">סגל הצוות</Typography>
@@ -328,16 +344,38 @@ const Teams: React.FC = () => {
                   <List dense>
                     {team.commanders.map((soldier) => (
                       <ListItem key={soldier.id} disablePadding>
-                        <ListItemButton onClick={() => handleSoldierClick(soldier)}>
+                        <ListItemButton 
+                          onClick={() => handleSoldierClick(soldier)}
+                          sx={{ 
+                            border: `2px solid ${getPresenceColor(soldier.presence)}`,
+                            borderRadius: 1,
+                            mb: 0.5
+                          }}
+                        >
                           <ListItemAvatar>
                             <Avatar sx={{ bgcolor: getProfileColor(soldier.profile) }}>
                               {soldier.name.charAt(0)}
                             </Avatar>
                           </ListItemAvatar>
                           <ListItemText
-                            primary={soldier.name}
-                            secondary={
+                            primary={
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Typography variant="body1" fontWeight={600}>
+                                  {soldier.name}
+                                </Typography>
+                                <Chip 
+                                  label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'} 
+                                  size="small" 
+                                  sx={{ 
+                                    bgcolor: getPresenceColor(soldier.presence),
+                                    color: 'white',
+                                    fontWeight: 600
+                                  }}
+                                />
+                              </Box>
+                            }
+                            secondary={
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
                                 <Chip 
                                   label={soldier.role} 
                                   size="small" 
@@ -347,6 +385,15 @@ const Teams: React.FC = () => {
                                 <Typography variant="body2" color="text.secondary">
                                   {soldier.personalNumber}
                                 </Typography>
+                                <Chip 
+                                  label={soldier.profile}
+                                  size="small" 
+                                  sx={{ 
+                                    bgcolor: getProfileColor(soldier.profile),
+                                    color: 'white',
+                                    fontWeight: 600
+                                  }}
+                                />
                               </Box>
                             }
                           />
@@ -360,7 +407,10 @@ const Teams: React.FC = () => {
 
               {/* לוחמי הצוות */}
               <Accordion>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <AccordionSummary 
+                  expandIcon={<ExpandMoreIcon />}
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
                     <PersonIcon sx={{ mr: 1, color: 'secondary.main' }} />
                     <Typography variant="h6">לוחמים</Typography>
@@ -376,16 +426,38 @@ const Teams: React.FC = () => {
                   <List dense>
                     {team.fighters.map((soldier) => (
                       <ListItem key={soldier.id} disablePadding>
-                        <ListItemButton onClick={() => handleSoldierClick(soldier)}>
+                        <ListItemButton 
+                          onClick={() => handleSoldierClick(soldier)}
+                          sx={{ 
+                            border: `2px solid ${getPresenceColor(soldier.presence)}`,
+                            borderRadius: 1,
+                            mb: 0.5
+                          }}
+                        >
                           <ListItemAvatar>
                             <Avatar sx={{ bgcolor: getProfileColor(soldier.profile) }}>
                               {soldier.name.charAt(0)}
                             </Avatar>
                           </ListItemAvatar>
                           <ListItemText
-                            primary={soldier.name}
-                            secondary={
+                            primary={
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Typography variant="body1" fontWeight={600}>
+                                  {soldier.name}
+                                </Typography>
+                                <Chip 
+                                  label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'} 
+                                  size="small" 
+                                  sx={{ 
+                                    bgcolor: getPresenceColor(soldier.presence),
+                                    color: 'white',
+                                    fontWeight: 600
+                                  }}
+                                />
+                              </Box>
+                            }
+                            secondary={
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
                                 <Chip 
                                   label={soldier.role} 
                                   size="small" 
@@ -395,6 +467,15 @@ const Teams: React.FC = () => {
                                 <Typography variant="body2" color="text.secondary">
                                   {soldier.personalNumber}
                                 </Typography>
+                                <Chip 
+                                  label={soldier.profile}
+                                  size="small" 
+                                  sx={{ 
+                                    bgcolor: getProfileColor(soldier.profile),
+                                    color: 'white',
+                                    fontWeight: 600
+                                  }}
+                                />
                               </Box>
                             }
                           />
@@ -425,6 +506,84 @@ const Teams: React.FC = () => {
           </Card>
         ))}
       </Box>
+      ) : (
+        // Table View
+        <TableContainer component={Paper} sx={{ mt: 2 }}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>שם צוות</TableCell>
+                <TableCell>פלגה</TableCell>
+                <TableCell>מספר חיילים</TableCell>
+                <TableCell>מפקדים</TableCell>
+                <TableCell>לוחמים</TableCell>
+                <TableCell>פעילויות</TableCell>
+                <TableCell>תורנויות</TableCell>
+                <TableCell>פעולות</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {teams.map((team) => (
+                <TableRow key={team.id} hover>
+                  <TableCell>
+                    <Typography 
+                      variant="body2" 
+                      fontWeight="bold"
+                      sx={{ 
+                        cursor: 'pointer',
+                        color: 'primary.main',
+                        '&:hover': { 
+                          textDecoration: 'underline'
+                        }
+                      }}
+                      onClick={() => navigate(`/teams/${team.id}`)}
+                    >
+                      {team.name}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip label={team.plagaName} size="small" variant="outlined" />
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {team.totalSoldiers}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {team.commanders.length}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {team.fighters.length}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {team.activities.length}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {team.duties.length}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => navigate(`/teams/${team.id}`)}
+                    >
+                      צפה בפרטים
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
 
       {teams.length === 0 && (
         <Alert severity="info" sx={{ mt: 3 }}>

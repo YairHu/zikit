@@ -137,12 +137,12 @@ const Home: React.FC = () => {
       path: '/drivers'
     },
     {
-      title: 'משימות',
-      subtitle: 'מספר משימות פתוחות',
+      title: 'פעילויות',
+      subtitle: 'מספר פעילויות מתוכננות',
       icon: <AssignmentIcon sx={{ fontSize: 32 }} />,
       color: '#f44336',
-      count: stats.missions.toString(),
-      path: '/missions'
+      count: stats.activities.toString(),
+      path: '/activities'
     }
   ];
 
@@ -177,11 +177,11 @@ const Home: React.FC = () => {
       path: '/vehicles'
     },
     {
-      title: 'משימות',
-      subtitle: 'ניהול משימות',
+      title: 'פעילויות',
+      subtitle: 'ניהול פעילויות',
       icon: <AssignmentIcon sx={{ fontSize: 32 }} />,
       color: '#2196f3',
-      path: '/missions'
+      path: '/activities'
     },
     {
       title: 'פעילויות מבצעיות',
@@ -226,11 +226,11 @@ const Home: React.FC = () => {
       path: '/duties'
     },
     {
-      title: 'משימות',
-      subtitle: `${stats.missions} משימות פתוחות`,
+      title: 'פעילויות',
+      subtitle: `${stats.activities} פעילויות פעילות`,
       icon: <AssignmentIcon sx={{ fontSize: 32 }} />,
       color: '#2196f3',
-      path: '/missions'
+      path: '/activities'
     },
     {
       title: 'הפניות',

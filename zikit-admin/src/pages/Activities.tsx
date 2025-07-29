@@ -37,7 +37,16 @@ import {
   Divider,
   Accordion,
   AccordionSummary,
-  AccordionDetails
+  AccordionDetails,
+  Tabs,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -50,7 +59,9 @@ import {
   Person as PersonIcon,
   ExpandMore as ExpandMoreIcon,
   Search as SearchIcon,
-  DirectionsCar as DirectionsCarIcon
+  DirectionsCar as DirectionsCarIcon,
+  ViewList as ViewListIcon,
+  ViewModule as ViewModuleIcon
 } from '@mui/icons-material';
 
 const emptyActivity: Omit<Activity, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -90,6 +101,7 @@ const Activities: React.FC = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -403,8 +415,8 @@ const Activities: React.FC = () => {
         </Button>
       </Box>
 
-      {/* Filters */}
-      <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+      {/* Filters and View Mode */}
+      <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
         <TextField
           placeholder="חיפוש פעילויות..."
           value={searchTerm}
@@ -427,11 +439,16 @@ const Activities: React.FC = () => {
             ))}
           </Select>
         </FormControl>
+        <Tabs value={viewMode === 'cards' ? 0 : 1} onChange={(_, newValue) => setViewMode(newValue === 0 ? 'cards' : 'table')}>
+          <Tab icon={<ViewModuleIcon />} label="כרטיסים" />
+          <Tab icon={<ViewListIcon />} label="טבלה" />
+        </Tabs>
       </Box>
 
       {/* Activities List */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 3 }}>
-        {filteredActivities.map((activity) => (
+      {viewMode === 'cards' ? (
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 3 }}>
+          {filteredActivities.map((activity) => (
           <Box key={activity.id}>
             <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', cursor: 'pointer' }} onClick={() => handleActivityClick(activity.id)}>
               <CardContent sx={{ flex: 1 }}>
@@ -518,12 +535,15 @@ const Activities: React.FC = () => {
                 </Box>
 
                 <Accordion sx={{ mt: 2 }}>
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <AccordionSummary 
+                    expandIcon={<ExpandMoreIcon />}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <Typography variant="body2" fontWeight="bold">
                       משתתפים ({activity.participants.length})
                     </Typography>
                   </AccordionSummary>
-                  <AccordionDetails>
+                  <AccordionDetails onClick={(e) => e.stopPropagation()}>
                     <List dense>
                       {activity.participants.map((participant, index) => (
                         <ListItem key={participant.soldierId}>
@@ -541,6 +561,119 @@ const Activities: React.FC = () => {
             </Box>
           ))}
         </Box>
+      ) : (
+        // Table View
+        <TableContainer component={Paper} sx={{ mt: 2 }}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>שם פעילות</TableCell>
+                <TableCell>צוות</TableCell>
+                <TableCell>מיקום</TableCell>
+                <TableCell>תאריך</TableCell>
+                <TableCell>שעה</TableCell>
+                <TableCell>מפקד</TableCell>
+                <TableCell>מוביל משימה</TableCell>
+                <TableCell>רכב</TableCell>
+                <TableCell>נהג</TableCell>
+                <TableCell>משתתפים</TableCell>
+                <TableCell>סטטוס</TableCell>
+                <TableCell>פעולות</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filteredActivities.map((activity) => (
+                <TableRow 
+                  key={activity.id} 
+                  hover 
+                  sx={{ cursor: 'pointer' }}
+                  onClick={() => handleActivityClick(activity.id)}
+                >
+                  <TableCell>
+                    <Typography variant="body2" fontWeight="bold">
+                      {activity.name}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip label={activity.team} size="small" variant="outlined" />
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {activity.location}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {activity.plannedDate}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {activity.plannedTime}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {activity.commanderName}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {activity.taskLeaderName || '-'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {activity.vehicleNumber || '-'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {activity.driverName || '-'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {activity.participants.length}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip 
+                      label={activity.status} 
+                      color={getStatusColor(activity.status) as any}
+                      size="small"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenForm(activity);
+                        }}
+                      >
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteId(activity.id);
+                        }}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
 
       {filteredActivities.length === 0 && (
         <Alert severity="info" sx={{ mt: 3 }}>

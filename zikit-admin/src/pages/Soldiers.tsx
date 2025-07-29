@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Soldier } from '../models/Soldier';
-import { getAllSoldiers, addSoldier, updateSoldier, deleteSoldier } from '../services/soldierService';
+import { getAllSoldiers, deleteSoldier } from '../services/soldierService';
+import { getPresenceColor, getProfileColor } from '../utils/colors';
 import { Link } from 'react-router-dom';
+import SoldierForm from '../components/SoldierForm';
 import {
   Box,
   Container,
@@ -34,7 +36,11 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper
+  Paper,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -46,36 +52,28 @@ import {
   ExpandMore as ExpandMoreIcon,
   Group as GroupIcon,
   Star as StarIcon,
-  LocalOffer as BadgeIcon
+  LocalOffer as BadgeIcon,
+  Security as SecurityIcon,
+  SupervisorAccount as SupervisorAccountIcon
 } from '@mui/icons-material';
 
-const emptySoldier: Omit<Soldier, 'id'> = {
-  name: '',
-  personalNumber: '',
-  team: '',
-  role: '',
-  profile: '',
-  qualifications: [],
-  licenses: [],
-  certifications: [],
-  drivingLicenses: [],
-};
+
 
 const Soldiers: React.FC = () => {
   const navigate = useNavigate();
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState<Omit<Soldier, 'id'>>(emptySoldier);
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [filterTeam, setFilterTeam] = useState('');
   const [filterRole, setFilterRole] = useState('');
   const [filterQualification, setFilterQualification] = useState('');
+  const [filterPresence, setFilterPresence] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [viewMode, setViewMode] = useState<'cards' | 'table' | 'hierarchy'>('cards');
 
-  const refresh = () => {
+  const refresh = useCallback(() => {
     setLoading(true);
     getAllSoldiers()
       .then(data => {
@@ -94,11 +92,11 @@ const Soldiers: React.FC = () => {
         setSoldiers(demo);
       })
       .finally(() => setLoading(false));
-  };
+  }, []);
 
   useEffect(() => {
     refresh();
-  }, []);
+  }, [refresh]);
 
   // בדיקה אם יש פרמטר edit ב-URL
   useEffect(() => {
@@ -108,8 +106,9 @@ const Soldiers: React.FC = () => {
       const soldierToEdit = soldiers.find(s => s.id === editId);
       if (soldierToEdit) {
         handleOpenForm(soldierToEdit);
-        // ניקוי הפרמטר מה-URL
-        window.history.replaceState({}, '', window.location.pathname);
+        // ניקוי הפרמטר מה-URL אבל נשאר באותו עמוד
+        const currentPath = window.location.pathname;
+        window.history.replaceState({}, '', currentPath);
       }
     }
   }, [soldiers]);
@@ -127,6 +126,7 @@ const Soldiers: React.FC = () => {
       qualifications: ['פיקוד', 'ניווט', 'קשר'],
       licenses: ['B', 'C'],
       certifications: ['קורס מפקדי פלוגות'],
+      presence: 'בבסיס'
     },
     {
       id: 'samal_pluga',
@@ -138,6 +138,7 @@ const Soldiers: React.FC = () => {
       qualifications: ['פיקוד', 'ניווט', 'קשר'],
       licenses: ['B', 'C'],
       certifications: ['קורס מפקדי צוותים'],
+      presence: 'בבסיס'
     },
     
     // מפקדי פלגות
@@ -151,6 +152,7 @@ const Soldiers: React.FC = () => {
       qualifications: ['פיקוד', 'ניווט', 'קשר'],
       licenses: ['B', 'C'],
       certifications: ['קורס מפקדי צוותים'],
+      presence: 'בבסיס'
     },
     {
       id: 'mefaked_plaga_b',
@@ -847,45 +849,21 @@ const Soldiers: React.FC = () => {
     (!filterTeam || s.team.includes(filterTeam)) &&
     (!filterRole || s.role.includes(filterRole)) &&
     (!filterQualification || (s.qualifications && s.qualifications.join(',').includes(filterQualification))) &&
+    (!filterPresence || s.presence === filterPresence) &&
     (!searchTerm || s.name.includes(searchTerm) || s.personalNumber.includes(searchTerm))
   );
 
   const handleOpenForm = (soldier?: Soldier) => {
-    if (soldier) {
-      const { id, ...rest } = soldier;
-      setFormData(rest);
-      setEditId(id);
-    } else {
-      setFormData(emptySoldier);
-      setEditId(null);
-    }
+    setEditId(soldier?.id || null);
     setShowForm(true);
   };
 
   const handleCloseForm = () => {
     setShowForm(false);
-    setFormData(emptySoldier);
     setEditId(null);
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleArrayChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value.split(',').map(s => s.trim()) }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editId) {
-      await updateSoldier(editId, formData);
-    } else {
-      await addSoldier(formData);
-    }
-    handleCloseForm();
+  const handleFormSuccess = (soldier: Soldier) => {
     refresh();
   };
 
@@ -897,12 +875,101 @@ const Soldiers: React.FC = () => {
     }
   };
 
-  const getProfileColor = (profile: string) => {
-    const num = parseInt(profile);
-    if (num >= 97) return '#4CAF50';
-    if (num >= 82) return '#FF9800';
-    if (num >= 72) return '#F44336';
-    return '#9E9E9E';
+
+
+  // פונקציה לארגון החיילים לפי צוותים
+  const getSoldiersByTeam = () => {
+    const teams: { [key: string]: Soldier[] } = {};
+    
+    filteredData.forEach((soldier: Soldier) => {
+      if (!teams[soldier.team]) {
+        teams[soldier.team] = [];
+      }
+      teams[soldier.team].push(soldier);
+    });
+    
+    return teams;
+  };
+
+  // פונקציה ליצירת מבנה היררכי של הפלוגה
+  const getHierarchicalStructure = () => {
+    const structure = {
+      pluga: {
+        name: 'מפקדת פלוגה',
+        type: 'pluga',
+        soldiers: filteredData.filter(s => s.team === 'מפקדה'),
+        children: {
+          plagaA: {
+            name: 'פלגה א',
+            type: 'plaga',
+            soldiers: filteredData.filter(s => s.team === 'פלגה א'),
+            children: {
+              team1: {
+                name: 'צוות 1',
+                type: 'team',
+                soldiers: filteredData.filter(s => s.team === 'צוות 1')
+              },
+              team2: {
+                name: 'צוות 2',
+                type: 'team',
+                soldiers: filteredData.filter(s => s.team === 'צוות 2')
+              },
+              team3: {
+                name: 'צוות 3',
+                type: 'team',
+                soldiers: filteredData.filter(s => s.team === 'צוות 3')
+              }
+            }
+          },
+          plagaB: {
+            name: 'פלגה ב',
+            type: 'plaga',
+            soldiers: filteredData.filter(s => s.team === 'פלגה ב'),
+            children: {
+              team4: {
+                name: 'צוות 4',
+                type: 'team',
+                soldiers: filteredData.filter(s => s.team === 'צוות 4')
+              },
+              team5: {
+                name: 'צוות 5',
+                type: 'team',
+                soldiers: filteredData.filter(s => s.team === 'צוות 5')
+              },
+              team6: {
+                name: 'צוות 6',
+                type: 'team',
+                soldiers: filteredData.filter(s => s.team === 'צוות 6')
+              }
+            }
+          },
+          plagaZavit: {
+            name: 'פלגה זווית',
+            type: 'plaga',
+            soldiers: filteredData.filter(s => s.team === 'פלגה זווית'),
+            children: {
+              team7: {
+                name: 'צוות 7',
+                type: 'team',
+                soldiers: filteredData.filter(s => s.team === 'צוות 7')
+              },
+              team8: {
+                name: 'צוות 8',
+                type: 'team',
+                soldiers: filteredData.filter(s => s.team === 'צוות 8')
+              }
+            }
+          },
+          mplag: {
+            name: 'מפל"ג',
+            type: 'mplag',
+            soldiers: filteredData.filter(s => s.team === 'מפל"ג')
+          }
+        }
+      }
+    };
+    
+    return structure;
   };
 
   return (
@@ -941,6 +1008,7 @@ const Soldiers: React.FC = () => {
         >
           <Tab label="תצוגת כרטיסים" value="cards" />
           <Tab label="תצוגה טבלאית" value="table" />
+          <Tab label="תצוגה היררכית" value="hierarchy" />
         </Tabs>
       </Box>
 
@@ -975,7 +1043,7 @@ const Soldiers: React.FC = () => {
               <AccordionDetails>
                 <Box sx={{ 
                   display: 'grid', 
-                  gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, 
+                  gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, 
                   gap: 2 
                 }}>
                   <TextField
@@ -999,6 +1067,21 @@ const Soldiers: React.FC = () => {
                     onChange={(e) => setFilterQualification(e.target.value)}
                     size="small"
                   />
+                  <FormControl fullWidth size="small">
+                    <InputLabel>נוכחות</InputLabel>
+                    <Select
+                      value={filterPresence}
+                      onChange={(e: any) => setFilterPresence(e.target.value)}
+                      label="נוכחות"
+                    >
+                      <MenuItem value="">כל הנוכחויות</MenuItem>
+                      <MenuItem value="בבסיס">בבסיס</MenuItem>
+                      <MenuItem value="בפעילות">בפעילות</MenuItem>
+                      <MenuItem value="חופש">חופש</MenuItem>
+                      <MenuItem value="גימלים">גימלים</MenuItem>
+                      <MenuItem value="אחר">אחר</MenuItem>
+                    </Select>
+                  </FormControl>
                 </Box>
               </AccordionDetails>
             </Accordion>
@@ -1022,6 +1105,7 @@ const Soldiers: React.FC = () => {
                 <TableCell sx={{ fontWeight: 'bold' }}>צוות</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>תפקיד</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>פרופיל</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>נוכחות</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>כשירויות</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>רישיונות</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>היתרים</TableCell>
@@ -1054,7 +1138,24 @@ const Soldiers: React.FC = () => {
                       </TableCell>
                   <TableCell>{soldier.personalNumber}</TableCell>
                   <TableCell>
-                    <Chip label={soldier.team} size="small" color="primary" variant="outlined" />
+                    <Chip 
+                      label={soldier.team} 
+                      size="small" 
+                      color="primary" 
+                      variant="outlined"
+                      sx={{ 
+                        cursor: 'pointer',
+                        '&:hover': { 
+                          bgcolor: 'primary.main',
+                          color: 'white'
+                        }
+                      }}
+                      onClick={() => {
+                        // מצא את ה-ID של הצוות לפי השם
+                        const teamId = soldier.team.replace('צוות ', '');
+                        navigate(`/teams/${teamId}`);
+                      }}
+                    />
                   </TableCell>
                   <TableCell>
                     <Chip label={soldier.role} size="small" color="secondary" variant="outlined" />
@@ -1064,6 +1165,17 @@ const Soldiers: React.FC = () => {
                       label={soldier.profile} 
                       size="small" 
                       color={getProfileColor(soldier.profile) as any}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Chip 
+                      label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'} 
+                      size="small" 
+                      sx={{ 
+                        bgcolor: getPresenceColor(soldier.presence),
+                        color: 'white',
+                        fontWeight: 600
+                      }}
                     />
                   </TableCell>
                   <TableCell>
@@ -1117,6 +1229,395 @@ const Soldiers: React.FC = () => {
             </TableBody>
           </Table>
         </TableContainer>
+      ) : viewMode === 'hierarchy' ? (
+        // Hierarchical Visual View
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: 4, 
+          alignItems: 'center',
+          minHeight: '600px',
+          position: 'relative'
+        }}>
+          {/* מפקדת פלוגה - רמה ראשונה */}
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center',
+            position: 'relative'
+          }}>
+            {/* קו מחבר למטה */}
+            <Box sx={{ 
+              width: '2px', 
+              height: '40px', 
+              bgcolor: 'primary.main',
+              mb: 1
+            }} />
+            
+            {/* קוביית מפקדת פלוגה */}
+            <Card sx={{ 
+              bgcolor: 'primary.main', 
+              color: 'white',
+              minWidth: '200px',
+              textAlign: 'center',
+              boxShadow: 3,
+              position: 'relative'
+            }}>
+              <CardContent sx={{ p: 2 }}>
+                <SecurityIcon sx={{ fontSize: 40, mb: 1 }} />
+                <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+                  מפקדת פלוגה
+                </Typography>
+                <Typography variant="body2">
+                  {getHierarchicalStructure().pluga.soldiers.length} חיילים
+                </Typography>
+              </CardContent>
+            </Card>
+
+            {/* קווים מחברים לפלגות */}
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              width: '100%', 
+              maxWidth: '800px',
+              mt: 2,
+              position: 'relative'
+            }}>
+              {/* קו שמאלי */}
+              <Box sx={{ 
+                width: '2px', 
+                height: '40px', 
+                bgcolor: 'primary.main',
+                position: 'absolute',
+                left: '25%',
+                top: '-20px'
+              }} />
+              
+              {/* קו מרכזי */}
+              <Box sx={{ 
+                width: '2px', 
+                height: '40px', 
+                bgcolor: 'primary.main',
+                position: 'absolute',
+                left: '50%',
+                top: '-20px',
+                transform: 'translateX(-50%)'
+              }} />
+              
+              {/* קו ימני */}
+              <Box sx={{ 
+                width: '2px', 
+                height: '40px', 
+                bgcolor: 'primary.main',
+                position: 'absolute',
+                right: '25%',
+                top: '-20px'
+              }} />
+            </Box>
+          </Box>
+
+          {/* פלגות - רמה שנייה */}
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            width: '100%', 
+            maxWidth: '800px',
+            gap: 2
+          }}>
+            {/* פלגה א */}
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <Card sx={{ 
+                bgcolor: 'secondary.main', 
+                color: 'white',
+                width: '100%',
+                textAlign: 'center',
+                boxShadow: 2
+              }}>
+                <CardContent sx={{ p: 2 }}>
+                  <SupervisorAccountIcon sx={{ fontSize: 30, mb: 1 }} />
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+                    פלגה א
+                  </Typography>
+                  <Typography variant="body2">
+                    {getHierarchicalStructure().pluga.children.plagaA.soldiers.length} חיילים
+                  </Typography>
+                </CardContent>
+              </Card>
+
+              {/* קווים מחברים לצוותים */}
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                width: '100%', 
+                mt: 2,
+                position: 'relative'
+              }}>
+                <Box sx={{ 
+                  width: '2px', 
+                  height: '30px', 
+                  bgcolor: 'secondary.main',
+                  position: 'absolute',
+                  left: '33%',
+                  top: '-15px'
+                }} />
+                <Box sx={{ 
+                  width: '2px', 
+                  height: '30px', 
+                  bgcolor: 'secondary.main',
+                  position: 'absolute',
+                  left: '50%',
+                  top: '-15px',
+                  transform: 'translateX(-50%)'
+                }} />
+                <Box sx={{ 
+                  width: '2px', 
+                  height: '30px', 
+                  bgcolor: 'secondary.main',
+                  position: 'absolute',
+                  right: '33%',
+                  top: '-15px'
+                }} />
+              </Box>
+
+              {/* צוותים */}
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                width: '100%', 
+                mt: 2,
+                gap: 1
+              }}>
+                {['צוות 1', 'צוות 2', 'צוות 3'].map((teamName, index) => {
+                  const teamSoldiers = (getHierarchicalStructure().pluga.children.plagaA.children as any)[`team${index + 1}`]?.soldiers || [];
+                  return (
+                    <Card 
+                      key={teamName}
+                      sx={{ 
+                        flex: 1,
+                        bgcolor: 'grey.100',
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          transform: 'translateY(-2px)',
+                          boxShadow: 2
+                        }
+                      }}
+                      onClick={() => navigate(`/teams/${teamName}`)}
+                    >
+                      <CardContent sx={{ p: 1 }}>
+                        <GroupIcon sx={{ fontSize: 20, mb: 0.5 }} />
+                        <Typography variant="caption" sx={{ fontWeight: 600, display: 'block' }}>
+                          {teamName}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                          {teamSoldiers.length}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </Box>
+            </Box>
+
+            {/* פלגה ב */}
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <Card sx={{ 
+                bgcolor: 'secondary.main', 
+                color: 'white',
+                width: '100%',
+                textAlign: 'center',
+                boxShadow: 2
+              }}>
+                <CardContent sx={{ p: 2 }}>
+                  <SupervisorAccountIcon sx={{ fontSize: 30, mb: 1 }} />
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+                    פלגה ב
+                  </Typography>
+                  <Typography variant="body2">
+                    {getHierarchicalStructure().pluga.children.plagaB.soldiers.length} חיילים
+                  </Typography>
+                </CardContent>
+              </Card>
+
+              {/* קווים מחברים לצוותים */}
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                width: '100%', 
+                mt: 2,
+                position: 'relative'
+              }}>
+                <Box sx={{ 
+                  width: '2px', 
+                  height: '30px', 
+                  bgcolor: 'secondary.main',
+                  position: 'absolute',
+                  left: '33%',
+                  top: '-15px'
+                }} />
+                <Box sx={{ 
+                  width: '2px', 
+                  height: '30px', 
+                  bgcolor: 'secondary.main',
+                  position: 'absolute',
+                  left: '50%',
+                  top: '-15px',
+                  transform: 'translateX(-50%)'
+                }} />
+                <Box sx={{ 
+                  width: '2px', 
+                  height: '30px', 
+                  bgcolor: 'secondary.main',
+                  position: 'absolute',
+                  right: '33%',
+                  top: '-15px'
+                }} />
+              </Box>
+
+              {/* צוותים */}
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                width: '100%', 
+                mt: 2,
+                gap: 1
+              }}>
+                {['צוות 4', 'צוות 5', 'צוות 6'].map((teamName, index) => {
+                  const teamSoldiers = (getHierarchicalStructure().pluga.children.plagaB.children as any)[`team${index + 4}`]?.soldiers || [];
+                  return (
+                    <Card 
+                      key={teamName}
+                      sx={{ 
+                        flex: 1,
+                        bgcolor: 'grey.100',
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          transform: 'translateY(-2px)',
+                          boxShadow: 2
+                        }
+                      }}
+                      onClick={() => navigate(`/teams/${teamName}`)}
+                    >
+                      <CardContent sx={{ p: 1 }}>
+                        <GroupIcon sx={{ fontSize: 20, mb: 0.5 }} />
+                        <Typography variant="caption" sx={{ fontWeight: 600, display: 'block' }}>
+                          {teamName}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                          {teamSoldiers.length}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </Box>
+            </Box>
+
+            {/* פלגה זווית */}
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <Card sx={{ 
+                bgcolor: 'secondary.main', 
+                color: 'white',
+                width: '100%',
+                textAlign: 'center',
+                boxShadow: 2
+              }}>
+                <CardContent sx={{ p: 2 }}>
+                  <SupervisorAccountIcon sx={{ fontSize: 30, mb: 1 }} />
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+                    פלגה זווית
+                  </Typography>
+                  <Typography variant="body2">
+                    {getHierarchicalStructure().pluga.children.plagaZavit.soldiers.length} חיילים
+                  </Typography>
+                </CardContent>
+              </Card>
+
+              {/* קווים מחברים לצוותים */}
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                width: '100%', 
+                mt: 2,
+                position: 'relative'
+              }}>
+                <Box sx={{ 
+                  width: '2px', 
+                  height: '30px', 
+                  bgcolor: 'secondary.main',
+                  position: 'absolute',
+                  left: '50%',
+                  top: '-15px',
+                  transform: 'translateX(-50%)'
+                }} />
+              </Box>
+
+              {/* צוותים */}
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                width: '100%', 
+                mt: 2,
+                gap: 1
+              }}>
+                {['צוות 7', 'צוות 8'].map((teamName, index) => {
+                  const teamSoldiers = (getHierarchicalStructure().pluga.children.plagaZavit.children as any)[`team${index + 7}`]?.soldiers || [];
+                  return (
+                    <Card 
+                      key={teamName}
+                      sx={{ 
+                        flex: 1,
+                        bgcolor: 'grey.100',
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          transform: 'translateY(-2px)',
+                          boxShadow: 2
+                        }
+                      }}
+                      onClick={() => navigate(`/teams/${teamName}`)}
+                    >
+                      <CardContent sx={{ p: 1 }}>
+                        <GroupIcon sx={{ fontSize: 20, mb: 0.5 }} />
+                        <Typography variant="caption" sx={{ fontWeight: 600, display: 'block' }}>
+                          {teamName}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                          {teamSoldiers.length}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </Box>
+            </Box>
+
+            {/* מפל"ג */}
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <Card sx={{ 
+                bgcolor: 'warning.main', 
+                color: 'white',
+                width: '100%',
+                textAlign: 'center',
+                boxShadow: 2
+              }}>
+                <CardContent sx={{ p: 2 }}>
+                  <PersonIcon sx={{ fontSize: 30, mb: 1 }} />
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+                    מפל"ג
+                  </Typography>
+                  <Typography variant="body2">
+                    {getHierarchicalStructure().pluga.children.mplag.soldiers.length} חיילים
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Box>
+          </Box>
+        </Box>
       ) : (
         // Cards View
         <Box sx={{ 
@@ -1134,6 +1635,7 @@ const Soldiers: React.FC = () => {
               sx={{ 
                 height: '100%',
                 transition: 'all 0.3s ease',
+                border: `2px solid ${getPresenceColor(soldier.presence)}`,
                 '&:hover': {
                   transform: 'translateY(-4px)',
                   boxShadow: 4
@@ -1166,6 +1668,17 @@ const Soldiers: React.FC = () => {
                         size="small" 
                         color="primary" 
                         variant="outlined"
+                        sx={{ 
+                          cursor: 'pointer',
+                          '&:hover': { 
+                            bgcolor: 'primary.main',
+                            color: 'white'
+                          }
+                        }}
+                        onClick={() => {
+                          const teamId = soldier.team.replace('צוות ', '');
+                          navigate(`/teams/${teamId}`);
+                        }}
                       />
                       <Chip 
                         label={soldier.role} 
@@ -1195,6 +1708,20 @@ const Soldiers: React.FC = () => {
                     label={soldier.profile}
                     sx={{ 
                       bgcolor: getProfileColor(soldier.profile),
+                      color: 'white',
+                      fontWeight: 600
+                    }}
+                  />
+                </Box>
+
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                    נוכחות:
+                  </Typography>
+                  <Chip 
+                    label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'}
+                    sx={{ 
+                      bgcolor: getPresenceColor(soldier.presence),
                       color: 'white',
                       fontWeight: 600
                     }}
@@ -1307,98 +1834,13 @@ const Soldiers: React.FC = () => {
       </Fab>
 
       {/* Add/Edit Dialog */}
-      <Dialog open={showForm} onClose={handleCloseForm} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {editId ? 'עריכת חייל' : 'הוספת חייל חדש'}
-        </DialogTitle>
-        <DialogContent>
-          <Box component="form" onSubmit={handleSubmit}>
-            <Box sx={{ 
-              display: 'grid', 
-              gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, 
-              gap: 2, 
-              mt: 1 
-            }}>
-              <TextField
-                fullWidth
-                label="שם מלא"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                required
-              />
-              <TextField
-                fullWidth
-                label="מספר אישי"
-                name="personalNumber"
-                value={formData.personalNumber}
-                onChange={handleChange}
-                required
-              />
-              <TextField
-                fullWidth
-                label="צוות"
-                name="team"
-                value={formData.team}
-                onChange={handleChange}
-              />
-              <TextField
-                fullWidth
-                label="תפקיד"
-                name="role"
-                value={formData.role}
-                onChange={handleChange}
-              />
-              <TextField
-                fullWidth
-                label="פרופיל רפואי"
-                name="profile"
-                value={formData.profile}
-                onChange={handleChange}
-              />
-              <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
-                <TextField
-                  fullWidth
-                  label="כשירויות (מופרד בפסיקים)"
-                  name="qualifications"
-                  value={formData.qualifications.join(', ')}
-                  onChange={handleArrayChange}
-                  multiline
-                  rows={2}
-                />
-              </Box>
-              <TextField
-                fullWidth
-                label="רישיונות נהיגה (מופרד בפסיקים)"
-                name="licenses"
-                value={formData.licenses.join(', ')}
-                onChange={handleArrayChange}
-              />
-              <TextField
-                fullWidth
-                label="הסמכות (מופרד בפסיקים)"
-                name="certifications"
-                value={formData.certifications.join(', ')}
-                onChange={handleArrayChange}
-              />
-              <TextField
-                fullWidth
-                label="היתרים לנהיגה (35, דימקס, סוואנה, C - מופרד בפסיקים)"
-                name="drivingLicenses"
-                value={formData.drivingLicenses?.join(', ') || ''}
-                onChange={handleArrayChange}
-                helperText="רק לנהגים עם כשירות 'נהג'"
-              />
-            </Box>
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ p: 3 }}>
-          <Button onClick={handleCloseForm}>ביטול</Button>
-          <Button variant="contained" onClick={handleSubmit}>
-            {editId ? 'שמור שינויים' : 'הוסף חייל'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <SoldierForm
+        open={showForm}
+        onClose={handleCloseForm}
+        soldier={editId ? soldiers.find(s => s.id === editId) || null : null}
+        onSuccess={handleFormSuccess}
+        mode={editId ? 'edit' : 'add'}
+      />
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteId} onClose={() => setDeleteId(null)}>

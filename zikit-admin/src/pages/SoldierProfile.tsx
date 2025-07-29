@@ -27,7 +27,16 @@ import {
   IconButton,
   Badge,
   Button,
-  CircularProgress
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import {
   Group as GroupIcon,
@@ -51,11 +60,13 @@ import { getSoldierById } from '../services/soldierService';
 import { getActivitiesBySoldier } from '../services/activityService';
 import { getDutiesBySoldier } from '../services/dutyService';
 import { getReferralsBySoldier } from '../services/referralService';
+import { getPresenceColor, getProfileColor, getRoleColor, getStatusColor } from '../utils/colors';
 import { Soldier } from '../models/Soldier';
 import { Activity } from '../models/Activity';
 import { Duty } from '../models/Duty';
 import { Referral } from '../models/Referral';
 import { useUser } from '../contexts/UserContext';
+import SoldierForm from '../components/SoldierForm';
 
 const SoldierProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -67,6 +78,7 @@ const SoldierProfile: React.FC = () => {
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [showEditForm, setShowEditForm] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -84,49 +96,34 @@ const SoldierProfile: React.FC = () => {
     }
   }, [id]);
 
+
+
   const isDriver = soldier?.qualifications?.includes('נהג');
   const hasDrivingLicenses = soldier?.drivingLicenses && soldier.drivingLicenses.length > 0;
 
-  const getProfileColor = (profile: string) => {
-    switch (profile) {
-      case 'לוחם': return '#4caf50';
-      case 'מפקד': return '#2196f3';
-      case 'חובש': return '#ff9800';
-      case 'נהג': return '#9c27b0';
-      default: return '#757575';
-    }
-  };
 
-  const getRoleColor = (role: string) => {
-    switch (role) {
-      case 'מפקד צוות': return '#d32f2f';
-      case 'סמל': return '#1976d2';
-      case 'חייל': return '#388e3c';
-      case 'מפקד פלוגה': return '#7b1fa2';
-      default: return '#757575';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'מתוכננת': return 'primary';
-      case 'בביצוע': return 'warning';
-      case 'הסתיימה': return 'success';
-      case 'בוטלה': return 'error';
-      case 'פעילה': return 'info';
-      case 'pending': return 'warning';
-      case 'in_progress': return 'info';
-      case 'completed': return 'success';
-      case 'cancelled': return 'error';
-      default: return 'default';
-    }
-  };
 
   const statusLabels = {
     pending: 'ממתין',
     in_progress: 'בביצוע',
     completed: 'הושלם',
     cancelled: 'בוטל'
+  };
+
+  const handleOpenEditForm = () => {
+    setShowEditForm(true);
+  };
+
+  const handleCloseEditForm = () => {
+    setShowEditForm(false);
+  };
+
+  const handleEditSuccess = async (updatedSoldier: Soldier) => {
+    // רענון הנתונים
+    if (id) {
+      const refreshedSoldier = await getSoldierById(id);
+      setSoldier(refreshedSoldier);
+    }
   };
 
   if (loading) {
@@ -165,7 +162,7 @@ const SoldierProfile: React.FC = () => {
         {user && (user.role === 'mefaked_tzevet' || user.role === 'mefaked_pluga' || user.role === 'admin') && (
           <IconButton 
             color="primary"
-            onClick={() => navigate(`/soldiers?edit=${soldier.id}`)}
+            onClick={handleOpenEditForm}
             sx={{ bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' } }}
           >
             <EditIcon />
@@ -232,6 +229,18 @@ const SoldierProfile: React.FC = () => {
                       size="small" 
                       sx={{ 
                         bgcolor: getProfileColor(soldier.profile),
+                        color: 'white',
+                        fontWeight: 600
+                      }}
+                    />
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2" color="text.secondary">נוכחות:</Typography>
+                    <Chip 
+                      label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'} 
+                      size="small" 
+                      sx={{ 
+                        bgcolor: getPresenceColor(soldier.presence),
                         color: 'white',
                         fontWeight: 600
                       }}
@@ -305,6 +314,93 @@ const SoldierProfile: React.FC = () => {
                       <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
                         אין היתרים מוגדרים
                       </Typography>
+                    )}
+                  </Box>
+                </Box>
+              )}
+
+              {/* ציוני מבחן בראור */}
+              {soldier.braurTest && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="h6" sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+                    <SecurityIcon sx={{ mr: 1, fontSize: 20 }} />
+                    ציוני מבחן בראור
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" color="text.secondary">כח:</Typography>
+                      <Chip
+                        label={soldier.braurTest.strength === 'passed' ? 'עבר' : 'לא עבר'}
+                        size="small"
+                        color={soldier.braurTest.strength === 'passed' ? 'success' : 'error'}
+                        variant="outlined"
+                      />
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" color="text.secondary">ריצה:</Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" fontWeight="bold">
+                          {soldier.braurTest.running}
+                        </Typography>
+                        {(() => {
+                          const [minutes, seconds] = soldier.braurTest.running.split(':').map(Number);
+                          const totalSeconds = minutes * 60 + seconds;
+                          const isFailed = totalSeconds > 14 * 60 + 30; // 14:30
+                          return (
+                            <Chip
+                              label={isFailed ? 'נכשל' : 'עבר'}
+                              size="small"
+                              color={isFailed ? 'error' : 'success'}
+                              variant="outlined"
+                            />
+                          );
+                        })()}
+                      </Box>
+                    </Box>
+                  </Box>
+                </Box>
+              )}
+
+              {/* ימי חופש */}
+              {soldier.vacationDays && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="h6" sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+                    <FamilyIcon sx={{ mr: 1, fontSize: 20 }} />
+                    ימי חופש
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" color="text.secondary">ימי חופש שנותרו:</Typography>
+                      <Typography variant="body2" fontWeight="bold">{soldier.vacationDays.total}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" color="text.secondary">ימי חופש שנוצלו:</Typography>
+                      <Typography variant="body2" fontWeight="bold">{soldier.vacationDays.used}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" color="text.secondary">מצב:</Typography>
+                      <Chip
+                        label={
+                          soldier.vacationDays.status === 'good' ? 'טוב' :
+                          soldier.vacationDays.status === 'warning' ? 'אזהרה' : 'קריטי'
+                        }
+                        size="small"
+                        color={
+                          soldier.vacationDays.status === 'good' ? 'success' :
+                          soldier.vacationDays.status === 'warning' ? 'warning' : 'error'
+                        }
+                        variant="outlined"
+                      />
+                    </Box>
+                    {soldier.vacationDays.status === 'critical' && (
+                      <Alert severity="error" sx={{ mt: 1 }}>
+                        החייל לא מנצל מספיק את ימי החופש שלו!
+                      </Alert>
+                    )}
+                    {soldier.vacationDays.status === 'warning' && (
+                      <Alert severity="warning" sx={{ mt: 1 }}>
+                        יש לשים לב לניצול ימי החופש
+                      </Alert>
                     )}
                   </Box>
                 </Box>
@@ -652,6 +748,15 @@ const SoldierProfile: React.FC = () => {
           </Box>
         </Box>
       </Box>
+
+      {/* טופס עריכת חייל */}
+      <SoldierForm
+        open={showEditForm}
+        onClose={handleCloseEditForm}
+        soldier={soldier}
+        onSuccess={handleEditSuccess}
+        mode="edit"
+      />
     </Container>
   );
 };

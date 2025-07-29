@@ -1,9 +1,27 @@
 import { Soldier } from '../models/Soldier';
 import { Vehicle } from '../models/Vehicle';
-import { Activity, ActivityParticipant } from '../models/Activity';
-import { Duty, DutyParticipant } from '../models/Duty';
+import { Activity } from '../models/Activity';
+import { Duty } from '../models/Duty';
 import { Mission } from '../models/Mission';
 import { Referral } from '../models/Referral';
+
+// פונקציה לחישוב מצב ימי החופש
+const calculateVacationStatus = (totalDays: number): 'good' | 'warning' | 'critical' => {
+  const currentDate = new Date();
+  const endOfYear = new Date(currentDate.getFullYear(), 11, 31); // 31 בדצמבר
+  const daysUntilEndOfYear = Math.ceil((endOfYear.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+  const monthsUntilEndOfYear = daysUntilEndOfYear / 30;
+  
+  // אם נותר חצי שנה או פחות
+  if (monthsUntilEndOfYear <= 6) {
+    // אם יש יותר מ-9 ימי חופש - מצב קריטי
+    if (totalDays > 9) return 'critical';
+    // אם יש 6-9 ימי חופש - אזהרה
+    if (totalDays > 6) return 'warning';
+  }
+  
+  return 'good';
+};
 
 // Mock Database Configuration
 export const USE_MOCK = true; // Set to false to use Firebase
@@ -384,7 +402,17 @@ export const seedMockData = () => {
       militaryBackground: 'חייל קרבי',
       notes: 'מפקד מנוסה',
       medicalProfile: 'כשיר',
-      documents: []
+      documents: [],
+      braurTest: {
+        strength: 'passed',
+        running: '13:45'
+      },
+      vacationDays: {
+        total: 12,
+        used: 6,
+        status: calculateVacationStatus(12)
+      },
+      presence: 'בבסיס'
     },
     {
       id: '2',
@@ -401,7 +429,17 @@ export const seedMockData = () => {
       militaryBackground: 'חייל קרבי',
       notes: '',
       medicalProfile: 'כשיר',
-      documents: []
+      documents: [],
+      braurTest: {
+        strength: 'failed',
+        running: '15:20'
+      },
+      vacationDays: {
+        total: 15,
+        used: 3,
+        status: calculateVacationStatus(15)
+      },
+      presence: 'בפעילות'
     },
     {
       id: '3',
@@ -418,7 +456,17 @@ export const seedMockData = () => {
       militaryBackground: 'חייל קרבי',
       notes: 'מפקד מנוסה',
       medicalProfile: 'כשיר',
-      documents: []
+      documents: [],
+      braurTest: {
+        strength: 'passed',
+        running: '12:30'
+      },
+      vacationDays: {
+        total: 8,
+        used: 10,
+        status: calculateVacationStatus(8)
+      },
+      presence: 'חופש'
     },
     {
       id: '4',
@@ -435,7 +483,17 @@ export const seedMockData = () => {
       militaryBackground: 'חייל קרבי',
       notes: '',
       medicalProfile: 'כשיר',
-      documents: []
+      documents: [],
+      braurTest: {
+        strength: 'passed',
+        running: '14:15'
+      },
+      vacationDays: {
+        total: 16,
+        used: 2,
+        status: calculateVacationStatus(16)
+      },
+      presence: 'גימלים'
     },
     {
       id: '5',
@@ -452,7 +510,8 @@ export const seedMockData = () => {
       militaryBackground: 'חייל קרבי',
       notes: 'מפקד מנוסה',
       medicalProfile: 'כשיר',
-      documents: []
+      documents: [],
+      presence: 'בפעילות'
     },
     {
       id: '6',
@@ -469,7 +528,8 @@ export const seedMockData = () => {
       militaryBackground: 'חייל קרבי',
       notes: '',
       medicalProfile: 'כשיר',
-      documents: []
+      documents: [],
+      presence: 'חופש'
     },
     {
       id: '7',
@@ -486,7 +546,8 @@ export const seedMockData = () => {
       militaryBackground: 'חייל קרבי',
       notes: 'מפקד מנוסה',
       medicalProfile: 'כשיר',
-      documents: []
+      documents: [],
+      presence: 'גימלים'
     },
     {
       id: '8',
@@ -503,7 +564,9 @@ export const seedMockData = () => {
       militaryBackground: 'חייל קרבי',
       notes: '',
       medicalProfile: 'כשיר',
-      documents: []
+      documents: [],
+      presence: 'אחר',
+      presenceOther: 'קורס'
     },
     {
       id: '9',
@@ -520,7 +583,8 @@ export const seedMockData = () => {
       militaryBackground: 'חייל קרבי',
       notes: 'מפקד מנוסה',
       medicalProfile: 'כשיר',
-      documents: []
+      documents: [],
+      presence: 'בבסיס'
     },
     {
       id: '10',
@@ -537,7 +601,8 @@ export const seedMockData = () => {
       militaryBackground: 'חייל קרבי',
       notes: '',
       medicalProfile: 'כשיר',
-      documents: []
+      documents: [],
+      presence: 'בפעילות'
     }
   ];
 
