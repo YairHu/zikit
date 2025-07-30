@@ -15,6 +15,19 @@ export interface BasePerson {
   militaryBackground?: string;
   notes?: string;
   medicalProfile?: string;
+  // שדות חדשים
+  framework?: {
+    pluga?: string; // פלוגה
+    pelaga?: string; // פלגה
+    miflag?: string; // מפלג
+    tzevet?: string; // צוות
+  };
+  commanders?: {
+    mefakedTzevet?: string; // מפקד צוות
+    mefakedMiflag?: string; // מפקד מפלג
+    samal?: string; // סמ"פ
+    mefakedPluga?: string; // מ"פ
+  };
   braurTest?: {
     strength: 'passed' | 'failed';
     running: string;

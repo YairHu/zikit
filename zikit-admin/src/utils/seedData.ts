@@ -15,6 +15,18 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
     qualifications: ['פיקוד', 'ניווט', 'קשר'],
     licenses: ['B', 'C'],
     certifications: ['קורס מפקדי פלוגות'],
+    framework: {
+      pluga: 'פלוגה א',
+      pelaga: 'פלגה א',
+      miflag: 'מפלג א',
+      tzevet: 'מפקדה'
+    },
+    commanders: {
+      mefakedTzevet: '',
+      mefakedMiflag: '',
+      samal: 'סגן מפקד פלוגה',
+      mefakedPluga: ''
+    }
   },
   {
     name: 'סגן מפקד פלוגה',

@@ -1104,6 +1104,8 @@ const Soldiers: React.FC = () => {
                 <TableCell sx={{ fontWeight: 'bold' }}>מספר אישי</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>צוות</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>תפקיד</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>מסגרת</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>מפקדים</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>פרופיל</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>נוכחות</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>כשירויות</TableCell>
@@ -1159,6 +1161,35 @@ const Soldiers: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <Chip label={soldier.role} size="small" color="secondary" variant="outlined" />
+                  </TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                      {soldier.framework?.pluga && (
+                        <Chip label={`פלוגה: ${soldier.framework.pluga}`} size="small" color="info" variant="outlined" />
+                      )}
+                      {soldier.framework?.pelaga && (
+                        <Chip label={`פלגה: ${soldier.framework.pelaga}`} size="small" color="info" variant="outlined" />
+                      )}
+                      {soldier.framework?.miflag && (
+                        <Chip label={`מפלג: ${soldier.framework.miflag}`} size="small" color="info" variant="outlined" />
+                      )}
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                      {soldier.commanders?.mefakedTzevet && (
+                        <Chip label={`מפקד צוות: ${soldier.commanders.mefakedTzevet}`} size="small" color="warning" variant="outlined" />
+                      )}
+                      {soldier.commanders?.mefakedMiflag && (
+                        <Chip label={`מפקד מפלג: ${soldier.commanders.mefakedMiflag}`} size="small" color="warning" variant="outlined" />
+                      )}
+                      {soldier.commanders?.samal && (
+                        <Chip label={`סמ"פ: ${soldier.commanders.samal}`} size="small" color="warning" variant="outlined" />
+                      )}
+                      {soldier.commanders?.mefakedPluga && (
+                        <Chip label={`מ"פ: ${soldier.commanders.mefakedPluga}`} size="small" color="warning" variant="outlined" />
+                      )}
+                    </Box>
                   </TableCell>
                   <TableCell>
                     <Chip 

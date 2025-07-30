@@ -385,272 +385,653 @@ export const mockGetReferralsByTeam = async (team: string): Promise<Referral[]> 
 
 // Seed Mock Data
 export const seedMockData = () => {
-  // Seed Soldiers
+  // נתוני חיילים דמו מלאים מ-seedData
   mockSoldiers = [
+    // מפקדי פלוגה
     {
       id: '1',
-      name: 'דוד כהן',
-      personalNumber: '123456789',
-      team: 'צוות 10',
-      role: 'מפקד צוות',
-      profile: 'לוחם',
-      qualifications: ['נהג', 'חובש'],
+      name: 'מפקד פלוגה',
+      personalNumber: '1000001',
+      team: 'מפקדה',
+      role: 'מפקד פלוגה',
+      profile: '97',
+      qualifications: ['פיקוד', 'ניווט', 'קשר'],
       licenses: ['B', 'C'],
-      certifications: ['חובש'],
-      drivingLicenses: ['35', 'דימקס'],
-      family: 'נשוי + 2',
-      militaryBackground: 'חייל קרבי',
-      notes: 'מפקד מנוסה',
-      medicalProfile: 'כשיר',
-      documents: [],
-      braurTest: {
-        strength: 'passed',
-        running: '13:45'
+      certifications: ['קורס מפקדי פלוגות'],
+      framework: {
+        pluga: 'פלוגה א',
+        pelaga: 'פלגה א',
+        miflag: 'מפלג א',
+        tzevet: 'מפקדה'
+      },
+      commanders: {
+        mefakedTzevet: '',
+        mefakedMiflag: '',
+        samal: 'סגן מפקד פלוגה',
+        mefakedPluga: ''
       },
       vacationDays: {
-        total: 12,
-        used: 6,
-        status: calculateVacationStatus(12)
+        total: 30,
+        used: 10,
+        status: calculateVacationStatus(20)
       },
       presence: 'בבסיס'
     },
     {
       id: '2',
-      name: 'יוסי לוי',
-      personalNumber: '987654321',
-      team: 'צוות 10',
-      role: 'חייל',
-      profile: 'לוחם',
-      qualifications: ['נהג'],
-      licenses: ['B'],
-      certifications: [],
-      drivingLicenses: ['35'],
-      family: 'רווק',
-      militaryBackground: 'חייל קרבי',
-      notes: '',
-      medicalProfile: 'כשיר',
-      documents: [],
-      braurTest: {
-        strength: 'failed',
-        running: '15:20'
+      name: 'סגן מפקד פלוגה',
+      personalNumber: '1000002',
+      team: 'מפקדה',
+      role: 'סגן מפקד פלוגה',
+      profile: '97',
+      qualifications: ['פיקוד', 'ניווט', 'קשר'],
+      licenses: ['B', 'C'],
+      certifications: ['קורס מפקדי צוותים'],
+      framework: {
+        pluga: 'פלוגה א',
+        pelaga: 'פלגה א',
+        miflag: 'מפלג א',
+        tzevet: 'מפקדה'
+      },
+      commanders: {
+        mefakedTzevet: '',
+        mefakedMiflag: '',
+        samal: '',
+        mefakedPluga: 'מפקד פלוגה'
       },
       vacationDays: {
-        total: 15,
-        used: 3,
-        status: calculateVacationStatus(15)
+        total: 30,
+        used: 8,
+        status: calculateVacationStatus(22)
       },
-      presence: 'בפעילות'
+      presence: 'בבסיס'
     },
     {
       id: '3',
-      name: 'אבי ישראלי',
-      personalNumber: '111222333',
-      team: 'צוות 20',
-      role: 'מפקד צוות',
-      profile: 'לוחם',
-      qualifications: ['נהג', 'חובש'],
+      name: 'מפקד פלגה א',
+      personalNumber: '1000003',
+      team: 'פלגה א',
+      role: 'מפקד פלגה',
+      profile: '97',
+      qualifications: ['פיקוד', 'ניווט', 'קשר'],
       licenses: ['B', 'C'],
-      certifications: ['חובש'],
-      drivingLicenses: ['35', 'דימקס'],
-      family: 'נשוי + 1',
-      militaryBackground: 'חייל קרבי',
-      notes: 'מפקד מנוסה',
-      medicalProfile: 'כשיר',
-      documents: [],
-      braurTest: {
-        strength: 'passed',
-        running: '12:30'
+      certifications: ['קורס מפקדי צוותים'],
+      framework: {
+        pluga: 'פלוגה א',
+        pelaga: 'פלגה א',
+        miflag: 'מפלג א',
+        tzevet: 'פלגה א'
+      },
+      commanders: {
+        mefakedTzevet: '',
+        mefakedMiflag: '',
+        samal: 'סגן מפקד פלוגה',
+        mefakedPluga: 'מפקד פלוגה'
       },
       vacationDays: {
-        total: 8,
-        used: 10,
-        status: calculateVacationStatus(8)
+        total: 30,
+        used: 12,
+        status: calculateVacationStatus(18)
       },
-      presence: 'חופש'
+      presence: 'בבסיס'
     },
     {
       id: '4',
-      name: 'מיכאל רוזן',
-      personalNumber: '444555666',
-      team: 'צוות 20',
-      role: 'חייל',
-      profile: 'לוחם',
-      qualifications: ['נהג'],
-      licenses: ['B'],
-      certifications: [],
-      drivingLicenses: ['35'],
-      family: 'רווק',
-      militaryBackground: 'חייל קרבי',
-      notes: '',
-      medicalProfile: 'כשיר',
-      documents: [],
-      braurTest: {
-        strength: 'passed',
-        running: '14:15'
+      name: 'מפקד פלגה ב',
+      personalNumber: '1000004',
+      team: 'פלגה ב',
+      role: 'מפקד פלגה',
+      profile: '97',
+      qualifications: ['פיקוד', 'ניווט', 'קשר'],
+      licenses: ['B', 'C'],
+      certifications: ['קורס מפקדי צוותים'],
+      framework: {
+        pluga: 'פלוגה א',
+        pelaga: 'פלגה ב',
+        miflag: 'מפלג ב',
+        tzevet: 'פלגה ב'
+      },
+      commanders: {
+        mefakedTzevet: '',
+        mefakedMiflag: '',
+        samal: 'סגן מפקד פלוגה',
+        mefakedPluga: 'מפקד פלוגה'
       },
       vacationDays: {
-        total: 16,
-        used: 2,
-        status: calculateVacationStatus(16)
+        total: 30,
+        used: 15,
+        status: calculateVacationStatus(15)
       },
-      presence: 'גימלים'
+      presence: 'בבסיס'
     },
     {
       id: '5',
-      name: 'דניאל כהן',
-      personalNumber: '777888999',
-      team: 'צוות 30',
-      role: 'מפקד צוות',
-      profile: 'לוחם',
-      qualifications: ['נהג', 'חובש'],
+      name: 'מפקד פלגה זווית',
+      personalNumber: '1000005',
+      team: 'פלגה זווית',
+      role: 'מפקד פלגה',
+      profile: '97',
+      qualifications: ['פיקוד', 'ניווט', 'קשר'],
       licenses: ['B', 'C'],
-      certifications: ['חובש'],
-      drivingLicenses: ['35', 'דימקס'],
-      family: 'נשוי + 3',
-      militaryBackground: 'חייל קרבי',
-      notes: 'מפקד מנוסה',
-      medicalProfile: 'כשיר',
-      documents: [],
-      presence: 'בפעילות'
+      certifications: ['קורס מפקדי צוותים'],
+      framework: {
+        pluga: 'פלוגה א',
+        pelaga: 'פלגה זווית',
+        miflag: 'מפלג זווית',
+        tzevet: 'פלגה זווית'
+      },
+      commanders: {
+        mefakedTzevet: '',
+        mefakedMiflag: '',
+        samal: 'סגן מפקד פלוגה',
+        mefakedPluga: 'מפקד פלוגה'
+      },
+      vacationDays: {
+        total: 30,
+        used: 7,
+        status: calculateVacationStatus(23)
+      },
+      presence: 'בבסיס'
     },
+    // מפל"ג
     {
       id: '6',
-      name: 'יונתן לוי',
-      personalNumber: '123123123',
-      team: 'צוות 30',
-      role: 'חייל',
-      profile: 'לוחם',
-      qualifications: ['נהג'],
+      name: 'רספ',
+      personalNumber: '1000006',
+      team: 'מפקדה',
+      role: 'רספ',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'טכנולוג'],
       licenses: ['B'],
-      certifications: [],
-      drivingLicenses: ['35'],
-      family: 'רווק',
-      militaryBackground: 'חייל קרבי',
-      notes: '',
-      medicalProfile: 'כשיר',
-      documents: [],
-      presence: 'חופש'
+      certifications: ['קורס רספ'],
+      framework: {
+        pluga: 'פלוגה א',
+        pelaga: 'פלגה א',
+        miflag: 'מפלג א',
+        tzevet: 'מפקדה'
+      },
+      commanders: {
+        mefakedTzevet: '',
+        mefakedMiflag: '',
+        samal: 'סגן מפקד פלוגה',
+        mefakedPluga: 'מפקד פלוגה'
+      },
+      vacationDays: {
+        total: 30,
+        used: 9,
+        status: calculateVacationStatus(21)
+      },
+      presence: 'בבסיס'
     },
     {
       id: '7',
-      name: 'עומר דוד',
-      personalNumber: '456456456',
-      team: 'צוות 40',
-      role: 'מפקד צוות',
-      profile: 'לוחם',
-      qualifications: ['נהג', 'חובש'],
-      licenses: ['B', 'C'],
-      certifications: ['חובש'],
-      drivingLicenses: ['35', 'דימקס'],
-      family: 'נשוי + 1',
-      militaryBackground: 'חייל קרבי',
-      notes: 'מפקד מנוסה',
-      medicalProfile: 'כשיר',
-      documents: [],
-      presence: 'גימלים'
-    },
-    {
-      id: '8',
-      name: 'אלון כהן',
-      personalNumber: '789789789',
-      team: 'צוות 40',
-      role: 'חייל',
-      profile: 'לוחם',
-      qualifications: ['נהג'],
+      name: 'סרספ',
+      personalNumber: '1000007',
+      team: 'מפקדה',
+      role: 'סרספ',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'טכנולוג'],
       licenses: ['B'],
-      certifications: [],
-      drivingLicenses: ['35'],
-      family: 'רווק',
-      militaryBackground: 'חייל קרבי',
-      notes: '',
-      medicalProfile: 'כשיר',
-      documents: [],
-      presence: 'אחר',
-      presenceOther: 'קורס'
+      certifications: ['קורס סרספ'],
+      framework: {
+        pluga: 'פלוגה א',
+        pelaga: 'פלגה א',
+        miflag: 'מפלג א',
+        tzevet: 'מפקדה'
+      },
+      commanders: {
+        mefakedTzevet: '',
+        mefakedMiflag: '',
+        samal: 'סגן מפקד פלוגה',
+        mefakedPluga: 'מפקד פלוגה'
+      },
+      vacationDays: {
+        total: 30,
+        used: 11,
+        status: calculateVacationStatus(19)
+      },
+      presence: 'בבסיס'
     },
+    // צוות 10
     {
-      id: '9',
-      name: 'נועם ישראלי',
-      personalNumber: '321321321',
-      team: 'צוות 50',
+      id: '15',
+      name: 'מפקד צוות 10',
+      personalNumber: '1000015',
+      team: 'צוות 10',
       role: 'מפקד צוות',
-      profile: 'לוחם',
-      qualifications: ['נהג', 'חובש'],
-      licenses: ['B', 'C'],
-      certifications: ['חובש'],
-      drivingLicenses: ['35', 'דימקס'],
-      family: 'נשוי + 2',
-      militaryBackground: 'חייל קרבי',
-      notes: 'מפקד מנוסה',
-      medicalProfile: 'כשיר',
-      documents: [],
+      profile: '97',
+      qualifications: ['פיקוד', 'ניווט', 'קשר'],
+      licenses: ['B'],
+      certifications: ['קורס מפקדי צוותים'],
+      framework: {
+        pluga: 'פלוגה א',
+        pelaga: 'פלגה א',
+        miflag: 'מפלג א',
+        tzevet: 'צוות 10'
+      },
+      commanders: {
+        mefakedTzevet: '',
+        mefakedMiflag: 'מפקד פלגה א',
+        samal: 'סגן מפקד פלוגה',
+        mefakedPluga: 'מפקד פלוגה'
+      },
+      vacationDays: {
+        total: 30,
+        used: 6,
+        status: calculateVacationStatus(24)
+      },
       presence: 'בבסיס'
     },
     {
-      id: '10',
-      name: 'עידו רוזן',
-      personalNumber: '654654654',
+      id: '16',
+      name: 'סמל צוות 10',
+      personalNumber: '1000016',
+      team: 'צוות 10',
+      role: 'סמל',
+      profile: '97',
+      qualifications: ['פיקוד', 'קשר', 'חובש'],
+      licenses: ['B'],
+      certifications: ['קורס סמלים'],
+      framework: {
+        pluga: 'פלוגה א',
+        pelaga: 'פלגה א',
+        miflag: 'מפלג א',
+        tzevet: 'צוות 10'
+      },
+      commanders: {
+        mefakedTzevet: 'מפקד צוות 10',
+        mefakedMiflag: 'מפקד פלגה א',
+        samal: 'סגן מפקד פלוגה',
+        mefakedPluga: 'מפקד פלוגה'
+      },
+      vacationDays: {
+        total: 30,
+        used: 8,
+        status: calculateVacationStatus(22)
+      },
+      presence: 'בבסיס'
+    },
+    {
+      id: '19',
+      name: 'חייל 1 צוות 10',
+      personalNumber: '1000019',
+      team: 'צוות 10',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['רוגר', 'נהג', 'חובש'],
+      licenses: ['B', 'C'],
+      certifications: ['הסמכת רוגר'],
+      drivingLicenses: ['35', 'דימקס'],
+      framework: {
+        pluga: 'פלוגה א',
+        pelaga: 'פלגה א',
+        miflag: 'מפלג א',
+        tzevet: 'צוות 10'
+      },
+      commanders: {
+        mefakedTzevet: 'מפקד צוות 10',
+        mefakedMiflag: 'מפקד פלגה א',
+        samal: 'סגן מפקד פלוגה',
+        mefakedPluga: 'מפקד פלוגה'
+      },
+      vacationDays: {
+        total: 30,
+        used: 12,
+        status: calculateVacationStatus(18)
+      },
+      presence: 'בבסיס'
+    },
+    {
+      id: '20',
+      name: 'חייל 2 צוות 10',
+      personalNumber: '1000020',
+      team: 'צוות 10',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['קלע', 'צלם', 'מטמין'],
+      licenses: ['B'],
+      certifications: ['הסמכת קלע'],
+      framework: {
+        pluga: 'פלוגה א',
+        pelaga: 'פלגה א',
+        miflag: 'מפלג א',
+        tzevet: 'צוות 10'
+      },
+      commanders: {
+        mefakedTzevet: 'מפקד צוות 10',
+        mefakedMiflag: 'מפקד פלגה א',
+        samal: 'סגן מפקד פלוגה',
+        mefakedPluga: 'מפקד פלוגה'
+      },
+      vacationDays: {
+        total: 30,
+        used: 5,
+        status: calculateVacationStatus(25)
+      },
+      presence: 'בבסיס'
+    },
+    // צוות 20
+    {
+      id: '24',
+      name: 'מפקד צוות 20',
+      personalNumber: '1000024',
+      team: 'צוות 20',
+      role: 'מפקד צוות',
+      profile: '97',
+      qualifications: ['פיקוד', 'ניווט', 'קשר'],
+      licenses: ['B'],
+      certifications: ['קורס מפקדי צוותים'],
+      framework: {
+        pluga: 'פלוגה א',
+        pelaga: 'פלגה ב',
+        miflag: 'מפלג ב',
+        tzevet: 'צוות 20'
+      },
+      commanders: {
+        mefakedTzevet: '',
+        mefakedMiflag: 'מפקד פלגה ב',
+        samal: 'סגן מפקד פלוגה',
+        mefakedPluga: 'מפקד פלוגה'
+      },
+      vacationDays: {
+        total: 30,
+        used: 10,
+        status: calculateVacationStatus(20)
+      },
+      presence: 'בבסיס'
+    },
+    {
+      id: '28',
+      name: 'חייל 1 צוות 20',
+      personalNumber: '1000028',
+      team: 'צוות 20',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['רוגר', 'נהג', 'חובש'],
+      licenses: ['B', 'C'],
+      certifications: ['הסמכת רוגר'],
+      drivingLicenses: ['35', 'דימקס', 'סוואנה'],
+      framework: {
+        pluga: 'פלוגה א',
+        pelaga: 'פלגה ב',
+        miflag: 'מפלג ב',
+        tzevet: 'צוות 20'
+      },
+      commanders: {
+        mefakedTzevet: 'מפקד צוות 20',
+        mefakedMiflag: 'מפקד פלגה ב',
+        samal: 'סגן מפקד פלוגה',
+        mefakedPluga: 'מפקד פלוגה'
+      },
+      vacationDays: {
+        total: 30,
+        used: 7,
+        status: calculateVacationStatus(23)
+      },
+      presence: 'בבסיס'
+    },
+    // צוות 30
+    {
+      id: '33',
+      name: 'מפקד צוות 30',
+      personalNumber: '1000033',
+      team: 'צוות 30',
+      role: 'מפקד צוות',
+      profile: '97',
+      qualifications: ['פיקוד', 'ניווט', 'קשר'],
+      licenses: ['B'],
+      certifications: ['קורס מפקדי צוותים'],
+      framework: {
+        pluga: 'פלוגה א',
+        pelaga: 'פלגה א',
+        miflag: 'מפלג א',
+        tzevet: 'צוות 30'
+      },
+      commanders: {
+        mefakedTzevet: '',
+        mefakedMiflag: 'מפקד פלגה א',
+        samal: 'סגן מפקד פלוגה',
+        mefakedPluga: 'מפקד פלוגה'
+      },
+      vacationDays: {
+        total: 30,
+        used: 9,
+        status: calculateVacationStatus(21)
+      },
+      presence: 'בבסיס'
+    },
+    {
+      id: '37',
+      name: 'חייל 1 צוות 30',
+      personalNumber: '1000037',
+      team: 'צוות 30',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['רוגר', 'נהג', 'חובש'],
+      licenses: ['B', 'C'],
+      certifications: ['הסמכת רוגר'],
+      drivingLicenses: ['דימקס', 'סוואנה'],
+      framework: {
+        pluga: 'פלוגה א',
+        pelaga: 'פלגה א',
+        miflag: 'מפלג א',
+        tzevet: 'צוות 30'
+      },
+      commanders: {
+        mefakedTzevet: 'מפקד צוות 30',
+        mefakedMiflag: 'מפקד פלגה א',
+        samal: 'סגן מפקד פלוגה',
+        mefakedPluga: 'מפקד פלוגה'
+      },
+      vacationDays: {
+        total: 30,
+        used: 14,
+        status: calculateVacationStatus(16)
+      },
+      presence: 'בבסיס'
+    },
+    // צוות 40
+    {
+      id: '42',
+      name: 'מפקד צוות 40',
+      personalNumber: '1000042',
+      team: 'צוות 40',
+      role: 'מפקד צוות',
+      profile: '97',
+      qualifications: ['פיקוד', 'ניווט', 'קשר'],
+      licenses: ['B'],
+      certifications: ['קורס מפקדי צוותים'],
+      framework: {
+        pluga: 'פלוגה א',
+        pelaga: 'פלגה ב',
+        miflag: 'מפלג ב',
+        tzevet: 'צוות 40'
+      },
+      commanders: {
+        mefakedTzevet: '',
+        mefakedMiflag: 'מפקד פלגה ב',
+        samal: 'סגן מפקד פלוגה',
+        mefakedPluga: 'מפקד פלוגה'
+      },
+      vacationDays: {
+        total: 30,
+        used: 11,
+        status: calculateVacationStatus(19)
+      },
+      presence: 'בבסיס'
+    },
+    {
+      id: '46',
+      name: 'חייל 1 צוות 40',
+      personalNumber: '1000046',
+      team: 'צוות 40',
+      role: 'חייל',
+      profile: '97',
+      qualifications: ['מטמין', 'טכנולוג', 'בנאי'],
+      licenses: ['B'],
+      certifications: ['הסמכת מטמין'],
+      framework: {
+        pluga: 'פלוגה א',
+        pelaga: 'פלגה ב',
+        miflag: 'מפלג ב',
+        tzevet: 'צוות 40'
+      },
+      commanders: {
+        mefakedTzevet: 'מפקד צוות 40',
+        mefakedMiflag: 'מפקד פלגה ב',
+        samal: 'סגן מפקד פלוגה',
+        mefakedPluga: 'מפקד פלוגה'
+      },
+      vacationDays: {
+        total: 30,
+        used: 6,
+        status: calculateVacationStatus(24)
+      },
+      presence: 'בבסיס'
+    },
+    // צוות 50
+    {
+      id: '51',
+      name: 'מפקד צוות 50',
+      personalNumber: '1000051',
+      team: 'צוות 50',
+      role: 'מפקד צוות',
+      profile: '97',
+      qualifications: ['פיקוד', 'ניווט', 'קשר'],
+      licenses: ['B'],
+      certifications: ['קורס מפקדי צוותים'],
+      framework: {
+        pluga: 'פלוגה א',
+        pelaga: 'פלגה זווית',
+        miflag: 'מפלג זווית',
+        tzevet: 'צוות 50'
+      },
+      commanders: {
+        mefakedTzevet: '',
+        mefakedMiflag: 'מפקד פלגה זווית',
+        samal: 'סגן מפקד פלוגה',
+        mefakedPluga: 'מפקד פלוגה'
+      },
+      vacationDays: {
+        total: 30,
+        used: 8,
+        status: calculateVacationStatus(22)
+      },
+      presence: 'בבסיס'
+    },
+    {
+      id: '55',
+      name: 'חייל 1 צוות 50',
+      personalNumber: '1000055',
       team: 'צוות 50',
       role: 'חייל',
-      profile: 'לוחם',
-      qualifications: ['נהג'],
-      licenses: ['B'],
-      certifications: [],
-      drivingLicenses: ['35'],
-      family: 'רווק',
-      militaryBackground: 'חייל קרבי',
-      notes: '',
-      medicalProfile: 'כשיר',
-      documents: [],
-      presence: 'בפעילות'
+      profile: '97',
+      qualifications: ['רוגר', 'נהג', 'חובש'],
+      licenses: ['B', 'C'],
+      certifications: ['הסמכת רוגר'],
+      drivingLicenses: ['35', 'דימקס', 'סוואנה'],
+      framework: {
+        pluga: 'פלוגה א',
+        pelaga: 'פלגה זווית',
+        miflag: 'מפלג זווית',
+        tzevet: 'צוות 50'
+      },
+      commanders: {
+        mefakedTzevet: 'מפקד צוות 50',
+        mefakedMiflag: 'מפקד פלגה זווית',
+        samal: 'סגן מפקד פלוגה',
+        mefakedPluga: 'מפקד פלוגה'
+      },
+      vacationDays: {
+        total: 30,
+        used: 13,
+        status: calculateVacationStatus(17)
+      },
+      presence: 'בבסיס'
     }
   ];
 
-  // Seed Vehicles
+  // נתוני רכבים דמו מלאים מ-seedData
   mockVehicles = [
     {
       id: '1',
-      type: 'ג\'יפ',
+      type: 'סוואנה',
       number: '12-345-67',
-      mileage: 125000,
-      lastMaintenance: '2024-01-01',
-      nextMaintenance: '2024-04-01',
+      mileage: 85000,
+      lastMaintenance: '2024-01-15',
+      nextMaintenance: '2024-04-15',
       status: 'available'
     },
     {
       id: '2',
-      type: 'משאית',
-      number: '34-567-89',
-      mileage: 89000,
-      lastMaintenance: '2023-12-15',
-      nextMaintenance: '2024-03-15',
-      status: 'maintenance'
-    },
-    {
-      id: '3',
-      type: 'ג\'יפ',
-      number: '45-678-90',
-      mileage: 67000,
-      lastMaintenance: '2024-01-10',
-      nextMaintenance: '2024-04-10',
+      type: 'סוואנה',
+      number: '12-345-68',
+      mileage: 92000,
+      lastMaintenance: '2024-01-20',
+      nextMaintenance: '2024-04-20',
       status: 'available'
     },
     {
+      id: '3',
+      type: 'סוואנה',
+      number: '12-345-69',
+      mileage: 78000,
+      lastMaintenance: '2023-12-10',
+      nextMaintenance: '2024-03-10',
+      status: 'maintenance'
+    },
+    {
       id: '4',
-      type: 'משאית',
-      number: '56-789-01',
-      mileage: 145000,
-      lastMaintenance: '2023-11-20',
-      nextMaintenance: '2024-02-20',
+      type: 'זאב',
+      number: '12-345-70',
+      mileage: 65000,
+      lastMaintenance: '2024-01-25',
+      nextMaintenance: '2024-04-25',
       status: 'available'
     },
     {
       id: '5',
-      type: 'ג\'יפ',
-      number: '67-890-12',
-      mileage: 45000,
+      type: 'דוד',
+      number: '12-345-71',
+      mileage: 120000,
       lastMaintenance: '2024-01-05',
       nextMaintenance: '2024-04-05',
+      status: 'available'
+    },
+    {
+      id: '6',
+      type: 'דוד',
+      number: '12-345-72',
+      mileage: 95000,
+      lastMaintenance: '2024-01-12',
+      nextMaintenance: '2024-04-12',
+      status: 'on_mission'
+    },
+    {
+      id: '7',
+      type: 'דימקס אפורה',
+      number: '12-345-73',
+      mileage: 110000,
+      lastMaintenance: '2024-01-08',
+      nextMaintenance: '2024-04-08',
+      status: 'available'
+    },
+    {
+      id: '8',
+      type: 'דימקס לבנה',
+      number: '12-345-74',
+      mileage: 88000,
+      lastMaintenance: '2024-01-18',
+      nextMaintenance: '2024-04-18',
+      status: 'available'
+    },
+    {
+      id: '9',
+      type: 'סופה',
+      number: '12-345-75',
+      mileage: 72000,
+      lastMaintenance: '2024-01-30',
+      nextMaintenance: '2024-04-30',
       status: 'available'
     }
   ];
@@ -667,19 +1048,31 @@ export const seedMockData = () => {
       plannedDate: '2024-01-15',
       plannedTime: '08:00',
       duration: 4,
-      commanderId: '1',
-      commanderName: 'דוד כהן',
-      taskLeaderId: '2',
-      taskLeaderName: 'יוסי לוי',
+      commanderId: '1000015',
+      commanderName: 'מפקד צוות 10',
+      taskLeaderId: '1000016',
+      taskLeaderName: 'סמל צוות 10',
       vehicleId: '1',
       vehicleNumber: '12-345-67',
-      driverId: '2',
-      driverName: 'יוסי לוי',
+      driverId: '1000019',
+      driverName: 'חייל 1 צוות 10',
       participants: [
         {
-          soldierId: '2',
-          soldierName: 'יוסי לוי',
-          personalNumber: '987654321',
+          soldierId: '1000015',
+          soldierName: 'מפקד צוות 10',
+          personalNumber: '1000015',
+          role: 'מפקד'
+        },
+        {
+          soldierId: '1000016',
+          soldierName: 'סמל צוות 10',
+          personalNumber: '1000016',
+          role: 'חובש'
+        },
+        {
+          soldierId: '1000019',
+          soldierName: 'חייל 1 צוות 10',
+          personalNumber: '1000019',
           role: 'נהג'
         }
       ],
@@ -691,7 +1084,7 @@ export const seedMockData = () => {
           content: 'הפעילות הושלמה בהצלחה. זוהו 3 נקודות חשודות שטופלו.',
           title: 'דוח סיכום',
           createdAt: '2024-01-15T12:00:00Z',
-          createdBy: 'דוד כהן'
+          createdBy: 'מפקד צוות 10'
         }
       ],
       createdAt: '2024-01-10T10:00:00Z',
@@ -707,19 +1100,31 @@ export const seedMockData = () => {
       plannedDate: '2024-01-20',
       plannedTime: '14:00',
       duration: 6,
-      commanderId: '3',
-      commanderName: 'אבי ישראלי',
-      taskLeaderId: '4',
-      taskLeaderName: 'מיכאל רוזן',
-      vehicleId: '3',
-      vehicleNumber: '45-678-90',
-      driverId: '4',
-      driverName: 'מיכאל רוזן',
+      commanderId: '1000024',
+      commanderName: 'מפקד צוות 20',
+      taskLeaderId: '1000025',
+      taskLeaderName: 'סמל צוות 20',
+      vehicleId: '2',
+      vehicleNumber: '12-345-68',
+      driverId: '1000028',
+      driverName: 'חייל 1 צוות 20',
       participants: [
         {
-          soldierId: '4',
-          soldierName: 'מיכאל רוזן',
-          personalNumber: '444555666',
+          soldierId: '1000024',
+          soldierName: 'מפקד צוות 20',
+          personalNumber: '1000024',
+          role: 'מפקד'
+        },
+        {
+          soldierId: '1000025',
+          soldierName: 'סמל צוות 20',
+          personalNumber: '1000025',
+          role: 'חובש'
+        },
+        {
+          soldierId: '1000028',
+          soldierName: 'חייל 1 צוות 20',
+          personalNumber: '1000028',
           role: 'נהג'
         }
       ],
@@ -731,7 +1136,7 @@ export const seedMockData = () => {
           content: 'האירוע הובטח בהצלחה. לא היו אירועים חריגים.',
           title: 'דוח אבטחה',
           createdAt: '2024-01-20T20:00:00Z',
-          createdBy: 'אבי ישראלי'
+          createdBy: 'מפקד צוות 20'
         }
       ],
       createdAt: '2024-01-12T10:00:00Z',
@@ -747,19 +1152,31 @@ export const seedMockData = () => {
       plannedDate: '2024-01-25',
       plannedTime: '06:00',
       duration: 8,
-      commanderId: '5',
-      commanderName: 'דניאל כהן',
-      taskLeaderId: '6',
-      taskLeaderName: 'יונתן לוי',
-      vehicleId: '5',
-      vehicleNumber: '67-890-12',
-      driverId: '6',
-      driverName: 'יונתן לוי',
+      commanderId: '1000033',
+      commanderName: 'מפקד צוות 30',
+      taskLeaderId: '1000034',
+      taskLeaderName: 'סמל צוות 30',
+      vehicleId: '4',
+      vehicleNumber: '12-345-70',
+      driverId: '1000041',
+      driverName: 'חייל 5 צוות 30',
       participants: [
         {
-          soldierId: '6',
-          soldierName: 'יונתן לוי',
-          personalNumber: '777888999',
+          soldierId: '1000033',
+          soldierName: 'מפקד צוות 30',
+          personalNumber: '1000033',
+          role: 'מפקד'
+        },
+        {
+          soldierId: '1000034',
+          soldierName: 'סמל צוות 30',
+          personalNumber: '1000034',
+          role: 'חובש'
+        },
+        {
+          soldierId: '1000041',
+          soldierName: 'חייל 5 צוות 30',
+          personalNumber: '1000041',
           role: 'נהג'
         }
       ],
@@ -778,19 +1195,31 @@ export const seedMockData = () => {
       plannedDate: '2024-01-30',
       plannedTime: '07:00',
       duration: 5,
-      commanderId: '7',
-      commanderName: 'שלום כהן',
-      taskLeaderId: '8',
-      taskLeaderName: 'משה לוי',
-      vehicleId: '4',
-      vehicleNumber: '56-789-01',
-      driverId: '8',
-      driverName: 'משה לוי',
+      commanderId: '1000042',
+      commanderName: 'מפקד צוות 40',
+      taskLeaderId: '1000043',
+      taskLeaderName: 'סמל צוות 40',
+      vehicleId: '5',
+      vehicleNumber: '12-345-71',
+      driverId: '1000048',
+      driverName: 'חייל 3 צוות 40',
       participants: [
         {
-          soldierId: '8',
-          soldierName: 'משה לוי',
-          personalNumber: '111222333',
+          soldierId: '1000042',
+          soldierName: 'מפקד צוות 40',
+          personalNumber: '1000042',
+          role: 'מפקד'
+        },
+        {
+          soldierId: '1000043',
+          soldierName: 'סמל צוות 40',
+          personalNumber: '1000043',
+          role: 'חובש'
+        },
+        {
+          soldierId: '1000048',
+          soldierName: 'חייל 3 צוות 40',
+          personalNumber: '1000048',
           role: 'נהג'
         }
       ],
@@ -808,16 +1237,28 @@ export const seedMockData = () => {
       plannedDate: '2024-02-05',
       plannedTime: '09:00',
       duration: 3,
-      commanderId: '9',
-      commanderName: 'אליהו רוזן',
-      taskLeaderId: '10',
-      taskLeaderName: 'יעקב ישראלי',
+      commanderId: '1000051',
+      commanderName: 'מפקד צוות 50',
+      taskLeaderId: '1000052',
+      taskLeaderName: 'סמל צוות 50',
       participants: [
         {
-          soldierId: '10',
-          soldierName: 'יעקב ישראלי',
-          personalNumber: '444555666',
-          role: 'מפקח'
+          soldierId: '1000051',
+          soldierName: 'מפקד צוות 50',
+          personalNumber: '1000051',
+          role: 'מפקד'
+        },
+        {
+          soldierId: '1000052',
+          soldierName: 'סמל צוות 50',
+          personalNumber: '1000052',
+          role: 'חובש'
+        },
+        {
+          soldierId: '1000055',
+          soldierName: 'חייל 1 צוות 50',
+          personalNumber: '1000055',
+          role: 'טכנאי'
         }
       ],
       status: 'הסתיימה',
@@ -828,7 +1269,7 @@ export const seedMockData = () => {
           content: 'כל הציוד נמצא תקין. נדרש להחליף 2 פנסים.',
           title: 'דוח בדיקה',
           createdAt: '2024-02-05T12:00:00Z',
-          createdBy: 'אליהו רוזן'
+          createdBy: 'מפקד צוות 50'
         }
       ],
       createdAt: '2024-01-20T10:00:00Z',
@@ -844,19 +1285,31 @@ export const seedMockData = () => {
       plannedDate: '2024-02-10',
       plannedTime: '22:00',
       duration: 6,
-      commanderId: '1',
-      commanderName: 'דוד כהן',
-      taskLeaderId: '2',
-      taskLeaderName: 'יוסי לוי',
+      commanderId: '1000015',
+      commanderName: 'מפקד צוות 10',
+      taskLeaderId: '1000016',
+      taskLeaderName: 'סמל צוות 10',
       vehicleId: '1',
       vehicleNumber: '12-345-67',
-      driverId: '2',
-      driverName: 'יוסי לוי',
+      driverId: '1000019',
+      driverName: 'חייל 1 צוות 10',
       participants: [
         {
-          soldierId: '2',
-          soldierName: 'יוסי לוי',
-          personalNumber: '987654321',
+          soldierId: '1000015',
+          soldierName: 'מפקד צוות 10',
+          personalNumber: '1000015',
+          role: 'מפקד'
+        },
+        {
+          soldierId: '1000016',
+          soldierName: 'סמל צוות 10',
+          personalNumber: '1000016',
+          role: 'חובש'
+        },
+        {
+          soldierId: '1000019',
+          soldierName: 'חייל 1 צוות 10',
+          personalNumber: '1000019',
           role: 'נהג'
         }
       ],
@@ -868,7 +1321,7 @@ export const seedMockData = () => {
           content: 'הסיור הושלם בהצלחה. לא זוהו פעילויות חשודות.',
           title: 'דוח לילה',
           createdAt: '2024-02-11T04:00:00Z',
-          createdBy: 'דוד כהן'
+          createdBy: 'מפקד צוות 10'
         }
       ],
       createdAt: '2024-01-25T10:00:00Z',
@@ -884,19 +1337,31 @@ export const seedMockData = () => {
       plannedDate: '2024-02-15',
       plannedTime: '08:00',
       duration: 7,
-      commanderId: '3',
-      commanderName: 'אבי ישראלי',
-      taskLeaderId: '4',
-      taskLeaderName: 'מיכאל רוזן',
+      commanderId: '1000024',
+      commanderName: 'מפקד צוות 20',
+      taskLeaderId: '1000025',
+      taskLeaderName: 'סמל צוות 20',
       vehicleId: '3',
-      vehicleNumber: '45-678-90',
-      driverId: '4',
-      driverName: 'מיכאל רוזן',
+      vehicleNumber: '12-345-69',
+      driverId: '1000028',
+      driverName: 'חייל 1 צוות 20',
       participants: [
         {
-          soldierId: '4',
-          soldierName: 'מיכאל רוזן',
-          personalNumber: '444555666',
+          soldierId: '1000024',
+          soldierName: 'מפקד צוות 20',
+          personalNumber: '1000024',
+          role: 'מפקד'
+        },
+        {
+          soldierId: '1000025',
+          soldierName: 'סמל צוות 20',
+          personalNumber: '1000025',
+          role: 'חובש'
+        },
+        {
+          soldierId: '1000028',
+          soldierName: 'חייל 1 צוות 20',
+          personalNumber: '1000028',
           role: 'נהג'
         }
       ],
@@ -908,7 +1373,7 @@ export const seedMockData = () => {
           content: 'האימון הושלם בהצלחה. כל המשתתפים עברו את המבחנים.',
           title: 'דוח אימון',
           createdAt: '2024-02-15T15:00:00Z',
-          createdBy: 'אבי ישראלי'
+          createdBy: 'מפקד צוות 20'
         }
       ],
       createdAt: '2024-01-30T10:00:00Z',
@@ -925,15 +1390,27 @@ export const seedMockData = () => {
       plannedDate: '2024-02-20',
       plannedTime: '10:00',
       duration: 4,
-      commanderId: '5',
-      commanderName: 'דניאל כהן',
-      taskLeaderId: '6',
-      taskLeaderName: 'יונתן לוי',
+      commanderId: '1000033',
+      commanderName: 'מפקד צוות 30',
+      taskLeaderId: '1000034',
+      taskLeaderName: 'סמל צוות 30',
       participants: [
         {
-          soldierId: '6',
-          soldierName: 'יונתן לוי',
-          personalNumber: '777888999',
+          soldierId: '1000033',
+          soldierName: 'מפקד צוות 30',
+          personalNumber: '1000033',
+          role: 'מפקד'
+        },
+        {
+          soldierId: '1000034',
+          soldierName: 'סמל צוות 30',
+          personalNumber: '1000034',
+          role: 'חובש'
+        },
+        {
+          soldierId: '1000039',
+          soldierName: 'חייל 3 צוות 30',
+          personalNumber: '1000039',
           role: 'טכנאי'
         }
       ],
@@ -943,7 +1420,7 @@ export const seedMockData = () => {
     }
   ];
 
-  // Seed Duties
+  // Seed Duties - מעודכן עם נתוני החיילים החדשים
   mockDuties = [
     {
       id: '1',
@@ -954,14 +1431,14 @@ export const seedMockData = () => {
       endTime: '14:00',
       participants: [
         {
-          soldierId: '1',
-          soldierName: 'דוד כהן',
-          personalNumber: '123456789'
+          soldierId: '1000015',
+          soldierName: 'מפקד צוות 10',
+          personalNumber: '1000015'
         },
         {
-          soldierId: '2',
-          soldierName: 'יוסי לוי',
-          personalNumber: '987654321'
+          soldierId: '1000016',
+          soldierName: 'סמל צוות 10',
+          personalNumber: '1000016'
         }
       ],
       requiredEquipment: 'סינרים, כפפות',
@@ -980,9 +1457,9 @@ export const seedMockData = () => {
       endTime: '06:00',
       participants: [
         {
-          soldierId: '1',
-          soldierName: 'דוד כהן',
-          personalNumber: '123456789'
+          soldierId: '1000015',
+          soldierName: 'מפקד צוות 10',
+          personalNumber: '1000015'
         }
       ],
       requiredEquipment: 'נשק, אפוד',
@@ -991,17 +1468,64 @@ export const seedMockData = () => {
       status: 'פעילה',
       createdAt: '2024-01-10T10:00:00Z',
       updatedAt: '2024-01-10T10:00:00Z'
+    },
+    {
+      id: '3',
+      type: 'מטבח',
+      location: 'חדר האוכל',
+      startDate: '2024-01-16',
+      startTime: '06:00',
+      endTime: '14:00',
+      participants: [
+        {
+          soldierId: '1000024',
+          soldierName: 'מפקד צוות 20',
+          personalNumber: '1000024'
+        },
+        {
+          soldierId: '1000025',
+          soldierName: 'סמל צוות 20',
+          personalNumber: '1000025'
+        }
+      ],
+      requiredEquipment: 'סינרים, כפפות',
+      notes: 'תורנות בוקר',
+      team: 'צוות 20',
+      status: 'פעילה',
+      createdAt: '2024-01-10T10:00:00Z',
+      updatedAt: '2024-01-10T10:00:00Z'
+    },
+    {
+      id: '4',
+      type: 'רסר',
+      location: 'מגדל השמירה',
+      startDate: '2024-01-16',
+      startTime: '20:00',
+      endTime: '06:00',
+      participants: [
+        {
+          soldierId: '1000033',
+          soldierName: 'מפקד צוות 30',
+          personalNumber: '1000033'
+        }
+      ],
+      requiredEquipment: 'נשק, אפוד',
+      notes: 'תורנות לילה',
+      team: 'צוות 30',
+      status: 'פעילה',
+      createdAt: '2024-01-10T10:00:00Z',
+      updatedAt: '2024-01-10T10:00:00Z'
     }
   ];
 
-  // Seed Missions
+  // Seed Missions - מעודכן עם נתוני החיילים החדשים
   mockMissions = [
     {
       id: '1',
       name: 'בדיקת ציוד רכבים',
       description: 'בדיקה תקופתית של ציוד הבטיחות ברכבים',
       dueDate: '2024-01-20',
-      assignedBy: 'מפקד הפלוגה',
+      assignedBy: 'מפקד פלוגה',
       status: 'pending',
       createdAt: '2024-01-10T10:00:00Z',
       updatedAt: '2024-01-10T10:00:00Z'
@@ -1015,16 +1539,36 @@ export const seedMockData = () => {
       status: 'in_progress',
       createdAt: '2024-01-12T10:00:00Z',
       updatedAt: '2024-01-12T10:00:00Z'
+    },
+    {
+      id: '3',
+      name: 'בדיקת כשירויות נהגים',
+      description: 'בדיקת רישיונות נהיגה והיתרים לכל הנהגים',
+      dueDate: '2024-01-30',
+      assignedBy: 'סמל רכבים',
+      status: 'pending',
+      createdAt: '2024-01-15T10:00:00Z',
+      updatedAt: '2024-01-15T10:00:00Z'
+    },
+    {
+      id: '4',
+      name: 'עדכון מסגרות ארגוניות',
+      description: 'עדכון שדות המסגרת והמפקדים לכל החיילים',
+      dueDate: '2024-02-05',
+      assignedBy: 'קצין כוח אדם',
+      status: 'pending',
+      createdAt: '2024-01-18T10:00:00Z',
+      updatedAt: '2024-01-18T10:00:00Z'
     }
   ];
 
-  // Seed Referrals
+  // Seed Referrals - מעודכן עם נתוני החיילים החדשים
   mockReferrals = [
     {
       id: '1',
-      soldierId: '1',
-      soldierName: 'דוד כהן',
-      personalNumber: '123456789',
+      soldierId: '1000015',
+      soldierName: 'מפקד צוות 10',
+      personalNumber: '1000015',
       team: 'צוות 10',
       date: '2024-01-15',
       location: 'בית חולים רמב"ם',
@@ -1035,9 +1579,9 @@ export const seedMockData = () => {
     },
     {
       id: '2',
-      soldierId: '2',
-      soldierName: 'יוסי לוי',
-      personalNumber: '987654321',
+      soldierId: '1000016',
+      soldierName: 'סמל צוות 10',
+      personalNumber: '1000016',
       team: 'צוות 10',
       date: '2024-01-20',
       location: 'מרפאה צבאית',
@@ -1048,9 +1592,9 @@ export const seedMockData = () => {
     },
     {
       id: '3',
-      soldierId: '3',
-      soldierName: 'אבי ישראלי',
-      personalNumber: '111222333',
+      soldierId: '1000024',
+      soldierName: 'מפקד צוות 20',
+      personalNumber: '1000024',
       team: 'צוות 20',
       date: '2024-01-25',
       location: 'בית חולים סורוקה',
@@ -1058,6 +1602,32 @@ export const seedMockData = () => {
       status: 'in_progress',
       createdAt: '2024-01-22T11:00:00Z',
       updatedAt: '2024-01-24T16:00:00Z'
+    },
+    {
+      id: '4',
+      soldierId: '1000033',
+      soldierName: 'מפקד צוות 30',
+      personalNumber: '1000033',
+      team: 'צוות 30',
+      date: '2024-01-28',
+      location: 'מרפאה צבאית',
+      reason: 'בדיקת עיניים',
+      status: 'pending',
+      createdAt: '2024-01-25T09:00:00Z',
+      updatedAt: '2024-01-25T09:00:00Z'
+    },
+    {
+      id: '5',
+      soldierId: '1000042',
+      soldierName: 'מפקד צוות 40',
+      personalNumber: '1000042',
+      team: 'צוות 40',
+      date: '2024-01-30',
+      location: 'בית חולים תל השומר',
+      reason: 'בדיקה אורטופדית',
+      status: 'completed',
+      createdAt: '2024-01-27T10:00:00Z',
+      updatedAt: '2024-01-30T15:00:00Z'
     }
   ];
 };

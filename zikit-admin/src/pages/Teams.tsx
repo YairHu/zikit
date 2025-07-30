@@ -55,6 +55,12 @@ interface Team {
   name: string;
   plagaId: 'A' | 'B' | 'ZAVIT';
   plagaName: string;
+  framework: {
+    pluga: string;
+    pelaga: string;
+    miflag: string;
+    tzevet: string;
+  };
   soldiers: Soldier[];
   totalSoldiers: number;
   commanders: Soldier[];
@@ -97,6 +103,12 @@ const Teams: React.FC = () => {
           name: 'צוות 10',
           plagaId: 'A',
           plagaName: 'פלגה א',
+          framework: {
+            pluga: 'פלוגה א',
+            pelaga: 'פלגה א',
+            miflag: 'מפלג א',
+            tzevet: 'צוות 10'
+          },
           soldiers: allSoldiers.filter(s => s.team === 'צוות 10'),
           totalSoldiers: allSoldiers.filter(s => s.team === 'צוות 10').length,
           commanders: allSoldiers.filter(s => s.team === 'צוות 10' && 
@@ -110,6 +122,12 @@ const Teams: React.FC = () => {
           name: 'צוות 20',
           plagaId: 'A',
           plagaName: 'פלגה א',
+          framework: {
+            pluga: 'פלוגה א',
+            pelaga: 'פלגה א',
+            miflag: 'מפלג א',
+            tzevet: 'צוות 20'
+          },
           soldiers: allSoldiers.filter(s => s.team === 'צוות 20'),
           totalSoldiers: allSoldiers.filter(s => s.team === 'צוות 20').length,
           commanders: allSoldiers.filter(s => s.team === 'צוות 20' && 
@@ -123,6 +141,12 @@ const Teams: React.FC = () => {
           name: 'צוות 30',
           plagaId: 'A',
           plagaName: 'פלגה א',
+          framework: {
+            pluga: 'פלוגה א',
+            pelaga: 'פלגה א',
+            miflag: 'מפלג א',
+            tzevet: 'צוות 30'
+          },
           soldiers: allSoldiers.filter(s => s.team === 'צוות 30'),
           totalSoldiers: allSoldiers.filter(s => s.team === 'צוות 30').length,
           commanders: allSoldiers.filter(s => s.team === 'צוות 30' && 
@@ -136,6 +160,12 @@ const Teams: React.FC = () => {
           name: 'צוות 40',
           plagaId: 'B',
           plagaName: 'פלגה ב',
+          framework: {
+            pluga: 'פלוגה א',
+            pelaga: 'פלגה ב',
+            miflag: 'מפלג ב',
+            tzevet: 'צוות 40'
+          },
           soldiers: allSoldiers.filter(s => s.team === 'צוות 40'),
           totalSoldiers: allSoldiers.filter(s => s.team === 'צוות 40').length,
           commanders: allSoldiers.filter(s => s.team === 'צוות 40' && 
@@ -149,6 +179,12 @@ const Teams: React.FC = () => {
           name: 'צוות 50',
           plagaId: 'B',
           plagaName: 'פלגה ב',
+          framework: {
+            pluga: 'פלוגה א',
+            pelaga: 'פלגה ב',
+            miflag: 'מפלג ב',
+            tzevet: 'צוות 50'
+          },
           soldiers: allSoldiers.filter(s => s.team === 'צוות 50'),
           totalSoldiers: allSoldiers.filter(s => s.team === 'צוות 50').length,
           commanders: allSoldiers.filter(s => s.team === 'צוות 50' && 
