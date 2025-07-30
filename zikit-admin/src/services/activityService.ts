@@ -1,6 +1,6 @@
 import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Activity } from '../models/Activity';
+import { Activity, ActivityDeliverable } from '../models/Activity';
 import { 
   mockGetAllActivities, 
   mockGetActivityById, 
@@ -15,6 +15,70 @@ const COLLECTION_NAME = 'activities';
 
 // Use mock database for development
 const USE_MOCK = true;
+
+// פונקציה ריכוזית לעדכון סטטוס פעילות
+export const updateActivityStatus = async (activityId: string, newStatus: Activity['status']): Promise<void> => {
+  try {
+    // עדכון הפעילות עצמה
+    await updateActivity(activityId, { status: newStatus });
+    
+    // כאן ניתן להוסיף לוגיקה נוספת לעדכון מקומות אחרים
+    // למשל: עדכון סטטוס רכב, עדכון נוכחות חיילים וכו'
+    console.log(`סטטוס פעילות ${activityId} עודכן ל-${newStatus}`);
+  } catch (error) {
+    console.error('שגיאה בעדכון סטטוס פעילות:', error);
+    throw error;
+  }
+};
+
+// פונקציה לקבלת פעילויות שהסתיימו לסטטיסטיקות
+export const getCompletedActivities = async (): Promise<Activity[]> => {
+  if (USE_MOCK) {
+    const allActivities = await mockGetAllActivities();
+    return allActivities.filter((activity: Activity) => activity.status === 'הסתיימה');
+  }
+  
+  try {
+    const q = query(
+      collection(db, COLLECTION_NAME),
+      where('status', '==', 'הסתיימה'),
+      orderBy('plannedDate', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Activity[];
+  } catch (error) {
+    console.error('Error getting completed activities:', error);
+    return [];
+  }
+};
+
+// פונקציה להוספת תוצר לפעילות
+export const addActivityDeliverable = async (
+  activityId: string,
+  deliverable: Omit<ActivityDeliverable, 'id' | 'createdAt'>
+): Promise<void> => {
+  try {
+    const activity = await getActivityById(activityId);
+    if (!activity) {
+      throw new Error('פעילות לא נמצאה');
+    }
+    
+    const newDeliverable: ActivityDeliverable = {
+      ...deliverable,
+      id: Date.now().toString(),
+      createdAt: new Date().toISOString()
+    };
+    
+    const updatedDeliverables = [...(activity.deliverables || []), newDeliverable];
+    await updateActivity(activityId, { deliverables: updatedDeliverables });
+  } catch (error) {
+    console.error('שגיאה בהוספת תוצר:', error);
+    throw error;
+  }
+};
 
 export const getAllActivities = async (): Promise<Activity[]> => {
   if (USE_MOCK) {

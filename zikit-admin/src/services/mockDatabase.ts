@@ -663,6 +663,7 @@ export const seedMockData = () => {
       team: 'צוות 10',
       location: 'גבעת המורה',
       region: 'מנשה',
+      activityType: 'מארב ירי',
       plannedDate: '2024-01-15',
       plannedTime: '08:00',
       duration: 4,
@@ -682,9 +683,263 @@ export const seedMockData = () => {
           role: 'נהג'
         }
       ],
-      status: 'מתוכננת',
+      status: 'הסתיימה',
+      deliverables: [
+        {
+          id: '1',
+          type: 'text',
+          content: 'הפעילות הושלמה בהצלחה. זוהו 3 נקודות חשודות שטופלו.',
+          title: 'דוח סיכום',
+          createdAt: '2024-01-15T12:00:00Z',
+          createdBy: 'דוד כהן'
+        }
+      ],
       createdAt: '2024-01-10T10:00:00Z',
-      updatedAt: '2024-01-10T10:00:00Z'
+      updatedAt: '2024-01-15T12:00:00Z'
+    },
+    {
+      id: '2',
+      name: 'אבטחת אירוע',
+      team: 'צוות 20',
+      location: 'מרכז העיר',
+      region: 'שומרון',
+      activityType: 'אמלמ',
+      plannedDate: '2024-01-20',
+      plannedTime: '14:00',
+      duration: 6,
+      commanderId: '3',
+      commanderName: 'אבי ישראלי',
+      taskLeaderId: '4',
+      taskLeaderName: 'מיכאל רוזן',
+      vehicleId: '3',
+      vehicleNumber: '45-678-90',
+      driverId: '4',
+      driverName: 'מיכאל רוזן',
+      participants: [
+        {
+          soldierId: '4',
+          soldierName: 'מיכאל רוזן',
+          personalNumber: '444555666',
+          role: 'נהג'
+        }
+      ],
+      status: 'הסתיימה',
+      deliverables: [
+        {
+          id: '2',
+          type: 'text',
+          content: 'האירוע הובטח בהצלחה. לא היו אירועים חריגים.',
+          title: 'דוח אבטחה',
+          createdAt: '2024-01-20T20:00:00Z',
+          createdBy: 'אבי ישראלי'
+        }
+      ],
+      createdAt: '2024-01-12T10:00:00Z',
+      updatedAt: '2024-01-20T20:00:00Z'
+    },
+    {
+      id: '3',
+      name: 'סיור גבול',
+      team: 'צוות 30',
+      location: 'גבול הצפון',
+      region: 'הבקעה והעמקים',
+      activityType: 'זווית אחרת',
+      plannedDate: '2024-01-25',
+      plannedTime: '06:00',
+      duration: 8,
+      commanderId: '5',
+      commanderName: 'דניאל כהן',
+      taskLeaderId: '6',
+      taskLeaderName: 'יונתן לוי',
+      vehicleId: '5',
+      vehicleNumber: '67-890-12',
+      driverId: '6',
+      driverName: 'יונתן לוי',
+      participants: [
+        {
+          soldierId: '6',
+          soldierName: 'יונתן לוי',
+          personalNumber: '777888999',
+          role: 'נהג'
+        }
+      ],
+      status: 'בביצוע',
+      createdAt: '2024-01-15T10:00:00Z',
+      updatedAt: '2024-01-25T06:00:00Z'
+    },
+    {
+      id: '4',
+      name: 'תרגיל שטח',
+      team: 'צוות 40',
+      location: 'אזור אימונים',
+      region: 'יהודה',
+      activityType: 'אחר',
+      activityTypeOther: 'תרגיל ניווט',
+      plannedDate: '2024-01-30',
+      plannedTime: '07:00',
+      duration: 5,
+      commanderId: '7',
+      commanderName: 'שלום כהן',
+      taskLeaderId: '8',
+      taskLeaderName: 'משה לוי',
+      vehicleId: '4',
+      vehicleNumber: '56-789-01',
+      driverId: '8',
+      driverName: 'משה לוי',
+      participants: [
+        {
+          soldierId: '8',
+          soldierName: 'משה לוי',
+          personalNumber: '111222333',
+          role: 'נהג'
+        }
+      ],
+      status: 'מתוכננת',
+      createdAt: '2024-01-18T10:00:00Z',
+      updatedAt: '2024-01-18T10:00:00Z'
+    },
+    {
+      id: '5',
+      name: 'בדיקת ציוד',
+      team: 'צוות 50',
+      location: 'מחסן הציוד',
+      region: 'בנימין',
+      activityType: 'אמלמ',
+      plannedDate: '2024-02-05',
+      plannedTime: '09:00',
+      duration: 3,
+      commanderId: '9',
+      commanderName: 'אליהו רוזן',
+      taskLeaderId: '10',
+      taskLeaderName: 'יעקב ישראלי',
+      participants: [
+        {
+          soldierId: '10',
+          soldierName: 'יעקב ישראלי',
+          personalNumber: '444555666',
+          role: 'מפקח'
+        }
+      ],
+      status: 'הסתיימה',
+      deliverables: [
+        {
+          id: '3',
+          type: 'text',
+          content: 'כל הציוד נמצא תקין. נדרש להחליף 2 פנסים.',
+          title: 'דוח בדיקה',
+          createdAt: '2024-02-05T12:00:00Z',
+          createdBy: 'אליהו רוזן'
+        }
+      ],
+      createdAt: '2024-01-20T10:00:00Z',
+      updatedAt: '2024-02-05T12:00:00Z'
+    },
+    {
+      id: '6',
+      name: 'סיור לילה',
+      team: 'צוות 10',
+      location: 'שטח פתוח',
+      region: 'עציון',
+      activityType: 'מארב ירי',
+      plannedDate: '2024-02-10',
+      plannedTime: '22:00',
+      duration: 6,
+      commanderId: '1',
+      commanderName: 'דוד כהן',
+      taskLeaderId: '2',
+      taskLeaderName: 'יוסי לוי',
+      vehicleId: '1',
+      vehicleNumber: '12-345-67',
+      driverId: '2',
+      driverName: 'יוסי לוי',
+      participants: [
+        {
+          soldierId: '2',
+          soldierName: 'יוסי לוי',
+          personalNumber: '987654321',
+          role: 'נהג'
+        }
+      ],
+      status: 'הסתיימה',
+      deliverables: [
+        {
+          id: '4',
+          type: 'text',
+          content: 'הסיור הושלם בהצלחה. לא זוהו פעילויות חשודות.',
+          title: 'דוח לילה',
+          createdAt: '2024-02-11T04:00:00Z',
+          createdBy: 'דוד כהן'
+        }
+      ],
+      createdAt: '2024-01-25T10:00:00Z',
+      updatedAt: '2024-02-11T04:00:00Z'
+    },
+    {
+      id: '7',
+      name: 'אימון שטח',
+      team: 'צוות 20',
+      location: 'אזור אימונים',
+      region: 'אפרים',
+      activityType: 'זווית אחרת',
+      plannedDate: '2024-02-15',
+      plannedTime: '08:00',
+      duration: 7,
+      commanderId: '3',
+      commanderName: 'אבי ישראלי',
+      taskLeaderId: '4',
+      taskLeaderName: 'מיכאל רוזן',
+      vehicleId: '3',
+      vehicleNumber: '45-678-90',
+      driverId: '4',
+      driverName: 'מיכאל רוזן',
+      participants: [
+        {
+          soldierId: '4',
+          soldierName: 'מיכאל רוזן',
+          personalNumber: '444555666',
+          role: 'נהג'
+        }
+      ],
+      status: 'הסתיימה',
+      deliverables: [
+        {
+          id: '5',
+          type: 'text',
+          content: 'האימון הושלם בהצלחה. כל המשתתפים עברו את המבחנים.',
+          title: 'דוח אימון',
+          createdAt: '2024-02-15T15:00:00Z',
+          createdBy: 'אבי ישראלי'
+        }
+      ],
+      createdAt: '2024-01-30T10:00:00Z',
+      updatedAt: '2024-02-15T15:00:00Z'
+    },
+    {
+      id: '8',
+      name: 'בדיקת תקשורת',
+      team: 'צוות 30',
+      location: 'מרכז התקשורת',
+      region: 'מנשה',
+      activityType: 'אחר',
+      activityTypeOther: 'בדיקת מערכות',
+      plannedDate: '2024-02-20',
+      plannedTime: '10:00',
+      duration: 4,
+      commanderId: '5',
+      commanderName: 'דניאל כהן',
+      taskLeaderId: '6',
+      taskLeaderName: 'יונתן לוי',
+      participants: [
+        {
+          soldierId: '6',
+          soldierName: 'יונתן לוי',
+          personalNumber: '777888999',
+          role: 'טכנאי'
+        }
+      ],
+      status: 'בביצוע',
+      createdAt: '2024-02-05T10:00:00Z',
+      updatedAt: '2024-02-20T10:00:00Z'
     }
   ];
 

@@ -69,6 +69,8 @@ const emptyActivity: Omit<Activity, 'id' | 'createdAt' | 'updatedAt'> = {
   team: '',
   location: '',
   region: 'מנשה',
+  activityType: 'מארב ירי',
+  activityTypeOther: '',
   plannedDate: '',
   plannedTime: '',
   duration: 1,
@@ -87,6 +89,7 @@ const emptyActivity: Omit<Activity, 'id' | 'createdAt' | 'updatedAt'> = {
 const regions = ['מנשה', 'אפרים', 'שומרון', 'יהודה', 'בנימין', 'עציון', 'הבקעה והעמקים'];
 const teams = ['צוות 10', 'צוות 20', 'צוות 30', 'צוות 40', 'צוות 50'];
 const statuses = ['מתוכננת', 'בביצוע', 'הסתיימה', 'בוטלה'];
+const activityTypes = ['מארב ירי', 'אמלמ', 'זווית אחרת', 'אחר'];
 
 const Activities: React.FC = () => {
   const navigate = useNavigate();
@@ -101,6 +104,7 @@ const Activities: React.FC = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('');
+  const [filterActivityType, setFilterActivityType] = useState<string>('');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   const refresh = useCallback(async () => {
@@ -132,6 +136,8 @@ const Activities: React.FC = () => {
         team: activity.team,
         location: activity.location,
         region: activity.region,
+        activityType: activity.activityType,
+        activityTypeOther: activity.activityTypeOther || '',
         plannedDate: activity.plannedDate,
         plannedTime: activity.plannedTime,
         duration: activity.duration,
@@ -386,7 +392,11 @@ const Activities: React.FC = () => {
                          activity.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          activity.commanderName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = !filterStatus || activity.status === filterStatus;
-    return matchesSearch && matchesStatus;
+    const matchesActivityType = !filterActivityType || 
+      (filterActivityType === 'אחר' ? 
+        activity.activityType === 'אחר' : 
+        activity.activityType === filterActivityType);
+    return matchesSearch && matchesStatus && matchesActivityType;
   });
 
   if (loading) {
@@ -436,6 +446,19 @@ const Activities: React.FC = () => {
             <MenuItem value="">כל הסטטוסים</MenuItem>
             {statuses.map(status => (
               <MenuItem key={status} value={status}>{status}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <FormControl sx={{ minWidth: 150 }}>
+          <InputLabel>סוג פעילות</InputLabel>
+          <Select
+            value={filterActivityType}
+            onChange={(e) => setFilterActivityType(e.target.value)}
+            label="סוג פעילות"
+          >
+            <MenuItem value="">כל הסוגים</MenuItem>
+            {activityTypes.map(type => (
+              <MenuItem key={type} value={type}>{type}</MenuItem>
             ))}
           </Select>
         </FormControl>
@@ -510,6 +533,14 @@ const Activities: React.FC = () => {
                     <PersonIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
                     <Typography variant="body2">מפקד: {activity.commanderName}</Typography>
                   </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <AssignmentIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
+                    <Typography variant="body2">
+                      סוג: {activity.activityType === 'אחר' && activity.activityTypeOther 
+                        ? activity.activityTypeOther 
+                        : activity.activityType}
+                    </Typography>
+                  </Box>
                   {activity.taskLeaderName && (
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                       <PersonIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
@@ -570,6 +601,7 @@ const Activities: React.FC = () => {
                 <TableCell>שם פעילות</TableCell>
                 <TableCell>צוות</TableCell>
                 <TableCell>מיקום</TableCell>
+                <TableCell>סוג פעילות</TableCell>
                 <TableCell>תאריך</TableCell>
                 <TableCell>שעה</TableCell>
                 <TableCell>מפקד</TableCell>
@@ -600,6 +632,13 @@ const Activities: React.FC = () => {
                   <TableCell>
                     <Typography variant="body2">
                       {activity.location}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {activity.activityType === 'אחר' && activity.activityTypeOther 
+                        ? activity.activityTypeOther 
+                        : activity.activityType}
                     </Typography>
                   </TableCell>
                   <TableCell>
@@ -741,6 +780,34 @@ const Activities: React.FC = () => {
                   </Select>
                 </FormControl>
               </Box>
+              <Box>
+                <FormControl fullWidth>
+                  <InputLabel>סוג פעילות</InputLabel>
+                  <Select
+                    name="activityType"
+                    value={formData.activityType}
+                    onChange={(e) => handleSelectChange('activityType', e.target.value)}
+                    label="סוג פעילות"
+                    required
+                  >
+                    {activityTypes.map(type => (
+                      <MenuItem key={type} value={type}>{type}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+              {formData.activityType === 'אחר' && (
+                <Box>
+                  <TextField
+                    fullWidth
+                    label="פירוט סוג פעילות"
+                    name="activityTypeOther"
+                    value={formData.activityTypeOther}
+                    onChange={handleChange}
+                    required
+                  />
+                </Box>
+              )}
               <Box>
                 <TextField
                   fullWidth

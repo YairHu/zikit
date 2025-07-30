@@ -21,6 +21,7 @@ import PendingSoldiers from './pages/PendingSoldiers';
 import SoldierLinking from './pages/SoldierLinking';
 import DataSeeder from './pages/DataSeeder';
 import ActivityDetails from './pages/ActivityDetails';
+import ActivityStatistics from './pages/ActivityStatistics';
 import DutyDetails from './pages/DutyDetails';
 import { signOutUser } from './services/authService';
 import { Drawer, List, ListItem, ListItemIcon, ListItemText, IconButton, AppBar, Toolbar, Typography, Box, Divider, Avatar, Collapse } from '@mui/material';
@@ -41,6 +42,7 @@ import MonitorIcon from '@mui/icons-material/Monitor';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import BarChartIcon from '@mui/icons-material/BarChart';
 
 const drawerWidth = 260;
 
@@ -57,6 +59,7 @@ const getMenuItems = (user: any) => {
     { text: 'רכבים', icon: <DirectionsCarIcon />, path: '/vehicles' },
     { text: 'משימות', icon: <AssignmentIcon />, path: '/missions' },
     { text: 'פעילויות מבצעיות', icon: <AssignmentIcon />, path: '/activities' },
+    { text: 'סטטיסטיקות פעילויות', icon: <BarChartIcon />, path: '/activity-statistics' },
     { text: 'תורנויות', icon: <CalendarMonthIcon />, path: '/duties' },
     { text: 'הפניות', icon: <LocalHospitalIcon />, path: '/referrals' },
     { text: 'טפסים', icon: <DescriptionIcon />, path: '/forms' },
@@ -210,6 +213,7 @@ const AppRoutes: React.FC = () => {
           <Route path="/missions" element={<Missions />} />
           <Route path="/activities" element={<Activities />} />
           <Route path="/activities/:id" element={<ActivityDetails />} />
+          <Route path="/activity-statistics" element={<ActivityStatistics />} />
           <Route path="/duties" element={<Duties />} />
           <Route path="/duties/:id" element={<DutyDetails />} />
           <Route path="/referrals" element={<Referrals />} />
