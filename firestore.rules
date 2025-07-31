@@ -22,7 +22,7 @@ service cloud.firestore {
       allow write: if isAdmin() || isMefakedPluga();
     }
     
-    // נהגים
+    // נהגים (לא בשימוש כרגע - נשמר למקרה עתידי)
     match /drivers/{driverId} {
       allow read: if request.auth != null;
       allow write: if isAdmin() || isMefakedPluga();
@@ -52,8 +52,26 @@ service cloud.firestore {
       allow write: if isAdmin() || isMefakedPluga();
     }
     
+    // נסיעות
+    match /trips/{tripId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isMefakedPluga();
+    }
+    
+    // הפניות
+    match /referrals/{referralId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isMefakedPluga();
+    }
+    
     // טפסים
     match /forms/{formId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isMefakedPluga();
+    }
+    
+    // מבנה פלגה
+    match /plagaStructure/{structureId} {
       allow read: if request.auth != null;
       allow write: if isAdmin() || isMefakedPluga();
     }
@@ -76,9 +94,6 @@ service cloud.firestore {
              request.auth.token.role == 'mefaked_tzevet';
     }
     
-    function isHamal() {
-      return request.auth != null && 
-             request.auth.token.role == 'hamal';
-    }
+
   }
 } 

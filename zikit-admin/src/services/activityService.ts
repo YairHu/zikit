@@ -14,7 +14,7 @@ import {
 const COLLECTION_NAME = 'activities';
 
 // Use mock database for development
-const USE_MOCK = true;
+const USE_MOCK = false;
 
 // פונקציה ריכוזית לעדכון סטטוס פעילות
 export const updateActivityStatus = async (activityId: string, newStatus: Activity['status']): Promise<void> => {
@@ -172,28 +172,18 @@ export const getActivitiesByTeam = async (team: string): Promise<Activity[]> => 
   }
   
   try {
-    // קבל את כל הפעילויות הפעילות
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      where('status', 'in', ['מתוכננת', 'בביצוע']),
-      orderBy('plannedDate', 'asc')
-    );
-    const querySnapshot = await getDocs(q);
-    const allActivities = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Activity[];
+    // קבל את כל הפעילויות וסנן בצד הלקוח
+    const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
+    const allActivities = querySnapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() } as Activity))
+      .filter(activity => 
+        ['מתוכננת', 'בביצוע'].includes(activity.status) &&
+        (activity.team === team || 
+         activity.participants.some(p => p.soldierId && p.soldierId.startsWith(team)))
+      )
+      .sort((a, b) => new Date(a.plannedDate).getTime() - new Date(b.plannedDate).getTime());
     
-    // סינון פעילויות שמכילות חיילים מהצוות
-    // זה יטופל בצד הלקוח כי Firebase לא תומך בסינון מורכב
-    return allActivities.filter(activity => {
-      // אם הפעילות מוגדרת לצוות זה
-      if (activity.team === team) return true;
-      
-      // אם יש חיילים מהצוות שמשתתפים בפעילות
-      // (הסינון המדויק ייעשה בעמוד הצוות)
-      return true;
-    });
+    return allActivities;
   } catch (error) {
     console.error('Error getting activities by team:', error);
     return [];
@@ -206,19 +196,19 @@ export const getActivitiesBySoldier = async (soldierId: string): Promise<Activit
   }
   
   try {
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      where('status', 'in', ['מתוכננת', 'בביצוע']),
-      orderBy('plannedDate', 'asc')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs
+    // קבל את כל הפעילויות וסנן בצד הלקוח
+    const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
+    const allActivities = querySnapshot.docs
       .map(doc => ({ id: doc.id, ...doc.data() } as Activity))
       .filter(activity => 
-        activity.commanderId === soldierId || 
-        activity.taskLeaderId === soldierId ||
-        activity.participants.some(p => p.soldierId === soldierId)
-      );
+        ['מתוכננת', 'בביצוע'].includes(activity.status) &&
+        (activity.commanderId === soldierId || 
+         activity.taskLeaderId === soldierId ||
+         activity.participants.some(p => p.soldierId === soldierId))
+      )
+      .sort((a, b) => new Date(a.plannedDate).getTime() - new Date(b.plannedDate).getTime());
+    
+    return allActivities;
   } catch (error) {
     console.error('Error getting activities by soldier:', error);
     return [];

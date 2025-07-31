@@ -37,4 +37,6 @@ export interface BasePerson {
     used: number;
     status: 'good' | 'warning' | 'critical';
   };
+  // קישור לפעילויות
+  activities?: string[]; // מזהי פעילויות שהאדם משתתף בהן
 } 

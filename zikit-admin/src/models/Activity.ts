@@ -20,10 +20,7 @@ export interface Activity {
   commanderName: string;
   taskLeaderId: string;
   taskLeaderName: string;
-  vehicleId?: string;
-  vehicleNumber?: string;
-  driverId?: string;
-  driverName?: string;
+  mobility?: string; // שדה ניוד במקום נהג ורכב
   participants: ActivityParticipant[];
   status: 'מתוכננת' | 'בביצוע' | 'הסתיימה' | 'בוטלה';
   deliverables?: ActivityDeliverable[]; // תוצרים של הפעילות

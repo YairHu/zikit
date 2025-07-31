@@ -49,6 +49,8 @@ const Home: React.FC = () => {
   useEffect(() => {
     const loadStats = async () => {
       try {
+        console.log('מתחיל טעינת סטטיסטיקות...');
+        
         const [soldiers, vehicles, activities, duties, missions, referrals] = await Promise.all([
           getAllSoldiers(),
           getAllVehicles(),
@@ -57,6 +59,15 @@ const Home: React.FC = () => {
           getAllMissions(),
           getAllReferrals()
         ]);
+
+        console.log('נתונים שנטענו:', {
+          soldiers: soldiers.length,
+          vehicles: vehicles.length,
+          activities: activities.length,
+          duties: duties.length,
+          missions: missions.length,
+          referrals: referrals.length
+        });
 
         // חישוב נהגים (חיילים עם כשירות נהג)
         const drivers = soldiers.filter(s => s.qualifications?.includes('נהג')).length;
@@ -126,7 +137,7 @@ const Home: React.FC = () => {
       icon: <DirectionsCarIcon sx={{ fontSize: 32 }} />,
       color: '#ff9800',
       count: stats.vehicles.toString(),
-      path: '/vehicles'
+      path: '/trips'
     },
     {
       title: 'נהגים',
@@ -134,7 +145,7 @@ const Home: React.FC = () => {
       icon: <DriveEtaIcon sx={{ fontSize: 32 }} />,
       color: '#2196f3',
       count: stats.drivers.toString(),
-      path: '/drivers'
+      path: '/trips'
     },
     {
       title: 'פעילויות',
@@ -143,6 +154,30 @@ const Home: React.FC = () => {
       color: '#f44336',
       count: stats.activities.toString(),
       path: '/activities'
+    },
+    {
+      title: 'תורנויות',
+      subtitle: 'תורנויות פעילות',
+      icon: <EventNoteIcon sx={{ fontSize: 32 }} />,
+      color: '#607d8b',
+      count: stats.duties.toString(),
+      path: '/duties'
+    },
+    {
+      title: 'משימות',
+      subtitle: 'משימות פעילות',
+      icon: <AssignmentIcon sx={{ fontSize: 32 }} />,
+      color: '#9c27b0',
+      count: stats.missions.toString(),
+      path: '/missions'
+    },
+    {
+      title: 'הפניות',
+      subtitle: 'הפניות פעילות',
+      icon: <LocalHospitalIcon sx={{ fontSize: 32 }} />,
+      color: '#795548',
+      count: stats.referrals.toString(),
+      path: '/referrals'
     }
   ];
 
@@ -167,35 +202,42 @@ const Home: React.FC = () => {
       subtitle: 'ניהול נהגים',
       icon: <DriveEtaIcon sx={{ fontSize: 32 }} />,
       color: '#9c27b0',
-      path: '/drivers'
+      path: '/trips'
     },
     {
-      title: 'רכבים',
-      subtitle: 'מעקב רכבים',
+      title: 'נסיעות ורכבים',
+      subtitle: 'ניהול נסיעות ורכבים',
       icon: <DirectionsCarIcon sx={{ fontSize: 32 }} />,
       color: '#ff9800',
-      path: '/vehicles'
+      path: '/trips'
     },
     {
       title: 'פעילויות',
-      subtitle: 'ניהול פעילויות',
+      subtitle: `${stats.activities} פעילויות פעילות`,
       icon: <AssignmentIcon sx={{ fontSize: 32 }} />,
       color: '#2196f3',
       path: '/activities'
     },
     {
-      title: 'פעילויות מבצעיות',
-      subtitle: 'ניהול פעילויות',
-      icon: <AssignmentIcon sx={{ fontSize: 32 }} />,
-      color: '#f44336',
-      path: '/activities'
-    },
-    {
       title: 'תורנויות',
-      subtitle: 'שיבוץ תורנויות',
+      subtitle: `${stats.duties} תורנויות פעילות`,
       icon: <EventNoteIcon sx={{ fontSize: 32 }} />,
       color: '#607d8b',
       path: '/duties'
+    },
+    {
+      title: 'הפניות',
+      subtitle: `${stats.referrals} הפניות פעילות`,
+      icon: <LocalHospitalIcon sx={{ fontSize: 32 }} />,
+      color: '#ff9800',
+      path: '/referrals'
+    },
+    {
+      title: 'משימות',
+      subtitle: `${stats.missions} משימות פעילות`,
+      icon: <AssignmentIcon sx={{ fontSize: 32 }} />,
+      color: '#9c27b0',
+      path: '/missions'
     },
     {
       title: 'טפסים',
@@ -210,34 +252,6 @@ const Home: React.FC = () => {
       icon: <DashboardIcon sx={{ fontSize: 32 }} />,
       color: '#795548',
       path: '/hamal'
-    },
-    {
-      title: 'פעילויות',
-      subtitle: `${stats.activities} פעילויות פעילות`,
-      icon: <AssignmentIcon sx={{ fontSize: 32 }} />,
-      color: '#f44336',
-      path: '/activities'
-    },
-    {
-      title: 'תורנויות',
-      subtitle: `${stats.duties} תורנויות פעילות`,
-      icon: <EventNoteIcon sx={{ fontSize: 32 }} />,
-      color: '#607d8b',
-      path: '/duties'
-    },
-    {
-      title: 'פעילויות',
-      subtitle: `${stats.activities} פעילויות פעילות`,
-      icon: <AssignmentIcon sx={{ fontSize: 32 }} />,
-      color: '#2196f3',
-      path: '/activities'
-    },
-    {
-      title: 'הפניות',
-      subtitle: `${stats.referrals} הפניות פעילות`,
-      icon: <LocalHospitalIcon sx={{ fontSize: 32 }} />,
-      color: '#ff9800',
-      path: '/referrals'
     }
   ];
 
@@ -281,7 +295,9 @@ const Home: React.FC = () => {
           display: 'grid',
           gridTemplateColumns: {
             xs: 'repeat(2, 1fr)',
-            sm: 'repeat(4, 1fr)'
+            sm: 'repeat(3, 1fr)',
+            md: 'repeat(4, 1fr)',
+            lg: 'repeat(4, 1fr)'
           },
           gap: 2
         }}>
@@ -335,7 +351,8 @@ const Home: React.FC = () => {
           gridTemplateColumns: {
             xs: 'repeat(2, 1fr)',
             sm: 'repeat(3, 1fr)',
-            md: 'repeat(4, 1fr)'
+            md: 'repeat(4, 1fr)',
+            lg: 'repeat(5, 1fr)'
           },
           gap: 2
         }}>

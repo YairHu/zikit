@@ -10,7 +10,15 @@ import {
   CircularProgress,
   Divider
 } from '@mui/material';
-import { seedAllData, seedSoldiers, seedVehicles } from '../utils/seedData';
+import { 
+  seedAllData, 
+  seedSoldiers, 
+  seedVehicles, 
+  seedActivities, 
+  seedDuties, 
+  seedMissions, 
+  seedReferrals 
+} from '../utils/seedData';
 
 const DataSeeder: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -89,7 +97,7 @@ const DataSeeder: React.FC = () => {
             הכנסת כל הנתונים
           </Typography>
           <Typography variant="body2" sx={{ mb: 2 }}>
-            יכניס 64 חיילים ו-9 רכבים
+            יכניס 64 חיילים, 9 רכבים, 2 פעילויות, 2 תורנויות, 3 משימות ו-3 הפניות
           </Typography>
           <Button
             variant="contained"
@@ -140,6 +148,150 @@ const DataSeeder: React.FC = () => {
               disabled={loading}
             >
               {loading ? <CircularProgress size={20} /> : 'הכנס רכבים'}
+            </Button>
+          </CardContent>
+        </Card>
+      </Box>
+
+      <Divider sx={{ my: 3 }} />
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              הכנסת פעילויות בלבד
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              יכניס 2 פעילויות
+            </Typography>
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={async () => {
+                setLoading(true);
+                setMessage(null);
+                try {
+                  const result = await seedActivities();
+                  if (result) {
+                    setMessage({ type: 'success', text: 'נתוני הפעילויות הוכנסו בהצלחה!' });
+                  } else {
+                    setMessage({ type: 'error', text: 'הייתה שגיאה בהכנסת נתוני הפעילויות' });
+                  }
+                } catch (error) {
+                  setMessage({ type: 'error', text: `שגיאה: ${error}` });
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+            >
+              {loading ? <CircularProgress size={20} /> : 'הכנס פעילויות'}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              הכנסת תורנויות בלבד
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              יכניס 2 תורנויות
+            </Typography>
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={async () => {
+                setLoading(true);
+                setMessage(null);
+                try {
+                  const result = await seedDuties();
+                  if (result) {
+                    setMessage({ type: 'success', text: 'נתוני התורנויות הוכנסו בהצלחה!' });
+                  } else {
+                    setMessage({ type: 'error', text: 'הייתה שגיאה בהכנסת נתוני התורנויות' });
+                  }
+                } catch (error) {
+                  setMessage({ type: 'error', text: `שגיאה: ${error}` });
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+            >
+              {loading ? <CircularProgress size={20} /> : 'הכנס תורנויות'}
+            </Button>
+          </CardContent>
+        </Card>
+      </Box>
+
+      <Divider sx={{ my: 3 }} />
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              הכנסת משימות בלבד
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              יכניס 3 משימות
+            </Typography>
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={async () => {
+                setLoading(true);
+                setMessage(null);
+                try {
+                  const result = await seedMissions();
+                  if (result) {
+                    setMessage({ type: 'success', text: 'נתוני המשימות הוכנסו בהצלחה!' });
+                  } else {
+                    setMessage({ type: 'error', text: 'הייתה שגיאה בהכנסת נתוני המשימות' });
+                  }
+                } catch (error) {
+                  setMessage({ type: 'error', text: `שגיאה: ${error}` });
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+            >
+              {loading ? <CircularProgress size={20} /> : 'הכנס משימות'}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              הכנסת הפניות בלבד
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              יכניס 3 הפניות
+            </Typography>
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={async () => {
+                setLoading(true);
+                setMessage(null);
+                try {
+                  const result = await seedReferrals();
+                  if (result) {
+                    setMessage({ type: 'success', text: 'נתוני ההפניות הוכנסו בהצלחה!' });
+                  } else {
+                    setMessage({ type: 'error', text: 'הייתה שגיאה בהכנסת נתוני ההפניות' });
+                  }
+                } catch (error) {
+                  setMessage({ type: 'error', text: `שגיאה: ${error}` });
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+            >
+              {loading ? <CircularProgress size={20} /> : 'הכנס הפניות'}
             </Button>
           </CardContent>
         </Card>

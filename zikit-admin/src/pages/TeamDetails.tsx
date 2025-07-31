@@ -89,7 +89,7 @@ const TeamDetails: React.FC = () => {
         );
         const hasTeamCommander = teamSoldiers.some(s => s.id === activity.commanderId);
         const hasTeamTaskLeader = teamSoldiers.some(s => s.id === activity.taskLeaderId);
-        const hasTeamDriver = teamSoldiers.some(s => s.id === activity.driverId);
+        const hasTeamDriver = false; // נהגים לא נשמרים יותר ישירות בפעילות
         
         return hasTeamParticipants || hasTeamCommander || hasTeamTaskLeader || hasTeamDriver;
       });
@@ -806,7 +806,7 @@ const TeamDetails: React.FC = () => {
                         .filter(soldier => 
                           activity.commanderId === soldier.id ||
                           activity.taskLeaderId === soldier.id ||
-                          activity.driverId === soldier.id ||
+                          // נהגים לא נשמרים יותר ישירות בפעילות
                           activity.participants.some(p => p.soldierId === soldier.id)
                         )
                         .map((soldier) => (

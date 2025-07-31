@@ -553,18 +553,12 @@ const SoldierProfile: React.FC = () => {
                                 <strong>תפקיד:</strong> {
                                   activity.commanderId === soldier.id ? 'מפקד הפעילות' :
                                   activity.taskLeaderId === soldier.id ? 'מוביל משימה' :
-                                  activity.driverId === soldier.id ? 'נהג' :
                                   activity.participants.find(p => p.soldierId === soldier.id)?.role || 'משתתף'
                                 }
                               </Typography>
-                              {activity.vehicleNumber && (
+                              {activity.mobility && (
                                 <Typography variant="body2" color="text.secondary">
-                                  <strong>רכב:</strong> {activity.vehicleNumber}
-                                </Typography>
-                              )}
-                              {activity.driverName && (
-                                <Typography variant="body2" color="text.secondary">
-                                  <strong>נהג:</strong> {activity.driverName}
+                                  <strong>ניוד:</strong> {activity.mobility}
                                 </Typography>
                               )}
                             </Box>
@@ -601,7 +595,6 @@ const SoldierProfile: React.FC = () => {
                                 {
                                   activity.commanderId === soldier.id ? 'מפקד הפעילות' :
                                   activity.taskLeaderId === soldier.id ? 'מוביל משימה' :
-                                  activity.driverId === soldier.id ? 'נהג' :
                                   activity.participants.find(p => p.soldierId === soldier.id)?.role || 'משתתף'
                                 }
                               </TableCell>

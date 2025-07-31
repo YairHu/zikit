@@ -9,4 +9,5 @@ export interface Vehicle {
   currentMissionId?: string;
   driverId?: string;
   returnEstimate?: string; // צפי חזרה
+  seats: number; // מספר מקומות ברכב
 } 

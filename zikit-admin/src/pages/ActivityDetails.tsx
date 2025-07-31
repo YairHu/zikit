@@ -3,6 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
 import { Activity, ActivityDeliverable } from '../models/Activity';
 import { getActivityById, addActivityDeliverable, updateActivityStatus } from '../services/activityService';
+import { addTrip } from '../services/tripService';
+import { getAllVehicles } from '../services/vehicleService';
+import { getAllSoldiers } from '../services/soldierService';
+import TripManagement from '../components/TripManagement';
 import {
   Container,
   Typography,
@@ -44,6 +48,9 @@ import {
   Description as DescriptionIcon,
   Image as ImageIcon
 } from '@mui/icons-material';
+import { Trip } from '../models/Trip';
+import { Vehicle } from '../models/Vehicle';
+import { Soldier } from '../models/Soldier';
 
 const ActivityDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -52,6 +59,25 @@ const ActivityDetails: React.FC = () => {
   const [activity, setActivity] = useState<Activity | null>(null);
   const [loading, setLoading] = useState(true);
   const [showDeliverablesDialog, setShowDeliverablesDialog] = useState(false);
+  const [showTripManagement, setShowTripManagement] = useState(false);
+  const [showNewTripDialog, setShowNewTripDialog] = useState(false);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [soldiers, setSoldiers] = useState<Soldier[]>([]);
+  const [newTrip, setNewTrip] = useState<{
+    vehicleId: string;
+    driverId: string;
+    departureTime: string;
+    returnTime: string;
+    destination: string;
+    purpose: string;
+  }>({
+    vehicleId: '',
+    driverId: '',
+    departureTime: '',
+    returnTime: '',
+    destination: '',
+    purpose: ''
+  });
   const [newDeliverable, setNewDeliverable] = useState<{
     type: 'text' | 'image';
     title: string;
@@ -71,6 +97,23 @@ const ActivityDetails: React.FC = () => {
     }
   }, [id]);
 
+  useEffect(() => {
+    // Load vehicles and soldiers for trip creation
+    const loadData = async () => {
+      try {
+        const [vehiclesData, soldiersData] = await Promise.all([
+          getAllVehicles(),
+          getAllSoldiers()
+        ]);
+        setVehicles(vehiclesData);
+        setSoldiers(soldiersData);
+      } catch (error) {
+        console.error('Error loading data for trip creation:', error);
+      }
+    };
+    loadData();
+  }, []);
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'מתוכננת': return 'primary';
@@ -82,7 +125,9 @@ const ActivityDetails: React.FC = () => {
   };
 
   const handleEdit = () => {
-    navigate(`/activities?edit=${id}`);
+    if (id) {
+      navigate(`/activities?edit=${id}`);
+    }
   };
 
   const handleDelete = () => {
@@ -97,44 +142,101 @@ const ActivityDetails: React.FC = () => {
     
     try {
       await updateActivityStatus(activity.id, newStatus);
-      // רענון הפעילות
-      const updatedActivity = await getActivityById(activity.id);
-      setActivity(updatedActivity);
+      setActivity({ ...activity, status: newStatus });
     } catch (error) {
-      console.error('שגיאה בעדכון סטטוס:', error);
+      console.error('Error updating activity status:', error);
     }
   };
 
+  const handleActivityUpdate = (updatedActivity: Activity) => {
+    setActivity(updatedActivity);
+    setShowTripManagement(false);
+  };
+
   const handleAddDeliverable = async () => {
-    if (!activity || !newDeliverable.title || !newDeliverable.content) {
+    if (!activity || !newDeliverable.title || !newDeliverable.content) return;
+    
+    try {
+      await addActivityDeliverable(activity.id, {
+        type: newDeliverable.type,
+        title: newDeliverable.title,
+        content: newDeliverable.content,
+        createdBy: user?.displayName || user?.email || 'משתמש לא ידוע'
+      });
+      
+      // Refresh activity data
+      const updatedActivity = await getActivityById(activity.id);
+      if (updatedActivity) {
+        setActivity(updatedActivity);
+      }
+      
+      setNewDeliverable({ type: 'text', title: '', content: '' });
+      setShowDeliverablesDialog(false);
+    } catch (error) {
+      console.error('Error adding deliverable:', error);
+    }
+  };
+
+  const handleCreateNewTrip = async () => {
+    if (!activity || !newTrip.vehicleId || !newTrip.driverId || !newTrip.departureTime || !newTrip.returnTime || !newTrip.destination || !newTrip.purpose) {
       return;
     }
 
     try {
-      await addActivityDeliverable(activity.id, {
-        ...newDeliverable,
-        createdBy: user?.displayName || user?.email || 'משתמש לא ידוע'
-      });
+      // יצירת אובייקט נסיעה ללא ערכים ריקים/undefined (Firebase לא תומך)
+      const tripData: any = {
+        linkedActivityId: activity.id,
+        purpose: newTrip.purpose || '',
+        status: 'מתוכננת' as const,
+        location: newTrip.destination || ''
+      };
 
-      // רענון הפעילות
-      const updatedActivity = await getActivityById(activity.id);
-      setActivity(updatedActivity);
+      // הוספת שדות אופציונליים רק אם יש להם ערכים תקינים
+      if (newTrip.vehicleId && newTrip.vehicleId.trim()) {
+        tripData.vehicleId = newTrip.vehicleId;
+      }
 
-      // איפוס הטופס
-      setNewDeliverable({
-        type: 'text',
-        title: '',
-        content: ''
+      if (newTrip.driverId && newTrip.driverId.trim()) {
+        tripData.driverId = newTrip.driverId;
+      }
+
+      if (newTrip.departureTime && newTrip.departureTime.trim()) {
+        tripData.departureTime = newTrip.departureTime;
+      }
+
+      if (newTrip.returnTime && newTrip.returnTime.trim()) {
+        tripData.returnTime = newTrip.returnTime;
+      }
+
+      if (newTrip.destination && newTrip.destination.trim()) {
+        tripData.destination = newTrip.destination;
+      }
+
+      await addTrip(tripData);
+      
+      // Reset form
+      setNewTrip({
+        vehicleId: '',
+        driverId: '',
+        departureTime: '',
+        returnTime: '',
+        destination: '',
+        purpose: ''
       });
-      setShowDeliverablesDialog(false);
+      
+      setShowNewTripDialog(false);
+      
+      // Show success message
+      alert('הנסיעה נוצרה בהצלחה!');
     } catch (error) {
-      console.error('שגיאה בהוספת תוצר:', error);
+      console.error('Error creating trip:', error);
+      alert('שגיאה ביצירת הנסיעה');
     }
   };
 
   if (loading) {
     return (
-      <Container sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+      <Container sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
         <CircularProgress />
       </Container>
     );
@@ -143,7 +245,7 @@ const ActivityDetails: React.FC = () => {
   if (!activity) {
     return (
       <Container>
-        <Typography variant="h5" sx={{ mt: 4 }}>פעילות לא נמצאה</Typography>
+        <Alert severity="error">פעילות לא נמצאה</Alert>
       </Container>
     );
   }
@@ -151,50 +253,42 @@ const ActivityDetails: React.FC = () => {
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
         <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
           <ArrowBackIcon />
         </IconButton>
         <Box sx={{ flex: 1 }}>
-          <Typography variant="h4" component="h1">
+          <Typography variant="h4" component="h1" fontWeight="bold">
             {activity.name}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            פעילות מבצעית
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+            <Chip 
+              label={activity.status} 
+              color={getStatusColor(activity.status) as any}
+              size="small"
+            />
+            <Typography variant="body2" color="text.secondary">
+              • {activity.team}
+            </Typography>
+          </Box>
         </Box>
-                 <Box sx={{ display: 'flex', gap: 1 }}>
-           <Chip 
-             label={activity.status} 
-             color={getStatusColor(activity.status) as any}
-           />
-           <FormControl size="small" sx={{ minWidth: 120 }}>
-             <Select
-               value={activity.status}
-               onChange={(e) => handleStatusChange(e.target.value as Activity['status'])}
-               sx={{ height: 32 }}
-             >
-               <MenuItem value="מתוכננת">מתוכננת</MenuItem>
-               <MenuItem value="בביצוע">בביצוע</MenuItem>
-               <MenuItem value="הסתיימה">הסתיימה</MenuItem>
-               <MenuItem value="בוטלה">בוטלה</MenuItem>
-             </Select>
-           </FormControl>
-           <Button
-             variant="outlined"
-             startIcon={<AddIcon />}
-             onClick={() => setShowDeliverablesDialog(true)}
-             sx={{ mr: 1 }}
-           >
-             תוצרים
-           </Button>
-           <IconButton onClick={handleEdit}>
-             <EditIcon />
-           </IconButton>
-           <IconButton color="error" onClick={handleDelete}>
-             <DeleteIcon />
-           </IconButton>
-         </Box>
+        
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setShowDeliverablesDialog(true)}
+            sx={{ mr: 1 }}
+          >
+            תוצרים
+          </Button>
+          <IconButton onClick={handleEdit}>
+            <EditIcon />
+          </IconButton>
+          <IconButton color="error" onClick={handleDelete}>
+            <DeleteIcon />
+          </IconButton>
+        </Box>
       </Box>
 
       {/* Main Content */}
@@ -251,25 +345,31 @@ const ActivityDetails: React.FC = () => {
                 </Box>
               </Box>
 
-              {activity.vehicleNumber && (
-                <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
-                  <DirectionsCarIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                  <Box>
-                    <Typography variant="body2" color="text.secondary">רכב</Typography>
-                    <Typography variant="body1">{activity.vehicleNumber}</Typography>
+              {/* Mobility Section with New Trip Button */}
+              <Box sx={{ mt: 3, p: 2, border: '1px solid #e0e0e0', borderRadius: 1, bgcolor: '#fafafa' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <DirectionsCarIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                    <Typography variant="h6">ניוד</Typography>
                   </Box>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<DirectionsCarIcon />}
+                    onClick={() => setShowNewTripDialog(true)}
+                  >
+                    יצירת נסיעה חדשה
+                  </Button>
                 </Box>
-              )}
-
-              {activity.driverName && (
-                <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
-                  <PersonIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                  <Box>
-                    <Typography variant="body2" color="text.secondary">נהג</Typography>
-                    <Typography variant="body1">{activity.driverName}</Typography>
-                  </Box>
-                </Box>
-              )}
+                
+                {activity.mobility ? (
+                  <Typography variant="body1">{activity.mobility}</Typography>
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                    לא הוגדר ניוד לפעילות זו
+                  </Typography>
+                )}
+              </Box>
             </CardContent>
           </Card>
 
@@ -430,6 +530,109 @@ const ActivityDetails: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* New Trip Creation Dialog */}
+      <Dialog 
+        open={showNewTripDialog} 
+        onClose={() => setShowNewTripDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>יצירת נסיעה חדשה</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              נסיעה עבור פעילות: {activity.name}
+            </Typography>
+            
+            <FormControl fullWidth>
+              <InputLabel>רכב</InputLabel>
+              <Select
+                value={newTrip.vehicleId}
+                label="רכב"
+                onChange={(e) => setNewTrip(prev => ({ ...prev, vehicleId: e.target.value }))}
+              >
+                {vehicles.map(vehicle => (
+                  <MenuItem key={vehicle.id} value={vehicle.id}>
+                    {vehicle.number} - {vehicle.type}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth>
+              <InputLabel>נהג</InputLabel>
+              <Select
+                value={newTrip.driverId}
+                label="נהג"
+                onChange={(e) => setNewTrip(prev => ({ ...prev, driverId: e.target.value }))}
+              >
+                {soldiers.filter(soldier => soldier.licenses?.includes('C')).map(soldier => (
+                  <MenuItem key={soldier.id} value={soldier.id}>
+                    {soldier.name} - {soldier.personalNumber}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <TextField
+              label="יעד"
+              value={newTrip.destination}
+              onChange={(e) => setNewTrip(prev => ({ ...prev, destination: e.target.value }))}
+              fullWidth
+            />
+
+            <TextField
+              label="מטרת הנסיעה"
+              value={newTrip.purpose}
+              onChange={(e) => setNewTrip(prev => ({ ...prev, purpose: e.target.value }))}
+              multiline
+              rows={2}
+              fullWidth
+            />
+
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+              <TextField
+                label="שעת יציאה"
+                type="datetime-local"
+                value={newTrip.departureTime}
+                onChange={(e) => setNewTrip(prev => ({ ...prev, departureTime: e.target.value }))}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+
+              <TextField
+                label="שעת חזרה"
+                type="datetime-local"
+                value={newTrip.returnTime}
+                onChange={(e) => setNewTrip(prev => ({ ...prev, returnTime: e.target.value }))}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowNewTripDialog(false)}>ביטול</Button>
+          <Button 
+            onClick={handleCreateNewTrip}
+            variant="contained"
+            disabled={!newTrip.vehicleId || !newTrip.driverId || !newTrip.departureTime || !newTrip.returnTime || !newTrip.destination || !newTrip.purpose}
+          >
+            צור נסיעה
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Trip Management Dialog */}
+      {activity && (
+        <TripManagement
+          open={showTripManagement}
+          onClose={() => setShowTripManagement(false)}
+          activity={activity}
+          onActivityUpdate={handleActivityUpdate}
+        />
+      )}
     </Container>
   );
 };

@@ -6,7 +6,7 @@ import { mockGetAllDuties, mockGetDutyById, mockAddDuty, mockUpdateDuty, mockDel
 const COLLECTION_NAME = 'duties';
 
 // Use mock database for development
-const USE_MOCK = true;
+const USE_MOCK = false;
 
 export const getAllDuties = async (): Promise<Duty[]> => {
   if (USE_MOCK) {
@@ -100,28 +100,17 @@ export const getDutiesByTeam = async (team: string): Promise<Duty[]> => {
   }
   
   try {
-    // קבל את כל התורנויות הפעילות
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      where('status', '==', 'פעילה'),
-      orderBy('startDate', 'asc')
-    );
-    const querySnapshot = await getDocs(q);
-    const allDuties = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Duty[];
+    // קבל את כל התורנויות וסנן בצד הלקוח
+    const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
+    const allDuties = querySnapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() } as Duty))
+      .filter(duty => 
+        duty.status === 'פעילה' &&
+        (duty.team === team || duty.participants.some(p => p.soldierId && p.soldierId.startsWith(team)))
+      )
+      .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
     
-    // סינון תורנויות שמכילות חיילים מהצוות
-    // זה יטופל בצד הלקוח כי Firebase לא תומך בסינון מורכב
-    return allDuties.filter(duty => {
-      // אם התורנות מוגדרת לצוות זה
-      if (duty.team === team) return true;
-      
-      // אם יש חיילים מהצוות שמשתתפים בתורנות
-      // (הסינון המדויק ייעשה בעמוד הצוות)
-      return true;
-    });
+    return allDuties;
   } catch (error) {
     console.error('Error getting duties by team:', error);
     return [];
@@ -134,17 +123,17 @@ export const getDutiesBySoldier = async (soldierId: string): Promise<Duty[]> => 
   }
   
   try {
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      where('status', '==', 'פעילה'),
-      orderBy('startDate', 'asc')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs
+    // קבל את כל התורנויות וסנן בצד הלקוח
+    const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
+    const allDuties = querySnapshot.docs
       .map(doc => ({ id: doc.id, ...doc.data() } as Duty))
       .filter(duty => 
+        duty.status === 'פעילה' &&
         duty.participants.some(p => p.soldierId === soldierId)
-      );
+      )
+      .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+    
+    return allDuties;
   } catch (error) {
     console.error('Error getting duties by soldier:', error);
     return [];

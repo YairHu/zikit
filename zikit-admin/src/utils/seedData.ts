@@ -3,7 +3,7 @@ import { collection, addDoc, getDocs, deleteDoc } from 'firebase/firestore';
 import { Soldier } from '../models/Soldier';
 import { Vehicle } from '../models/Vehicle';
 
-// נתוני חיילים דמו
+// נתוני חיילים דמו - מעודכן עם כל השדות
 export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   // מפקדי פלוגה
   {
@@ -15,6 +15,11 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
     qualifications: ['פיקוד', 'ניווט', 'קשר'],
     licenses: ['B', 'C'],
     certifications: ['קורס מפקדי פלוגות'],
+    presence: 'פעיל',
+    family: 'נשוי + 2 ילדים',
+    militaryBackground: 'שירות קרבי 8 שנים',
+    notes: 'מפקד מנוסה עם ניסיון בפיקוד על פלוגות',
+    medicalProfile: 'A1',
     framework: {
       pluga: 'פלוגה א',
       pelaga: 'פלגה א',
@@ -26,6 +31,15 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
       mefakedMiflag: '',
       samal: 'סגן מפקד פלוגה',
       mefakedPluga: ''
+    },
+    braurTest: {
+      strength: 'passed',
+      running: '12:45'
+    },
+    vacationDays: {
+      total: 30,
+      used: 8,
+      status: 'good'
     }
   },
   {
@@ -37,36 +51,20 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
     qualifications: ['פיקוד', 'ניווט', 'קשר'],
     licenses: ['B', 'C'],
     certifications: ['קורס מפקדי צוותים'],
-  },
-  {
-    name: 'מפקד פלגה א',
-    personalNumber: '1000003',
-    team: 'פלגה א',
-    role: 'מפקד פלגה',
-    profile: '97',
-    qualifications: ['פיקוד', 'ניווט', 'קשר'],
-    licenses: ['B', 'C'],
-    certifications: ['קורס מפקדי צוותים'],
-  },
-  {
-    name: 'מפקד פלגה ב',
-    personalNumber: '1000004',
-    team: 'פלגה ב',
-    role: 'מפקד פלגה',
-    profile: '97',
-    qualifications: ['פיקוד', 'ניווט', 'קשר'],
-    licenses: ['B', 'C'],
-    certifications: ['קורס מפקדי צוותים'],
-  },
-  {
-    name: 'מפקד פלגה זווית',
-    personalNumber: '1000005',
-    team: 'פלגה זווית',
-    role: 'מפקד פלגה',
-    profile: '97',
-    qualifications: ['פיקוד', 'ניווט', 'קשר'],
-    licenses: ['B', 'C'],
-    certifications: ['קורס מפקדי צוותים'],
+    presence: 'פעיל',
+    family: 'רווק',
+    militaryBackground: 'שירות קרבי 6 שנים',
+    notes: 'סגן מפקד מסור ומוכשר',
+    medicalProfile: 'A1',
+    braurTest: {
+      strength: 'passed',
+      running: '13:20'
+    },
+    vacationDays: {
+      total: 30,
+      used: 15,
+      status: 'good'
+    }
   },
   
   // מפל"ג
@@ -79,16 +77,20 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
     qualifications: ['פיקוד', 'קשר', 'טכנולוג'],
     licenses: ['B'],
     certifications: ['קורס רספ'],
-  },
-  {
-    name: 'סרספ',
-    personalNumber: '1000007',
-    team: 'מפקדה',
-    role: 'סרספ',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'טכנולוג'],
-    licenses: ['B'],
-    certifications: ['קורס סרספ'],
+    presence: 'פעיל',
+    family: 'נשוי + 1 ילד',
+    militaryBackground: 'שירות קרבי 7 שנים',
+    notes: 'רספ מנוסה עם ידע טכנולוגי מתקדם',
+    medicalProfile: 'A1',
+    braurTest: {
+      strength: 'passed',
+      running: '13:15'
+    },
+    vacationDays: {
+      total: 30,
+      used: 12,
+      status: 'good'
+    }
   },
   {
     name: 'קצין ניהול',
@@ -99,66 +101,20 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
     qualifications: ['פיקוד', 'קשר', 'בנאי'],
     licenses: ['B'],
     certifications: ['קורס קציני ניהול'],
-  },
-  {
-    name: 'מניפ',
-    personalNumber: '1000009',
-    team: 'מפקדה',
-    role: 'מניפ',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'טכנולוג'],
-    licenses: ['B'],
-    certifications: ['קורס מניפ'],
-  },
-  {
-    name: 'חופל',
-    personalNumber: '1000010',
-    team: 'מפקדה',
-    role: 'חופל',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'טכנולוג'],
-    licenses: ['B'],
-    certifications: ['קורס חופל'],
-  },
-  {
-    name: 'פפ',
-    personalNumber: '1000011',
-    team: 'מפקדה',
-    role: 'פפ',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'טכנולוג'],
-    licenses: ['B'],
-    certifications: ['קורס פפ'],
-  },
-  {
-    name: 'סמל רכבים',
-    personalNumber: '1000012',
-    team: 'מפקדה',
-    role: 'סמל רכבים',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'טכנולוג'],
-    licenses: ['B'],
-    certifications: ['קורס סמלים'],
-  },
-  {
-    name: 'סמל רפואה',
-    personalNumber: '1000013',
-    team: 'מפקדה',
-    role: 'סמל רפואה',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'חובש'],
-    licenses: ['B'],
-    certifications: ['קורס סמלים'],
-  },
-  {
-    name: 'סמל לוגיסטיקה',
-    personalNumber: '1000014',
-    team: 'מפקדה',
-    role: 'סמל לוגיסטיקה',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'בנאי'],
-    licenses: ['B'],
-    certifications: ['קורס סמלים'],
+    presence: 'פעיל',
+    family: 'נשוי + 3 ילדים',
+    militaryBackground: 'שירות קרבי 9 שנים',
+    notes: 'קצין ניהול מנוסה עם ידע בבנייה',
+    medicalProfile: 'A1',
+    braurTest: {
+      strength: 'passed',
+      running: '14:10'
+    },
+    vacationDays: {
+      total: 30,
+      used: 5,
+      status: 'good'
+    }
   },
   
   // צוות 10
@@ -171,6 +127,32 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
     qualifications: ['פיקוד', 'ניווט', 'קשר'],
     licenses: ['B'],
     certifications: ['קורס מפקדי צוותים'],
+    presence: 'פעיל',
+    family: 'רווק',
+    militaryBackground: 'שירות קרבי 4 שנים',
+    notes: 'מפקד צוות צעיר ומוכשר',
+    medicalProfile: 'A1',
+    framework: {
+      pluga: 'פלוגה א',
+      pelaga: 'פלגה א',
+      miflag: 'מפלג א',
+      tzevet: 'צוות 10'
+    },
+    commanders: {
+      mefakedTzevet: 'מפקד צוות 10',
+      mefakedMiflag: 'מפקד מפלג א',
+      samal: 'סגן מפקד פלוגה',
+      mefakedPluga: 'מפקד פלוגה'
+    },
+    braurTest: {
+      strength: 'passed',
+      running: '12:30'
+    },
+    vacationDays: {
+      total: 30,
+      used: 18,
+      status: 'good'
+    }
   },
   {
     name: 'סמל צוות 10',
@@ -181,26 +163,20 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
     qualifications: ['פיקוד', 'קשר', 'חובש'],
     licenses: ['B'],
     certifications: ['קורס סמלים'],
-  },
-  {
-    name: 'מפקד 1 צוות 10',
-    personalNumber: '1000017',
-    team: 'צוות 10',
-    role: 'מפקד',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'קלע'],
-    licenses: ['B'],
-    certifications: ['קורס מפקדים'],
-  },
-  {
-    name: 'מפקד 2 צוות 10',
-    personalNumber: '1000018',
-    team: 'צוות 10',
-    role: 'מפקד',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'נגביסט'],
-    licenses: ['B'],
-    certifications: ['קורס מפקדים'],
+    presence: 'פעיל',
+    family: 'נשוי',
+    militaryBackground: 'שירות קרבי 5 שנים',
+    notes: 'סמל מנוסה עם הכשרה רפואית',
+    medicalProfile: 'A1',
+    braurTest: {
+      strength: 'passed',
+      running: '13:45'
+    },
+    vacationDays: {
+      total: 30,
+      used: 10,
+      status: 'good'
+    }
   },
   {
     name: 'חייל 1 צוות 10',
@@ -211,7 +187,21 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
     qualifications: ['רוגר', 'נהג', 'חובש'],
     licenses: ['B', 'C'],
     certifications: ['הסמכת רוגר'],
+    presence: 'פעיל',
+    family: 'רווק',
+    militaryBackground: 'שירות קרבי 2 שנים',
+    notes: 'חייל מוכשר עם רישיון נהיגה מתקדם',
+    medicalProfile: 'A1',
     drivingLicenses: ['35', 'דימקס'],
+    braurTest: {
+      strength: 'passed',
+      running: '13:00'
+    },
+    vacationDays: {
+      total: 30,
+      used: 22,
+      status: 'warning'
+    }
   },
   {
     name: 'חייל 2 צוות 10',
@@ -222,37 +212,20 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
     qualifications: ['קלע', 'צלם', 'מטמין'],
     licenses: ['B'],
     certifications: ['הסמכת קלע'],
-  },
-  {
-    name: 'חייל 3 צוות 10',
-    personalNumber: '1000021',
-    team: 'צוות 10',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['טכנולוג', 'בנאי', 'רחפניסט'],
-    licenses: ['B'],
-    certifications: ['הסמכת טכנולוג'],
-  },
-  {
-    name: 'חייל 4 צוות 10',
-    personalNumber: '1000022',
-    team: 'צוות 10',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['קשר', 'נגביסט', 'צלם'],
-    licenses: ['B'],
-    certifications: ['הסמכת קשר'],
-  },
-  {
-    name: 'חייל 5 צוות 10',
-    personalNumber: '1000023',
-    team: 'צוות 10',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['נהג', 'חובש', 'קלע'],
-    licenses: ['B', 'C'],
-    certifications: ['קורס נהגים'],
-    drivingLicenses: ['סוואנה', 'C'],
+    presence: 'פעיל',
+    family: 'רווק',
+    militaryBackground: 'שירות קרבי 2 שנים',
+    notes: 'קלע מצוין עם יכולות צילום',
+    medicalProfile: 'A1',
+    braurTest: {
+      strength: 'passed',
+      running: '14:20'
+    },
+    vacationDays: {
+      total: 30,
+      used: 8,
+      status: 'good'
+    }
   },
   
   // צוות 20
@@ -265,36 +238,32 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
     qualifications: ['פיקוד', 'ניווט', 'קשר'],
     licenses: ['B'],
     certifications: ['קורס מפקדי צוותים'],
-  },
-  {
-    name: 'סמל צוות 20',
-    personalNumber: '1000025',
-    team: 'צוות 20',
-    role: 'סמל',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'חובש'],
-    licenses: ['B'],
-    certifications: ['קורס סמלים'],
-  },
-  {
-    name: 'מפקד 1 צוות 20',
-    personalNumber: '1000026',
-    team: 'צוות 20',
-    role: 'מפקד',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'קלע'],
-    licenses: ['B'],
-    certifications: ['קורס מפקדים'],
-  },
-  {
-    name: 'מפקד 2 צוות 20',
-    personalNumber: '1000027',
-    team: 'צוות 20',
-    role: 'מפקד',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'נגביסט'],
-    licenses: ['B'],
-    certifications: ['קורס מפקדים'],
+    presence: 'פעיל',
+    family: 'נשוי + 1 ילד',
+    militaryBackground: 'שירות קרבי 5 שנים',
+    notes: 'מפקד צוות מנוסה עם משפחה',
+    medicalProfile: 'A1',
+    framework: {
+      pluga: 'פלוגה א',
+      pelaga: 'פלגה ב',
+      miflag: 'מפלג ב',
+      tzevet: 'צוות 20'
+    },
+    commanders: {
+      mefakedTzevet: 'מפקד צוות 20',
+      mefakedMiflag: 'מפקד מפלג ב',
+      samal: 'סגן מפקד פלוגה',
+      mefakedPluga: 'מפקד פלוגה'
+    },
+    braurTest: {
+      strength: 'passed',
+      running: '12:55'
+    },
+    vacationDays: {
+      total: 30,
+      used: 25,
+      status: 'critical'
+    }
   },
   {
     name: 'חייל 1 צוות 20',
@@ -305,48 +274,21 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
     qualifications: ['רוגר', 'נהג', 'חובש'],
     licenses: ['B', 'C'],
     certifications: ['הסמכת רוגר'],
+    presence: 'פעיל',
+    family: 'רווק',
+    militaryBackground: 'שירות קרבי 3 שנים',
+    notes: 'נהג מנוסה עם היתרים מתקדמים',
+    medicalProfile: 'A1',
     drivingLicenses: ['35', 'דימקס', 'סוואנה'],
-  },
-  {
-    name: 'חייל 2 צוות 20',
-    personalNumber: '1000029',
-    team: 'צוות 20',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['קלע', 'צלם', 'מטמין'],
-    licenses: ['B'],
-    certifications: ['הסמכת קלע'],
-  },
-  {
-    name: 'חייל 3 צוות 20',
-    personalNumber: '1000030',
-    team: 'צוות 20',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['טכנולוג', 'בנאי', 'רחפניסט'],
-    licenses: ['B'],
-    certifications: ['הסמכת טכנולוג'],
-  },
-  {
-    name: 'חייל 4 צוות 20',
-    personalNumber: '1000031',
-    team: 'צוות 20',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['קשר', 'נגביסט', 'צלם'],
-    licenses: ['B'],
-    certifications: ['הסמכת קשר'],
-  },
-  {
-    name: 'חייל 5 צוות 20',
-    personalNumber: '1000032',
-    team: 'צוות 20',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['נהג', 'חובש', 'קלע'],
-    licenses: ['B', 'C'],
-    certifications: ['קורס נהגים'],
-    drivingLicenses: ['35', 'C'],
+    braurTest: {
+      strength: 'passed',
+      running: '13:10'
+    },
+    vacationDays: {
+      total: 30,
+      used: 15,
+      status: 'good'
+    }
   },
   
   // צוות 30
@@ -359,36 +301,32 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
     qualifications: ['פיקוד', 'ניווט', 'קשר'],
     licenses: ['B'],
     certifications: ['קורס מפקדי צוותים'],
-  },
-  {
-    name: 'סמל צוות 30',
-    personalNumber: '1000034',
-    team: 'צוות 30',
-    role: 'סמל',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'חובש'],
-    licenses: ['B'],
-    certifications: ['קורס סמלים'],
-  },
-  {
-    name: 'מפקד 1 צוות 30',
-    personalNumber: '1000035',
-    team: 'צוות 30',
-    role: 'מפקד',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'קלע'],
-    licenses: ['B'],
-    certifications: ['קורס מפקדים'],
-  },
-  {
-    name: 'מפקד 2 צוות 30',
-    personalNumber: '1000036',
-    team: 'צוות 30',
-    role: 'מפקד',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'נגביסט'],
-    licenses: ['B'],
-    certifications: ['קורס מפקדים'],
+    presence: 'פעיל',
+    family: 'רווק',
+    militaryBackground: 'שירות קרבי 4 שנים',
+    notes: 'מפקד צוות צעיר עם פוטנציאל',
+    medicalProfile: 'A1',
+    framework: {
+      pluga: 'פלוגה א',
+      pelaga: 'פלגה ב',
+      miflag: 'מפלג ג',
+      tzevet: 'צוות 30'
+    },
+    commanders: {
+      mefakedTzevet: 'מפקד צוות 30',
+      mefakedMiflag: 'מפקד מפלג ג',
+      samal: 'סגן מפקד פלוגה',
+      mefakedPluga: 'מפקד פלוגה'
+    },
+    braurTest: {
+      strength: 'passed',
+      running: '13:25'
+    },
+    vacationDays: {
+      total: 30,
+      used: 20,
+      status: 'warning'
+    }
   },
   {
     name: 'חייל 1 צוות 30',
@@ -399,291 +337,25 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
     qualifications: ['רוגר', 'נהג', 'חובש'],
     licenses: ['B', 'C'],
     certifications: ['הסמכת רוגר'],
+    presence: 'פעיל',
+    family: 'רווק',
+    militaryBackground: 'שירות קרבי 2 שנים',
+    notes: 'חייל מוכשר עם יכולות נהיגה',
+    medicalProfile: 'A1',
     drivingLicenses: ['דימקס', 'סוואנה'],
-  },
-  {
-    name: 'חייל 2 צוות 30',
-    personalNumber: '1000038',
-    team: 'צוות 30',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['קלע', 'צלם', 'מטמין'],
-    licenses: ['B'],
-    certifications: ['הסמכת קלע'],
-  },
-  {
-    name: 'חייל 3 צוות 30',
-    personalNumber: '1000039',
-    team: 'צוות 30',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['טכנולוג', 'בנאי', 'רחפניסט'],
-    licenses: ['B'],
-    certifications: ['הסמכת טכנולוג'],
-  },
-  {
-    name: 'חייל 4 צוות 30',
-    personalNumber: '1000040',
-    team: 'צוות 30',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['קשר', 'נגביסט', 'צלם'],
-    licenses: ['B'],
-    certifications: ['הסמכת קשר'],
-  },
-  {
-    name: 'חייל 5 צוות 30',
-    personalNumber: '1000041',
-    team: 'צוות 30',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['נהג', 'חובש', 'קלע'],
-    licenses: ['B', 'C'],
-    certifications: ['קורס נהגים'],
-    drivingLicenses: ['35', 'דימקס'],
-  },
-  
-  // צוות 40
-  {
-    name: 'מפקד צוות 40',
-    personalNumber: '1000042',
-    team: 'צוות 40',
-    role: 'מפקד צוות',
-    profile: '97',
-    qualifications: ['פיקוד', 'ניווט', 'קשר'],
-    licenses: ['B'],
-    certifications: ['קורס מפקדי צוותים'],
-  },
-  {
-    name: 'סמל צוות 40',
-    personalNumber: '1000043',
-    team: 'צוות 40',
-    role: 'סמל',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'חובש'],
-    licenses: ['B'],
-    certifications: ['קורס סמלים'],
-  },
-  {
-    name: 'מפקד 1 צוות 40',
-    personalNumber: '1000044',
-    team: 'צוות 40',
-    role: 'מפקד',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'קלע'],
-    licenses: ['B'],
-    certifications: ['קורס מפקדים'],
-  },
-  {
-    name: 'מפקד 2 צוות 40',
-    personalNumber: '1000045',
-    team: 'צוות 40',
-    role: 'מפקד',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'נגביסט'],
-    licenses: ['B'],
-    certifications: ['קורס מפקדים'],
-  },
-  {
-    name: 'חייל 1 צוות 40',
-    personalNumber: '1000046',
-    team: 'צוות 40',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['מטמין', 'טכנולוג', 'בנאי'],
-    licenses: ['B'],
-    certifications: ['הסמכת מטמין'],
-  },
-  {
-    name: 'חייל 2 צוות 40',
-    personalNumber: '1000047',
-    team: 'צוות 40',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['רחפניסט', 'קשר', 'רוגר'],
-    licenses: ['B'],
-    certifications: ['הסמכת רחפניסט'],
-  },
-  {
-    name: 'חייל 3 צוות 40',
-    personalNumber: '1000048',
-    team: 'צוות 40',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['נהג', 'קשר', 'קלע'],
-    licenses: ['B', 'C'],
-    certifications: ['קורס נהגים'],
-    drivingLicenses: ['סוואנה', 'C'],
-  },
-  {
-    name: 'חייל 4 צוות 40',
-    personalNumber: '1000049',
-    team: 'צוות 40',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['נגביסט', 'צלם', 'מטמין'],
-    licenses: ['B'],
-    certifications: ['הסמכת נגביסט'],
-  },
-  {
-    name: 'חייל 5 צוות 40',
-    personalNumber: '1000050',
-    team: 'צוות 40',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['חובש', 'טכנולוג', 'בנאי'],
-    licenses: ['B'],
-    certifications: ['הסמכת חובש'],
-  },
-  
-  // צוות 50
-  {
-    name: 'מפקד צוות 50',
-    personalNumber: '1000051',
-    team: 'צוות 50',
-    role: 'מפקד צוות',
-    profile: '97',
-    qualifications: ['פיקוד', 'ניווט', 'קשר'],
-    licenses: ['B'],
-    certifications: ['קורס מפקדי צוותים'],
-  },
-  {
-    name: 'סמל צוות 50',
-    personalNumber: '1000052',
-    team: 'צוות 50',
-    role: 'סמל',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'חובש'],
-    licenses: ['B'],
-    certifications: ['קורס סמלים'],
-  },
-  {
-    name: 'מפקד 1 צוות 50',
-    personalNumber: '1000053',
-    team: 'צוות 50',
-    role: 'מפקד',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'קלע'],
-    licenses: ['B'],
-    certifications: ['קורס מפקדים'],
-  },
-  {
-    name: 'מפקד 2 צוות 50',
-    personalNumber: '1000054',
-    team: 'צוות 50',
-    role: 'מפקד',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'נגביסט'],
-    licenses: ['B'],
-    certifications: ['קורס מפקדים'],
-  },
-  {
-    name: 'חייל 1 צוות 50',
-    personalNumber: '1000055',
-    team: 'צוות 50',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['רוגר', 'נהג', 'חובש'],
-    licenses: ['B', 'C'],
-    certifications: ['הסמכת רוגר'],
-    drivingLicenses: ['35', 'דימקס', 'סוואנה'],
-  },
-  {
-    name: 'חייל 2 צוות 50',
-    personalNumber: '1000056',
-    team: 'צוות 50',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['קלע', 'צלם', 'מטמין'],
-    licenses: ['B'],
-    certifications: ['הסמכת קלע'],
-  },
-  {
-    name: 'חייל 3 צוות 50',
-    personalNumber: '1000057',
-    team: 'צוות 50',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['טכנולוג', 'בנאי', 'רחפניסט'],
-    licenses: ['B'],
-    certifications: ['הסמכת טכנולוג'],
-  },
-  {
-    name: 'חייל 4 צוות 50',
-    personalNumber: '1000058',
-    team: 'צוות 50',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['קשר', 'נגביסט', 'צלם'],
-    licenses: ['B'],
-    certifications: ['הסמכת קשר'],
-  },
-  {
-    name: 'חייל 5 צוות 50',
-    personalNumber: '1000059',
-    team: 'צוות 50',
-    role: 'חייל',
-    profile: '97',
-    qualifications: ['נהג', 'חובש', 'קלע'],
-    licenses: ['B', 'C'],
-    certifications: ['קורס נהגים'],
-    drivingLicenses: ['C'],
-  },
-  
-  // פלגה זווית אחרת
-  {
-    name: 'נגד טכנולוגיה',
-    personalNumber: '1000060',
-    team: 'פלגה זווית',
-    role: 'נגד טכנולוגיה',
-    profile: '97',
-    qualifications: ['טכנולוג', 'קשר', 'רחפניסט'],
-    licenses: ['B'],
-    certifications: ['קורס נגדי טכנולוגיה'],
-  },
-  {
-    name: 'נגד הסוואה',
-    personalNumber: '1000061',
-    team: 'פלגה זווית',
-    role: 'נגד הסוואה',
-    profile: '97',
-    qualifications: ['הסוואה', 'קשר', 'צלם'],
-    licenses: ['B'],
-    certifications: ['קורס נגדי הסוואה'],
-  },
-  {
-    name: 'משק טכנולוגיה',
-    personalNumber: '1000062',
-    team: 'פלגה זווית',
-    role: 'משק טכנולוגיה',
-    profile: '97',
-    qualifications: ['טכנולוג', 'קשר', 'רחפניסט'],
-    licenses: ['B'],
-    certifications: ['קורס משקי טכנולוגיה'],
-  },
-  {
-    name: 'משק הסוואה',
-    personalNumber: '1000063',
-    team: 'פלגה זווית',
-    role: 'משק הסוואה',
-    profile: '97',
-    qualifications: ['הסוואה', 'קשר', 'צלם'],
-    licenses: ['B'],
-    certifications: ['קורס משקי הסוואה'],
-  },
-  {
-    name: 'סמלת מדור',
-    personalNumber: '1000064',
-    team: 'פלגה זווית',
-    role: 'סמלת מדור',
-    profile: '97',
-    qualifications: ['פיקוד', 'קשר', 'חובש'],
-    licenses: ['B'],
-    certifications: ['קורס סמלים'],
+    braurTest: {
+      strength: 'passed',
+      running: '13:40'
+    },
+    vacationDays: {
+      total: 30,
+      used: 12,
+      status: 'good'
+    }
   }
 ];
 
-// נתוני רכבים דמו
+// נתוני רכבים דמו - מעודכן עם כל השדות
 export const demoVehicles: Omit<Vehicle, 'id'>[] = [
   // 3 רכבים מסוג סוואנה
   {
@@ -692,7 +364,8 @@ export const demoVehicles: Omit<Vehicle, 'id'>[] = [
     mileage: 85000,
     lastMaintenance: '2024-01-15',
     nextMaintenance: '2024-04-15',
-    status: 'available'
+    status: 'available',
+    seats: 8
   },
   {
     type: 'סוואנה',
@@ -700,7 +373,8 @@ export const demoVehicles: Omit<Vehicle, 'id'>[] = [
     mileage: 92000,
     lastMaintenance: '2024-01-20',
     nextMaintenance: '2024-04-20',
-    status: 'available'
+    status: 'available',
+    seats: 8
   },
   {
     type: 'סוואנה',
@@ -708,7 +382,8 @@ export const demoVehicles: Omit<Vehicle, 'id'>[] = [
     mileage: 78000,
     lastMaintenance: '2023-12-10',
     nextMaintenance: '2024-03-10',
-    status: 'maintenance'
+    status: 'maintenance',
+    seats: 8
   },
   
   // 1 זאב
@@ -718,7 +393,8 @@ export const demoVehicles: Omit<Vehicle, 'id'>[] = [
     mileage: 65000,
     lastMaintenance: '2024-01-25',
     nextMaintenance: '2024-04-25',
-    status: 'available'
+    status: 'available',
+    seats: 6
   },
   
   // 2 רכבי דוד
@@ -728,7 +404,8 @@ export const demoVehicles: Omit<Vehicle, 'id'>[] = [
     mileage: 120000,
     lastMaintenance: '2024-01-05',
     nextMaintenance: '2024-04-05',
-    status: 'available'
+    status: 'available',
+    seats: 4
   },
   {
     type: 'דוד',
@@ -736,7 +413,8 @@ export const demoVehicles: Omit<Vehicle, 'id'>[] = [
     mileage: 95000,
     lastMaintenance: '2024-01-12',
     nextMaintenance: '2024-04-12',
-    status: 'on_mission'
+    status: 'on_mission',
+    seats: 4
   },
   
   // 1 דימקס אפורה
@@ -746,7 +424,8 @@ export const demoVehicles: Omit<Vehicle, 'id'>[] = [
     mileage: 110000,
     lastMaintenance: '2024-01-08',
     nextMaintenance: '2024-04-08',
-    status: 'available'
+    status: 'available',
+    seats: 12
   },
   
   // 1 דימקס לבנה
@@ -756,7 +435,8 @@ export const demoVehicles: Omit<Vehicle, 'id'>[] = [
     mileage: 88000,
     lastMaintenance: '2024-01-18',
     nextMaintenance: '2024-04-18',
-    status: 'available'
+    status: 'available',
+    seats: 12
   },
   
   // 1 סופה
@@ -766,7 +446,8 @@ export const demoVehicles: Omit<Vehicle, 'id'>[] = [
     mileage: 72000,
     lastMaintenance: '2024-01-30',
     nextMaintenance: '2024-04-30',
-    status: 'available'
+    status: 'available',
+    seats: 6
   }
 ];
 
@@ -819,13 +500,347 @@ export const seedVehicles = async () => {
   }
 };
 
+// פונקציה לחישוב מצב ימי החופש
+const calculateVacationStatus = (totalDays: number): 'good' | 'warning' | 'critical' => {
+  const currentDate = new Date();
+  const endOfYear = new Date(currentDate.getFullYear(), 11, 31); // 31 בדצמבר
+  const daysUntilEndOfYear = Math.ceil((endOfYear.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+  const monthsUntilEndOfYear = daysUntilEndOfYear / 30;
+  
+  // אם נותר חצי שנה או פחות
+  if (monthsUntilEndOfYear <= 6) {
+    // אם יש יותר מ-9 ימי חופש - מצב קריטי
+    if (totalDays > 9) return 'critical';
+    // אם יש 6-9 ימי חופש - אזהרה
+    if (totalDays > 6) return 'warning';
+  }
+  
+  return 'good';
+};
+
+// נתוני פעילויות דמו
+export const demoActivities = [
+  {
+    name: 'סיור ביטחון',
+    team: 'צוות 10',
+    location: 'גבעת המורה',
+    region: 'מנשה',
+    activityType: 'מארב ירי',
+    plannedDate: '2024-01-15',
+    plannedTime: '08:00',
+    duration: 4,
+    commanderId: '1000015',
+    commanderName: 'מפקד צוות 10',
+    taskLeaderId: '1000016',
+    taskLeaderName: 'סמל צוות 10',
+    mobility: '',
+    participants: [
+      {
+        soldierId: '1000015',
+        soldierName: 'מפקד צוות 10',
+        personalNumber: '1000015',
+        role: 'מפקד'
+      },
+      {
+        soldierId: '1000016',
+        soldierName: 'סמל צוות 10',
+        personalNumber: '1000016',
+        role: 'חובש'
+      },
+      {
+        soldierId: '1000019',
+        soldierName: 'חייל 1 צוות 10',
+        personalNumber: '1000019',
+        role: 'נהג'
+      }
+    ],
+    status: 'הסתיימה',
+    deliverables: [
+      {
+        id: '1',
+        type: 'text',
+        content: 'הפעילות הושלמה בהצלחה. זוהו 3 נקודות חשודות שטופלו.',
+        title: 'דוח סיכום',
+        createdAt: '2024-01-15T12:00:00Z',
+        createdBy: 'מפקד צוות 10'
+      }
+    ]
+  },
+  {
+    name: 'אבטחת אירוע',
+    team: 'צוות 20',
+    location: 'מרכז העיר',
+    region: 'שומרון',
+    activityType: 'אמלמ',
+    plannedDate: '2024-01-20',
+    plannedTime: '14:00',
+    duration: 6,
+    commanderId: '1000024',
+    commanderName: 'מפקד צוות 20',
+    taskLeaderId: '1000025',
+    taskLeaderName: 'סמל צוות 20',
+    mobility: '',
+    participants: [
+      {
+        soldierId: '1000024',
+        soldierName: 'מפקד צוות 20',
+        personalNumber: '1000024',
+        role: 'מפקד'
+      },
+      {
+        soldierId: '1000025',
+        soldierName: 'סמל צוות 20',
+        personalNumber: '1000025',
+        role: 'חובש'
+      },
+      {
+        soldierId: '1000028',
+        soldierName: 'חייל 1 צוות 20',
+        personalNumber: '1000028',
+        role: 'נהג'
+      }
+    ],
+    status: 'הסתיימה',
+    deliverables: [
+      {
+        id: '2',
+        type: 'text',
+        content: 'האירוע הובטח בהצלחה. לא היו אירועים חריגים.',
+        title: 'דוח אבטחה',
+        createdAt: '2024-01-20T20:00:00Z',
+        createdBy: 'מפקד צוות 20'
+      }
+    ]
+  }
+];
+
+// נתוני תורנויות דמו
+export const demoDuties = [
+  {
+    type: 'מטבח',
+    location: 'חדר האוכל',
+    startDate: '2024-01-15',
+    startTime: '06:00',
+    endTime: '14:00',
+    participants: [
+      {
+        soldierId: '1000015',
+        soldierName: 'מפקד צוות 10',
+        personalNumber: '1000015'
+      },
+      {
+        soldierId: '1000016',
+        soldierName: 'סמל צוות 10',
+        personalNumber: '1000016'
+      }
+    ],
+    requiredEquipment: 'סינרים, כפפות',
+    notes: 'תורנות בוקר',
+    team: 'צוות 10',
+    status: 'פעילה'
+  },
+  {
+    type: 'רסר',
+    location: 'מגדל השמירה',
+    startDate: '2024-01-15',
+    startTime: '20:00',
+    endTime: '06:00',
+    participants: [
+      {
+        soldierId: '1000015',
+        soldierName: 'מפקד צוות 10',
+        personalNumber: '1000015'
+      }
+    ],
+    requiredEquipment: 'נשק, אפוד',
+    notes: 'תורנות לילה',
+    team: 'צוות 10',
+    status: 'פעילה'
+  }
+];
+
+// נתוני משימות דמו
+export const demoMissions = [
+  {
+    name: 'בדיקת ציוד רכבים',
+    description: 'בדיקה תקופתית של ציוד הבטיחות ברכבים',
+    dueDate: '2024-01-20',
+    assignedBy: 'מפקד פלוגה',
+    status: 'pending'
+  },
+  {
+    name: 'עדכון רשימת צוותים',
+    description: 'עדכון רשימת החיילים בכל צוות',
+    dueDate: '2024-01-25',
+    assignedBy: 'קצין כוח אדם',
+    status: 'in_progress'
+  },
+  {
+    name: 'בדיקת כשירויות נהגים',
+    description: 'בדיקת רישיונות נהיגה והיתרים לכל הנהגים',
+    dueDate: '2024-01-30',
+    assignedBy: 'סמל רכבים',
+    status: 'pending'
+  }
+];
+
+// נתוני הפניות דמו
+export const demoReferrals = [
+  {
+    soldierId: '1000015',
+    soldierName: 'מפקד צוות 10',
+    personalNumber: '1000015',
+    team: 'צוות 10',
+    date: '2024-01-15',
+    location: 'בית חולים רמב"ם',
+    reason: 'בדיקה רפואית שגרתית',
+    status: 'completed'
+  },
+  {
+    soldierId: '1000016',
+    soldierName: 'סמל צוות 10',
+    personalNumber: '1000016',
+    team: 'צוות 10',
+    date: '2024-01-20',
+    location: 'מרפאה צבאית',
+    reason: 'בדיקת שיניים',
+    status: 'pending'
+  },
+  {
+    soldierId: '1000024',
+    soldierName: 'מפקד צוות 20',
+    personalNumber: '1000024',
+    team: 'צוות 20',
+    date: '2024-01-25',
+    location: 'בית חולים סורוקה',
+    reason: 'בדיקת לב',
+    status: 'in_progress'
+  }
+];
+
+export const seedActivities = async () => {
+  try {
+    console.log('מתחיל הכנסת נתוני פעילויות...');
+    
+    // מחיקת נתונים קיימים
+    const existingActivities = await getDocs(collection(db, 'activities'));
+    for (const doc of existingActivities.docs) {
+      await deleteDoc(doc.ref);
+    }
+    console.log('נמחקו נתונים קיימים');
+    
+    // הכנסת נתונים חדשים
+    for (const activity of demoActivities) {
+      await addDoc(collection(db, 'activities'), {
+        ...activity,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    }
+    
+    console.log(`הוכנסו ${demoActivities.length} פעילויות בהצלחה`);
+    return true;
+  } catch (error) {
+    console.error('שגיאה בהכנסת נתוני פעילויות:', error);
+    return false;
+  }
+};
+
+export const seedDuties = async () => {
+  try {
+    console.log('מתחיל הכנסת נתוני תורנויות...');
+    
+    // מחיקת נתונים קיימים
+    const existingDuties = await getDocs(collection(db, 'duties'));
+    for (const doc of existingDuties.docs) {
+      await deleteDoc(doc.ref);
+    }
+    console.log('נמחקו נתונים קיימים');
+    
+    // הכנסת נתונים חדשים
+    for (const duty of demoDuties) {
+      await addDoc(collection(db, 'duties'), {
+        ...duty,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    }
+    
+    console.log(`הוכנסו ${demoDuties.length} תורנויות בהצלחה`);
+    return true;
+  } catch (error) {
+    console.error('שגיאה בהכנסת נתוני תורנויות:', error);
+    return false;
+  }
+};
+
+export const seedMissions = async () => {
+  try {
+    console.log('מתחיל הכנסת נתוני משימות...');
+    
+    // מחיקת נתונים קיימים
+    const existingMissions = await getDocs(collection(db, 'missions'));
+    for (const doc of existingMissions.docs) {
+      await deleteDoc(doc.ref);
+    }
+    console.log('נמחקו נתונים קיימים');
+    
+    // הכנסת נתונים חדשים
+    for (const mission of demoMissions) {
+      await addDoc(collection(db, 'missions'), {
+        ...mission,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    }
+    
+    console.log(`הוכנסו ${demoMissions.length} משימות בהצלחה`);
+    return true;
+  } catch (error) {
+    console.error('שגיאה בהכנסת נתוני משימות:', error);
+    return false;
+  }
+};
+
+export const seedReferrals = async () => {
+  try {
+    console.log('מתחיל הכנסת נתוני הפניות...');
+    
+    // מחיקת נתונים קיימים
+    const existingReferrals = await getDocs(collection(db, 'referrals'));
+    for (const doc of existingReferrals.docs) {
+      await deleteDoc(doc.ref);
+    }
+    console.log('נמחקו נתונים קיימים');
+    
+    // הכנסת נתונים חדשים
+    for (const referral of demoReferrals) {
+      await addDoc(collection(db, 'referrals'), {
+        ...referral,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    }
+    
+    console.log(`הוכנסו ${demoReferrals.length} הפניות בהצלחה`);
+    return true;
+  } catch (error) {
+    console.error('שגיאה בהכנסת נתוני הפניות:', error);
+    return false;
+  }
+};
+
 export const seedAllData = async () => {
   console.log('מתחיל הכנסת כל נתוני הדמו...');
   
   const soldiersResult = await seedSoldiers();
   const vehiclesResult = await seedVehicles();
+  const activitiesResult = await seedActivities();
+  const dutiesResult = await seedDuties();
+  const missionsResult = await seedMissions();
+  const referralsResult = await seedReferrals();
   
-  if (soldiersResult && vehiclesResult) {
+  if (soldiersResult && vehiclesResult && activitiesResult && dutiesResult && missionsResult && referralsResult) {
     console.log('כל הנתונים הוכנסו בהצלחה!');
     return true;
   } else {

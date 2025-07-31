@@ -6,7 +6,7 @@ import { mockGetAllVehicles, mockAddVehicle, mockUpdateVehicle, mockDeleteVehicl
 const vehiclesCollection = collection(db, 'vehicles');
 
 // Use mock database for development
-const USE_MOCK = true;
+const USE_MOCK = false;
 
 export const getAllVehicles = async (): Promise<Vehicle[]> => {
   if (USE_MOCK) {

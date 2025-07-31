@@ -4,6 +4,7 @@ import { Activity } from '../models/Activity';
 import { Duty } from '../models/Duty';
 import { Mission } from '../models/Mission';
 import { Referral } from '../models/Referral';
+import { Trip } from '../models/Trip';
 
 // פונקציה לחישוב מצב ימי החופש
 const calculateVacationStatus = (totalDays: number): 'good' | 'warning' | 'critical' => {
@@ -24,7 +25,7 @@ const calculateVacationStatus = (totalDays: number): 'good' | 'warning' | 'criti
 };
 
 // Mock Database Configuration
-export const USE_MOCK = true; // Set to false to use Firebase
+export const USE_MOCK = false; // Set to false to use Firebase
 
 // Mock Data
 let mockSoldiers: Soldier[] = [];
@@ -33,6 +34,7 @@ let mockActivities: Activity[] = [];
 let mockDuties: Duty[] = [];
 let mockMissions: Mission[] = [];
 let mockReferrals: Referral[] = [];
+let mockTrips: Trip[] = [];
 
 // Soldier Operations
 export const mockGetAllSoldiers = async (): Promise<Soldier[]> => {
@@ -65,30 +67,30 @@ export const mockDeleteSoldier = async (id: string): Promise<void> => {
 
 // Vehicle Operations
 export const mockGetAllVehicles = async (): Promise<Vehicle[]> => {
-  // עדכון הסטטוס של הרכבים בהתאם לפעילויות
-  const updatedVehicles = mockVehicles.map(vehicle => {
-    // בדיקה אם הרכב משובץ לפעילות פעילה
-    const assignedActivity = mockActivities.find(activity => 
-      activity.vehicleId === vehicle.id && 
-      ['מתוכננת', 'בביצוע'].includes(activity.status)
-    );
-    
-    if (assignedActivity) {
-      return {
-        ...vehicle,
-        status: 'on_mission' as const,
-        currentMissionId: assignedActivity.id,
-        returnEstimate: assignedActivity.plannedDate
-      };
-    } else {
-      return {
-        ...vehicle,
-        status: 'available' as const,
-        currentMissionId: undefined,
-        returnEstimate: undefined
-      };
-    }
-  });
+      // עדכון הסטטוס של הרכבים בהתאם לפעילויות
+    const updatedVehicles = mockVehicles.map(vehicle => {
+      // בדיקה אם הרכב משובץ לפעילות פעילה
+      const assignedActivity = mockActivities.find(activity => 
+        activity.mobility?.includes(vehicle.number) && 
+        ['מתוכננת', 'בביצוע'].includes(activity.status)
+      );
+      
+      if (assignedActivity) {
+        return {
+          ...vehicle,
+          status: 'on_mission' as const,
+          currentMissionId: assignedActivity.id,
+          returnEstimate: assignedActivity.plannedDate
+        };
+      } else {
+        return {
+          ...vehicle,
+          status: 'available' as const,
+  
+      
+        };
+      }
+    });
   
   return updatedVehicles;
 };
@@ -131,15 +133,6 @@ export const mockAddActivity = async (activity: Omit<Activity, 'id' | 'createdAt
   };
   
   mockActivities.push(newActivity);
-  
-  // עדכון הסטטוס של הרכב אם יש רכב משובץ
-  if (newActivity.vehicleId) {
-    const vehicleIndex = mockVehicles.findIndex(v => v.id === newActivity.vehicleId);
-    if (vehicleIndex !== -1) {
-      mockVehicles[vehicleIndex].status = 'on_mission';
-    }
-  }
-  
   return newActivity.id;
 };
 
@@ -152,68 +145,12 @@ export const mockUpdateActivity = async (id: string, updates: Partial<Activity>)
   const oldActivity = mockActivities[activityIndex];
   const updatedActivity = { ...oldActivity, ...updates, updatedAt: new Date().toISOString() };
   mockActivities[activityIndex] = updatedActivity;
-  
-  // עדכון הסטטוס של הרכב
-  const oldVehicleId = oldActivity.vehicleId;
-  const newVehicleId = updatedActivity.vehicleId;
-  const newStatus = updatedActivity.status;
-  
-  // אם הרכב השתנה או הסטטוס השתנה
-  if (oldVehicleId !== newVehicleId || oldActivity.status !== newStatus) {
-    // שחרור הרכב הישן אם הוא לא משובץ לפעילות אחרת
-    if (oldVehicleId && oldVehicleId !== newVehicleId) {
-      const isStillAssigned = mockActivities.some(a => 
-        a.id !== id && 
-        a.vehicleId === oldVehicleId && 
-        ['מתוכננת', 'בביצוע'].includes(a.status)
-      );
-      
-      if (!isStillAssigned) {
-        const oldVehicleIndex = mockVehicles.findIndex(v => v.id === oldVehicleId);
-        if (oldVehicleIndex !== -1) {
-          mockVehicles[oldVehicleIndex].status = 'available';
-        }
-      }
-    }
-    
-    // עדכון הרכב החדש
-    if (newVehicleId && ['מתוכננת', 'בביצוע'].includes(newStatus)) {
-      const newVehicleIndex = mockVehicles.findIndex(v => v.id === newVehicleId);
-      if (newVehicleIndex !== -1) {
-        mockVehicles[newVehicleIndex].status = 'on_mission';
-      }
-    } else if (newVehicleId && ['הסתיימה', 'בוטלה'].includes(newStatus)) {
-      // שחרור הרכב אם הפעילות הסתיימה או בוטלה
-      const newVehicleIndex = mockVehicles.findIndex(v => v.id === newVehicleId);
-      if (newVehicleIndex !== -1) {
-        mockVehicles[newVehicleIndex].status = 'available';
-      }
-    }
-  }
 };
 
 export const mockDeleteActivity = async (id: string): Promise<void> => {
   const activityIndex = mockActivities.findIndex(a => a.id === id);
   if (activityIndex === -1) {
     throw new Error('Activity not found');
-  }
-  
-  const deletedActivity = mockActivities[activityIndex];
-  
-  // שחרור הרכב אם הוא לא משובץ לפעילות אחרת
-  if (deletedActivity.vehicleId) {
-    const isStillAssigned = mockActivities.some(a => 
-      a.id !== id && 
-      a.vehicleId === deletedActivity.vehicleId && 
-      ['מתוכננת', 'בביצוע'].includes(a.status)
-    );
-    
-    if (!isStillAssigned) {
-      const vehicleIndex = mockVehicles.findIndex(v => v.id === deletedActivity.vehicleId);
-      if (vehicleIndex !== -1) {
-        mockVehicles[vehicleIndex].status = 'available';
-      }
-    }
   }
   
   mockActivities.splice(activityIndex, 1);
@@ -228,14 +165,12 @@ export const mockGetActivitiesByTeam = async (team: string): Promise<Activity[]>
        const soldier = mockSoldiers.find(s => s.id === p.soldierId);
        return soldier && soldier.team === team;
      }) ||
-     // אם המפקד, מוביל המשימה או הנהג הם מהצוות
+     // אם המפקד או מוביל המשימה הם מהצוות
      (() => {
        const commander = mockSoldiers.find(s => s.id === a.commanderId);
        const taskLeader = mockSoldiers.find(s => s.id === a.taskLeaderId);
-       const driver = mockSoldiers.find(s => s.id === a.driverId);
        return (commander && commander.team === team) ||
-              (taskLeader && taskLeader.team === team) ||
-              (driver && driver.team === team);
+              (taskLeader && taskLeader.team === team);
      })())
   );
 };
@@ -383,6 +318,74 @@ export const mockGetReferralsByTeam = async (team: string): Promise<Referral[]> 
   return mockReferrals.filter(r => r.team === team);
 };
 
+// Trip Operations
+export const mockGetAllTrips = async (): Promise<Trip[]> => {
+  return [...mockTrips];
+};
+
+export const mockGetTripById = async (id: string): Promise<Trip | null> => {
+  return mockTrips.find(t => t.id === id) || null;
+};
+
+export const mockAddTrip = async (trip: Omit<Trip, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
+  const newTrip: Trip = {
+    ...trip,
+    id: Date.now().toString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  mockTrips.push(newTrip);
+  return newTrip.id;
+};
+
+export const mockUpdateTrip = async (id: string, updates: Partial<Trip>): Promise<void> => {
+  const index = mockTrips.findIndex(t => t.id === id);
+  if (index !== -1) {
+    mockTrips[index] = { 
+      ...mockTrips[index], 
+      ...updates, 
+      updatedAt: new Date().toISOString() 
+    };
+  }
+};
+
+export const mockDeleteTrip = async (id: string): Promise<void> => {
+  mockTrips = mockTrips.filter(t => t.id !== id);
+};
+
+export const mockGetTripsByActivity = async (activityId: string): Promise<Trip[]> => {
+  return mockTrips.filter(t => t.linkedActivityId === activityId);
+};
+
+export const mockCheckAvailability = async (
+  vehicleId: string,
+  driverId: string,
+  departureTime: string,
+  returnTime: string,
+  excludeTripId?: string
+): Promise<{ isAvailable: boolean; conflicts: Trip[] }> => {
+  const conflicts = mockTrips.filter(trip => {
+    if (excludeTripId && trip.id === excludeTripId) return false;
+    
+    const tripStart = new Date(trip.departureTime || '');
+    const tripEnd = new Date(trip.returnTime || '');
+    const newStart = new Date(departureTime);
+    const newEnd = new Date(returnTime);
+    
+    const timeOverlap = tripStart < newEnd && tripEnd > newStart;
+    
+    const sameVehicle = trip.vehicleId === vehicleId;
+    const sameDriver = trip.driverId === driverId;
+    
+    return timeOverlap && (sameVehicle || sameDriver);
+  });
+  
+  return {
+    isAvailable: conflicts.length === 0,
+    conflicts
+  };
+};
+
 // Seed Mock Data
 export const seedMockData = () => {
   // נתוני חיילים דמו מלאים מ-seedData
@@ -415,7 +418,8 @@ export const seedMockData = () => {
         used: 10,
         status: calculateVacationStatus(20)
       },
-      presence: 'בבסיס'
+      presence: 'בבסיס',
+      activities: []
     },
     {
       id: '2',
@@ -444,7 +448,8 @@ export const seedMockData = () => {
         used: 8,
         status: calculateVacationStatus(22)
       },
-      presence: 'בבסיס'
+      presence: 'בבסיס',
+      activities: []
     },
     {
       id: '3',
@@ -473,7 +478,8 @@ export const seedMockData = () => {
         used: 12,
         status: calculateVacationStatus(18)
       },
-      presence: 'בבסיס'
+      presence: 'בבסיס',
+      activities: []
     },
     {
       id: '4',
@@ -502,7 +508,8 @@ export const seedMockData = () => {
         used: 15,
         status: calculateVacationStatus(15)
       },
-      presence: 'בבסיס'
+      presence: 'בבסיס',
+      activities: []
     },
     {
       id: '5',
@@ -531,7 +538,8 @@ export const seedMockData = () => {
         used: 7,
         status: calculateVacationStatus(23)
       },
-      presence: 'בבסיס'
+      presence: 'בבסיס',
+      activities: []
     },
     // מפל"ג
     {
@@ -561,7 +569,8 @@ export const seedMockData = () => {
         used: 9,
         status: calculateVacationStatus(21)
       },
-      presence: 'בבסיס'
+      presence: 'בבסיס',
+      activities: []
     },
     {
       id: '7',
@@ -590,7 +599,8 @@ export const seedMockData = () => {
         used: 11,
         status: calculateVacationStatus(19)
       },
-      presence: 'בבסיס'
+      presence: 'בבסיס',
+      activities: []
     },
     // צוות 10
     {
@@ -620,7 +630,8 @@ export const seedMockData = () => {
         used: 6,
         status: calculateVacationStatus(24)
       },
-      presence: 'בבסיס'
+      presence: 'בבסיס',
+      activities: []
     },
     {
       id: '16',
@@ -649,7 +660,8 @@ export const seedMockData = () => {
         used: 8,
         status: calculateVacationStatus(22)
       },
-      presence: 'בבסיס'
+      presence: 'בבסיס',
+      activities: []
     },
     {
       id: '19',
@@ -679,7 +691,8 @@ export const seedMockData = () => {
         used: 12,
         status: calculateVacationStatus(18)
       },
-      presence: 'בבסיס'
+      presence: 'בבסיס',
+      activities: []
     },
     {
       id: '20',
@@ -708,7 +721,8 @@ export const seedMockData = () => {
         used: 5,
         status: calculateVacationStatus(25)
       },
-      presence: 'בבסיס'
+      presence: 'בבסיס',
+      activities: []
     },
     // צוות 20
     {
@@ -738,7 +752,8 @@ export const seedMockData = () => {
         used: 10,
         status: calculateVacationStatus(20)
       },
-      presence: 'בבסיס'
+      presence: 'בבסיס',
+      activities: []
     },
     {
       id: '28',
@@ -768,7 +783,8 @@ export const seedMockData = () => {
         used: 7,
         status: calculateVacationStatus(23)
       },
-      presence: 'בבסיס'
+      presence: 'בבסיס',
+      activities: []
     },
     // צוות 30
     {
@@ -798,7 +814,8 @@ export const seedMockData = () => {
         used: 9,
         status: calculateVacationStatus(21)
       },
-      presence: 'בבסיס'
+      presence: 'בבסיס',
+      activities: []
     },
     {
       id: '37',
@@ -828,7 +845,8 @@ export const seedMockData = () => {
         used: 14,
         status: calculateVacationStatus(16)
       },
-      presence: 'בבסיס'
+      presence: 'בבסיס',
+      activities: []
     },
     // צוות 40
     {
@@ -858,7 +876,8 @@ export const seedMockData = () => {
         used: 11,
         status: calculateVacationStatus(19)
       },
-      presence: 'בבסיס'
+      presence: 'בבסיס',
+      activities: []
     },
     {
       id: '46',
@@ -887,7 +906,8 @@ export const seedMockData = () => {
         used: 6,
         status: calculateVacationStatus(24)
       },
-      presence: 'בבסיס'
+      presence: 'בבסיס',
+      activities: []
     },
     // צוות 50
     {
@@ -917,7 +937,8 @@ export const seedMockData = () => {
         used: 8,
         status: calculateVacationStatus(22)
       },
-      presence: 'בבסיס'
+      presence: 'בבסיס',
+      activities: []
     },
     {
       id: '55',
@@ -947,7 +968,8 @@ export const seedMockData = () => {
         used: 13,
         status: calculateVacationStatus(17)
       },
-      presence: 'בבסיס'
+      presence: 'בבסיס',
+      activities: []
     }
   ];
 
@@ -960,7 +982,8 @@ export const seedMockData = () => {
       mileage: 85000,
       lastMaintenance: '2024-01-15',
       nextMaintenance: '2024-04-15',
-      status: 'available'
+      status: 'available',
+      seats: 8
     },
     {
       id: '2',
@@ -969,7 +992,8 @@ export const seedMockData = () => {
       mileage: 92000,
       lastMaintenance: '2024-01-20',
       nextMaintenance: '2024-04-20',
-      status: 'available'
+      status: 'available',
+      seats: 8
     },
     {
       id: '3',
@@ -978,7 +1002,8 @@ export const seedMockData = () => {
       mileage: 78000,
       lastMaintenance: '2023-12-10',
       nextMaintenance: '2024-03-10',
-      status: 'maintenance'
+      status: 'maintenance',
+      seats: 8
     },
     {
       id: '4',
@@ -987,7 +1012,8 @@ export const seedMockData = () => {
       mileage: 65000,
       lastMaintenance: '2024-01-25',
       nextMaintenance: '2024-04-25',
-      status: 'available'
+      status: 'available',
+      seats: 4
     },
     {
       id: '5',
@@ -996,7 +1022,8 @@ export const seedMockData = () => {
       mileage: 120000,
       lastMaintenance: '2024-01-05',
       nextMaintenance: '2024-04-05',
-      status: 'available'
+      status: 'available',
+      seats: 12
     },
     {
       id: '6',
@@ -1005,7 +1032,8 @@ export const seedMockData = () => {
       mileage: 95000,
       lastMaintenance: '2024-01-12',
       nextMaintenance: '2024-04-12',
-      status: 'on_mission'
+      status: 'on_mission',
+      seats: 12
     },
     {
       id: '7',
@@ -1014,7 +1042,8 @@ export const seedMockData = () => {
       mileage: 110000,
       lastMaintenance: '2024-01-08',
       nextMaintenance: '2024-04-08',
-      status: 'available'
+      status: 'available',
+      seats: 6
     },
     {
       id: '8',
@@ -1023,7 +1052,8 @@ export const seedMockData = () => {
       mileage: 88000,
       lastMaintenance: '2024-01-18',
       nextMaintenance: '2024-04-18',
-      status: 'available'
+      status: 'available',
+      seats: 6
     },
     {
       id: '9',
@@ -1032,7 +1062,8 @@ export const seedMockData = () => {
       mileage: 72000,
       lastMaintenance: '2024-01-30',
       nextMaintenance: '2024-04-30',
-      status: 'available'
+      status: 'available',
+      seats: 4
     }
   ];
 
@@ -1052,10 +1083,7 @@ export const seedMockData = () => {
       commanderName: 'מפקד צוות 10',
       taskLeaderId: '1000016',
       taskLeaderName: 'סמל צוות 10',
-      vehicleId: '1',
-      vehicleNumber: '12-345-67',
-      driverId: '1000019',
-      driverName: 'חייל 1 צוות 10',
+      mobility: '',
       participants: [
         {
           soldierId: '1000015',
@@ -1104,10 +1132,7 @@ export const seedMockData = () => {
       commanderName: 'מפקד צוות 20',
       taskLeaderId: '1000025',
       taskLeaderName: 'סמל צוות 20',
-      vehicleId: '2',
-      vehicleNumber: '12-345-68',
-      driverId: '1000028',
-      driverName: 'חייל 1 צוות 20',
+      mobility: '',
       participants: [
         {
           soldierId: '1000024',
@@ -1156,10 +1181,7 @@ export const seedMockData = () => {
       commanderName: 'מפקד צוות 30',
       taskLeaderId: '1000034',
       taskLeaderName: 'סמל צוות 30',
-      vehicleId: '4',
-      vehicleNumber: '12-345-70',
-      driverId: '1000041',
-      driverName: 'חייל 5 צוות 30',
+      mobility: '',
       participants: [
         {
           soldierId: '1000033',
@@ -1199,10 +1221,7 @@ export const seedMockData = () => {
       commanderName: 'מפקד צוות 40',
       taskLeaderId: '1000043',
       taskLeaderName: 'סמל צוות 40',
-      vehicleId: '5',
-      vehicleNumber: '12-345-71',
-      driverId: '1000048',
-      driverName: 'חייל 3 צוות 40',
+      mobility: '',
       participants: [
         {
           soldierId: '1000042',
@@ -1241,6 +1260,7 @@ export const seedMockData = () => {
       commanderName: 'מפקד צוות 50',
       taskLeaderId: '1000052',
       taskLeaderName: 'סמל צוות 50',
+      mobility: '',
       participants: [
         {
           soldierId: '1000051',
@@ -1289,10 +1309,7 @@ export const seedMockData = () => {
       commanderName: 'מפקד צוות 10',
       taskLeaderId: '1000016',
       taskLeaderName: 'סמל צוות 10',
-      vehicleId: '1',
-      vehicleNumber: '12-345-67',
-      driverId: '1000019',
-      driverName: 'חייל 1 צוות 10',
+      mobility: '',
       participants: [
         {
           soldierId: '1000015',
@@ -1341,10 +1358,7 @@ export const seedMockData = () => {
       commanderName: 'מפקד צוות 20',
       taskLeaderId: '1000025',
       taskLeaderName: 'סמל צוות 20',
-      vehicleId: '3',
-      vehicleNumber: '12-345-69',
-      driverId: '1000028',
-      driverName: 'חייל 1 צוות 20',
+      mobility: '',
       participants: [
         {
           soldierId: '1000024',
@@ -1628,6 +1642,124 @@ export const seedMockData = () => {
       status: 'completed',
       createdAt: '2024-01-27T10:00:00Z',
       updatedAt: '2024-01-30T15:00:00Z'
+    }
+  ];
+
+  // Seed Trips - נתוני נסיעות דמו
+  mockTrips = [
+    {
+      id: '1',
+      vehicleId: '1',
+      vehicleNumber: '12-345-67',
+      driverId: '1000015',
+      driverName: 'מפקד צוות 10',
+      location: 'מחנה עוז',
+      departureTime: '2024-01-20T08:00:00Z',
+      returnTime: '2024-01-20T18:00:00Z',
+      purpose: 'העברת ציוד לפעילות מבצעית',
+      status: 'מתוכננת',
+      linkedActivityId: '1',
+      createdAt: '2024-01-15T10:00:00Z',
+      updatedAt: '2024-01-15T10:00:00Z'
+    },
+    {
+      id: '2',
+      vehicleId: '2',
+      vehicleNumber: '12-345-68',
+      driverId: '1000016',
+      driverName: 'סמל צוות 10',
+      location: 'מחנה דוד',
+      departureTime: '2024-01-21T07:00:00Z',
+      returnTime: '2024-01-21T19:00:00Z',
+      purpose: 'העברת כוח אדם לאימון',
+      status: 'בביצוע',
+      linkedActivityId: '2',
+      createdAt: '2024-01-16T09:00:00Z',
+      updatedAt: '2024-01-16T09:00:00Z'
+    },
+    {
+      id: '3',
+      vehicleId: '4',
+      vehicleNumber: '12-345-70',
+      driverId: '1000024',
+      driverName: 'מפקד צוות 20',
+      location: 'מחנה שמשון',
+      departureTime: '2024-01-22T06:00:00Z',
+      returnTime: '2024-01-22T20:00:00Z',
+      purpose: 'סיור ביטחון',
+      status: 'הסתיימה',
+      createdAt: '2024-01-17T11:00:00Z',
+      updatedAt: '2024-01-17T11:00:00Z'
+    },
+    {
+      id: '4',
+      vehicleId: '3',
+      vehicleNumber: '12-345-69',
+      driverId: '1000025',
+      driverName: 'סמל צוות 20',
+      location: 'מחנה יהודה',
+      departureTime: '2024-01-25T09:00:00Z',
+      returnTime: '2024-01-25T17:00:00Z',
+      purpose: 'העברת צוות לאימון שדה',
+      status: 'מתוכננת',
+      createdAt: '2024-01-20T14:00:00Z',
+      updatedAt: '2024-01-20T14:00:00Z'
+    },
+    {
+      id: '5',
+      vehicleId: '5',
+      vehicleNumber: '12-345-71',
+      driverId: '1000033',
+      driverName: 'מפקד צוות 30',
+      location: 'מחנה דן',
+      departureTime: '2024-01-26T07:30:00Z',
+      returnTime: '2024-01-26T15:30:00Z',
+      purpose: 'סיור תצפית',
+      status: 'מתוכננת',
+      createdAt: '2024-01-21T10:00:00Z',
+      updatedAt: '2024-01-21T10:00:00Z'
+    },
+    {
+      id: '6',
+      vehicleId: '1',
+      vehicleNumber: '12-345-67',
+      driverId: '1000034',
+      driverName: 'סמל צוות 30',
+      location: 'מחנה זבולון',
+      departureTime: '2024-01-27T08:00:00Z',
+      returnTime: '2024-01-27T16:00:00Z',
+      purpose: 'העברת ציוד רפואי',
+      status: 'מתוכננת',
+      createdAt: '2024-01-22T11:00:00Z',
+      updatedAt: '2024-01-22T11:00:00Z'
+    },
+    {
+      id: '7',
+      vehicleId: '2',
+      vehicleNumber: '12-345-68',
+      driverId: '1000042',
+      driverName: 'מפקד צוות 40',
+      location: 'מחנה נפתלי',
+      departureTime: '2024-01-28T06:00:00Z',
+      returnTime: '2024-01-28T18:00:00Z',
+      purpose: 'סיור ביטחון לילי',
+      status: 'מתוכננת',
+      createdAt: '2024-01-23T09:00:00Z',
+      updatedAt: '2024-01-23T09:00:00Z'
+    },
+    {
+      id: '8',
+      vehicleId: '4',
+      vehicleNumber: '12-345-70',
+      driverId: '1000043',
+      driverName: 'סמל צוות 40',
+      location: 'מחנה אשר',
+      departureTime: '2024-01-29T10:00:00Z',
+      returnTime: '2024-01-29T14:00:00Z',
+      purpose: 'העברת כוח אדם לפעילות',
+      status: 'מתוכננת',
+      createdAt: '2024-01-24T13:00:00Z',
+      updatedAt: '2024-01-24T13:00:00Z'
     }
   ];
 };

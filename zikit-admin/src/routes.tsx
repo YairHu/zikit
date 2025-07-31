@@ -4,8 +4,7 @@ import { useUser } from './contexts/UserContext';
 import Home from './pages/Home';
 import Soldiers from './pages/Soldiers';
 import Teams from './pages/Teams';
-import Drivers from './pages/Drivers';
-import Vehicles from './pages/Vehicles';
+import Trips from './pages/Trips';
 import Missions from './pages/Missions';
 import Duties from './pages/Duties';
 import Hamal from './pages/Hamal';
@@ -55,8 +54,7 @@ const getMenuItems = (user: any) => {
   const managementItems = [
     { text: 'כוח אדם', icon: <GroupsIcon />, path: '/soldiers' },
     { text: 'צוותים', icon: <GroupsIcon />, path: '/teams' },
-    { text: 'נהגים', icon: <KeyIcon />, path: '/drivers' },
-    { text: 'רכבים', icon: <DirectionsCarIcon />, path: '/vehicles' },
+    { text: 'נסיעות ורכבים', icon: <DirectionsCarIcon />, path: '/trips' },
     { text: 'משימות', icon: <AssignmentIcon />, path: '/missions' },
     { text: 'פעילויות מבצעיות', icon: <AssignmentIcon />, path: '/activities' },
     { text: 'סטטיסטיקות פעילויות', icon: <BarChartIcon />, path: '/activity-statistics' },
@@ -208,8 +206,7 @@ const AppRoutes: React.FC = () => {
           <Route path="/soldiers/:id" element={<SoldierProfile />} />
           <Route path="/teams" element={<Teams />} />
           <Route path="/teams/:teamId" element={<TeamDetails />} />
-          <Route path="/drivers" element={<Drivers />} />
-          <Route path="/vehicles" element={<Vehicles />} />
+          <Route path="/trips" element={<Trips />} />
           <Route path="/missions" element={<Missions />} />
           <Route path="/activities" element={<Activities />} />
           <Route path="/activities/:id" element={<ActivityDetails />} />

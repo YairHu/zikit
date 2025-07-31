@@ -4,9 +4,11 @@ import { useUser } from '../contexts/UserContext';
 import { Activity, ActivityParticipant } from '../models/Activity';
 import { Soldier } from '../models/Soldier';
 import { Vehicle } from '../models/Vehicle';
+import { Trip } from '../models/Trip';
 import { getAllActivities, addActivity, updateActivity, deleteActivity } from '../services/activityService';
-import { getAllSoldiers } from '../services/soldierService';
+import { getAllSoldiers, updateSoldier } from '../services/soldierService';
 import { getAllVehicles } from '../services/vehicleService';
+import { getAllTrips, updateTrip } from '../services/tripService';
 import {
   Container,
   Typography,
@@ -78,10 +80,7 @@ const emptyActivity: Omit<Activity, 'id' | 'createdAt' | 'updatedAt'> = {
   commanderName: '',
   taskLeaderId: '',
   taskLeaderName: '',
-  vehicleId: '',
-  vehicleNumber: '',
-  driverId: '',
-  driverName: '',
+  mobility: '',
   participants: [],
   status: 'מתוכננת'
 };
@@ -97,6 +96,8 @@ const Activities: React.FC = () => {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [selectedTripIds, setSelectedTripIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<Omit<Activity, 'id' | 'createdAt' | 'updatedAt'>>(emptyActivity);
@@ -110,14 +111,16 @@ const Activities: React.FC = () => {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [activitiesData, soldiersData, vehiclesData] = await Promise.all([
+      const [activitiesData, soldiersData, vehiclesData, tripsData] = await Promise.all([
         getAllActivities(),
         getAllSoldiers(),
-        getAllVehicles()
+        getAllVehicles(),
+        getAllTrips()
       ]);
       setActivities(activitiesData);
       setSoldiers(soldiersData);
       setVehicles(vehiclesData);
+      setTrips(tripsData);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -128,6 +131,19 @@ const Activities: React.FC = () => {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // בדיקה אם יש פרמטר עריכה ב-URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const editId = urlParams.get('edit');
+    if (editId) {
+      // מציאת הפעילות לעריכה
+      const activityToEdit = activities.find(a => a.id === editId);
+      if (activityToEdit) {
+        handleOpenForm(activityToEdit);
+      }
+    }
+  }, [activities]);
 
   const handleOpenForm = (activity?: Activity) => {
     if (activity) {
@@ -145,17 +161,21 @@ const Activities: React.FC = () => {
         commanderName: activity.commanderName,
         taskLeaderId: activity.taskLeaderId || '',
         taskLeaderName: activity.taskLeaderName || '',
-        vehicleId: activity.vehicleId || '',
-        vehicleNumber: activity.vehicleNumber || '',
-        driverId: activity.driverId || '',
-        driverName: activity.driverName || '',
+        mobility: activity.mobility || '',
         participants: activity.participants,
         status: activity.status
       });
       setEditId(activity.id);
+      
+      // מציאת הנסיעות המקושרות לפעילות זו
+      const linkedTripIds = trips
+        .filter(trip => trip.linkedActivityId === activity.id)
+        .map(trip => trip.id);
+      setSelectedTripIds(linkedTripIds);
     } else {
       setFormData(emptyActivity);
       setEditId(null);
+      setSelectedTripIds([]);
     }
     setShowForm(true);
   };
@@ -164,6 +184,7 @@ const Activities: React.FC = () => {
     setShowForm(false);
     setFormData(emptyActivity);
     setEditId(null);
+    setSelectedTripIds([]);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -175,7 +196,9 @@ const Activities: React.FC = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleCommanderSelect = (soldier: Soldier | null) => {
+  const handleCommanderSelect = async (soldier: Soldier | null) => {
+    const oldCommanderId = formData.commanderId;
+    
     if (soldier) {
       setFormData(prev => {
         const newParticipants = [...prev.participants];
@@ -195,6 +218,16 @@ const Activities: React.FC = () => {
           participants: [...filteredParticipants, commanderParticipant]
         };
       });
+      
+      // עדכון עמוד האישי של המפקד החדש (אם זה עריכה)
+      if (editId) {
+        const currentActivities = soldier.activities || [];
+        if (!currentActivities.includes(editId)) {
+          await updateSoldier(soldier.id, {
+            activities: [...currentActivities, editId]
+          });
+        }
+      }
     } else {
       setFormData(prev => {
         // הסר את המפקד הקודם מהמשתתפים
@@ -207,9 +240,23 @@ const Activities: React.FC = () => {
         };
       });
     }
+    
+    // הסרת הפעילות מעמוד האישי של המפקד הישן (אם זה עריכה)
+    if (editId && oldCommanderId && oldCommanderId !== soldier?.id) {
+      const oldCommander = soldiers.find(s => s.id === oldCommanderId);
+      if (oldCommander) {
+        const currentActivities = oldCommander.activities || [];
+        const updatedActivities = currentActivities.filter(activityId => activityId !== editId);
+        await updateSoldier(oldCommanderId, {
+          activities: updatedActivities
+        });
+      }
+    }
   };
 
-  const handleTaskLeaderSelect = (soldier: Soldier | null) => {
+  const handleTaskLeaderSelect = async (soldier: Soldier | null) => {
+    const oldTaskLeaderId = formData.taskLeaderId;
+    
     if (soldier) {
       setFormData(prev => {
         const newParticipants = [...prev.participants];
@@ -229,6 +276,16 @@ const Activities: React.FC = () => {
           participants: [...filteredParticipants, taskLeaderParticipant]
         };
       });
+      
+      // עדכון עמוד האישי של מוביל המשימה החדש (אם זה עריכה)
+      if (editId) {
+        const currentActivities = soldier.activities || [];
+        if (!currentActivities.includes(editId)) {
+          await updateSoldier(soldier.id, {
+            activities: [...currentActivities, editId]
+          });
+        }
+      }
     } else {
       setFormData(prev => {
         // הסר את מוביל המשימה הקודם מהמשתתפים
@@ -241,59 +298,45 @@ const Activities: React.FC = () => {
         };
       });
     }
+    
+    // הסרת הפעילות מעמוד האישי של מוביל המשימה הישן (אם זה עריכה)
+    if (editId && oldTaskLeaderId && oldTaskLeaderId !== soldier?.id) {
+      const oldTaskLeader = soldiers.find(s => s.id === oldTaskLeaderId);
+      if (oldTaskLeader) {
+        const currentActivities = oldTaskLeader.activities || [];
+        const updatedActivities = currentActivities.filter(activityId => activityId !== editId);
+        await updateSoldier(oldTaskLeaderId, {
+          activities: updatedActivities
+        });
+      }
+    }
   };
 
-  const handleVehicleSelect = (vehicle: Vehicle | null) => {
-    if (vehicle) {
+  const handleMobilityChange = async (tripId: string) => {
+    if (!tripId) {
       setFormData(prev => ({
         ...prev,
-        vehicleId: vehicle.id,
-        vehicleNumber: vehicle.number
+        mobility: ''
       }));
-    } else {
+      return;
+    }
+
+    const selectedTrip = trips.find(t => t.id === tripId);
+    if (selectedTrip) {
+      // עדכון הנסיעה עם קישור לפעילות
+      await updateTrip(tripId, { linkedActivityId: editId || 'temp' });
+      
+      // עדכון שדה הניוד בפעילות עם מזהה הנסיעה
+      const mobilityText = `TRIP_ID:${selectedTrip.id}`;
+      
       setFormData(prev => ({
         ...prev,
-        vehicleId: '',
-        vehicleNumber: ''
+        mobility: mobilityText
       }));
     }
   };
 
-  const handleDriverSelect = (soldier: Soldier | null) => {
-    if (soldier) {
-      setFormData(prev => {
-        const newParticipants = [...prev.participants];
-        // הסר את הנהג הקודם מהמשתתפים אם היה
-        const filteredParticipants = newParticipants.filter(p => p.soldierId !== prev.driverId);
-        // הוסף את הנהג החדש למשתתפים
-        const driverParticipant: ActivityParticipant = {
-          soldierId: soldier.id,
-          soldierName: soldier.name,
-          personalNumber: soldier.personalNumber,
-          role: 'נהג'
-        };
-        return {
-          ...prev,
-          driverId: soldier.id,
-          driverName: soldier.name,
-          participants: [...filteredParticipants, driverParticipant]
-        };
-      });
-    } else {
-      setFormData(prev => {
-        // הסר את הנהג הקודם מהמשתתפים
-        const filteredParticipants = prev.participants.filter(p => p.soldierId !== prev.driverId);
-        return {
-          ...prev,
-          driverId: '',
-          driverName: '',
-          participants: filteredParticipants
-        };
-      });
-    }
-  };
-
-  const handleAddParticipant = (soldier: Soldier | null) => {
+  const handleAddParticipant = async (soldier: Soldier | null) => {
     if (soldier) {
       const newParticipant: ActivityParticipant = {
         soldierId: soldier.id,
@@ -305,18 +348,30 @@ const Activities: React.FC = () => {
         ...prev,
         participants: [...prev.participants, newParticipant]
       }));
+      
+      // הוספת הפעילות לעמוד האישי של המשתתף (אם זה עריכה)
+      if (editId) {
+        const currentActivities = soldier.activities || [];
+        if (!currentActivities.includes(editId)) {
+          await updateSoldier(soldier.id, {
+            activities: [...currentActivities, editId]
+          });
+        }
+      }
     }
   };
 
   const handleUpdateParticipantRole = (soldierId: string, role: string) => {
-    // בדיקה אם זה המפקד או הנהג - לא ניתן לערוך את התפקיד שלהם
+    // בדיקה אם זה המפקד - לא ניתן לערוך את התפקיד שלו
     if (soldierId === formData.commanderId) {
       alert('לא ניתן לערוך את תפקיד מפקד הפעילות. התפקיד נקבע אוטומטית.');
       return;
     }
     
-    if (soldierId === formData.driverId) {
-      alert('לא ניתן לערוך את תפקיד נהג הפעילות. התפקיד נקבע אוטומטית.');
+    // בדיקה אם זה נהג - לא ניתן לערוך את התפקיד שלו
+    const participant = formData.participants.find(p => p.soldierId === soldierId);
+    if (participant && participant.role === 'נהג') {
+      alert('לא ניתן לערוך את תפקיד הנהג. התפקיד נקבע אוטומטית.');
       return;
     }
     
@@ -328,15 +383,17 @@ const Activities: React.FC = () => {
     }));
   };
 
-  const handleRemoveParticipant = (soldierId: string) => {
-    // בדיקה אם זה המפקד או הנהג - לא ניתן למחוק אותם
+  const handleRemoveParticipant = async (soldierId: string) => {
+    // בדיקה אם זה המפקד - לא ניתן למחוק אותו
     if (soldierId === formData.commanderId) {
       alert('לא ניתן למחוק את מפקד הפעילות. יש לשנות את המפקד דרך שדה "מפקד הפעילות".');
       return;
     }
     
-    if (soldierId === formData.driverId) {
-      alert('לא ניתן למחוק את נהג הפעילות. יש לשנות את הנהג דרך שדה "נהג".');
+    // בדיקה אם זה נהג - לא ניתן למחוק אותו דרך הממשק
+    const participant = formData.participants.find(p => p.soldierId === soldierId);
+    if (participant && participant.role === 'נהג') {
+      alert('לא ניתן למחוק נהג דרך הממשק. יש להסיר את הנסיעה מהניוד כדי להסיר את הנהג.');
       return;
     }
     
@@ -344,16 +401,92 @@ const Activities: React.FC = () => {
       ...prev,
       participants: prev.participants.filter(p => p.soldierId !== soldierId)
     }));
+    
+    // הסרת הפעילות מעמוד האישי של המשתתף (אם זה עריכה)
+    if (editId) {
+      const soldier = soldiers.find(s => s.id === soldierId);
+      if (soldier) {
+        const currentActivities = soldier.activities || [];
+        const updatedActivities = currentActivities.filter(activityId => activityId !== editId);
+        await updateSoldier(soldierId, {
+          activities: updatedActivities
+        });
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // ולידציה - בדיקה אם כל השדות מלאים
+    const isComplete = formData.name && 
+                      formData.team && 
+                      formData.location && 
+                      formData.plannedDate && 
+                      formData.plannedTime && 
+                      formData.commanderId && 
+                      formData.taskLeaderId && 
+                      formData.participants.length > 0;
+    
+    if (!isComplete) {
+      alert('יש למלא את כל השדות החובה בפעילות');
+      return;
+    }
+    
     try {
+      let activityId: string;
+      
       if (editId) {
         await updateActivity(editId, formData);
+        activityId = editId;
       } else {
-        await addActivity(formData);
+        activityId = await addActivity(formData);
       }
+      
+      // עדכון הנסיעות הנבחרות עם קישור לפעילות והוספת נהגים למשתתפים
+      const updatedParticipants = [...formData.participants];
+      const driversToUpdate: string[] = [];
+      
+      for (const tripId of selectedTripIds) {
+        await updateTrip(tripId, { linkedActivityId: activityId });
+        
+        // מציאת הנסיעה והוספת הנהג למשתתפים אם הוא לא קיים
+        const trip = trips.find(t => t.id === tripId);
+        if (trip && trip.driverId && trip.driverName) {
+          const driverExists = updatedParticipants.some(p => p.soldierId === trip.driverId);
+          if (!driverExists) {
+            const driver = soldiers.find(s => s.id === trip.driverId);
+            if (driver) {
+              updatedParticipants.push({
+                soldierId: trip.driverId,
+                soldierName: trip.driverName,
+                personalNumber: driver.personalNumber,
+                role: 'נהג'
+              });
+              driversToUpdate.push(trip.driverId);
+            }
+          }
+        }
+      }
+      
+      // עדכון הפעילות עם המשתתפים החדשים
+      if (updatedParticipants.length > formData.participants.length) {
+        await updateActivity(activityId, { participants: updatedParticipants });
+      }
+      
+      // עדכון עמוד האישי של כל הנהגים
+      for (const driverId of driversToUpdate) {
+        const driver = soldiers.find(s => s.id === driverId);
+        if (driver) {
+          const currentActivities = driver.activities || [];
+          if (!currentActivities.includes(activityId)) {
+            await updateSoldier(driverId, {
+              activities: [...currentActivities, activityId]
+            });
+          }
+        }
+      }
+      
       handleCloseForm();
       refresh();
     } catch (error) {
@@ -364,6 +497,37 @@ const Activities: React.FC = () => {
   const handleDelete = async () => {
     if (deleteId) {
       try {
+        // מציאת הפעילות לפני המחיקה
+        const activityToDelete = activities.find(a => a.id === deleteId);
+        
+        if (activityToDelete) {
+          // הסרת הפעילות מעמוד האישי של כל המשתתפים
+          for (const participant of activityToDelete.participants) {
+            const soldier = soldiers.find(s => s.id === participant.soldierId);
+            if (soldier) {
+              const currentActivities = soldier.activities || [];
+              const updatedActivities = currentActivities.filter(activityId => activityId !== deleteId);
+              await updateSoldier(participant.soldierId, {
+                activities: updatedActivities
+              });
+            }
+          }
+          
+          // הסרת קישור מהנסיעות המקושרות
+          if (activityToDelete.mobility) {
+            const tripIds = activityToDelete.mobility.split(';').map(tripId => 
+              tripId.replace('TRIP_ID:', '').trim()
+            );
+            
+            for (const tripId of tripIds) {
+              if (tripId) {
+                // הסרת קישור הפעילות מהנסיעה (Firebase לא תומך ב-undefined)
+                await updateTrip(tripId, { linkedActivityId: '' });
+              }
+            }
+          }
+        }
+        
         await deleteActivity(deleteId);
         setDeleteId(null);
         refresh();
@@ -385,6 +549,17 @@ const Activities: React.FC = () => {
       case 'בוטלה': return 'error';
       default: return 'default';
     }
+  };
+
+  const isActivityComplete = (activity: Activity) => {
+    return activity.name && 
+           activity.team && 
+           activity.location && 
+           activity.plannedDate && 
+           activity.plannedTime && 
+           activity.commanderId && 
+           activity.taskLeaderId && 
+           activity.participants.length > 0;
   };
 
   const filteredActivities = activities.filter(activity => {
@@ -473,7 +648,17 @@ const Activities: React.FC = () => {
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 3 }}>
           {filteredActivities.map((activity) => (
           <Box key={activity.id}>
-            <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', cursor: 'pointer' }} onClick={() => handleActivityClick(activity.id)}>
+            <Card 
+              sx={{ 
+                height: '100%', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                cursor: 'pointer',
+                border: isActivityComplete(activity) ? '1px solid #e0e0e0' : '2px solid #f44336',
+                backgroundColor: isActivityComplete(activity) ? 'white' : '#ffebee'
+              }} 
+              onClick={() => handleActivityClick(activity.id)}
+            >
               <CardContent sx={{ flex: 1 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
                   <Typography variant="h6" fontWeight="bold" sx={{ flex: 1 }}>
@@ -551,19 +736,19 @@ const Activities: React.FC = () => {
                     <GroupIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
                     <Typography variant="body2">{activity.participants.length} משתתפים</Typography>
                   </Box>
-                  {activity.vehicleNumber && (
+                  {activity.mobility && (
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                       <DirectionsCarIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                      <Typography variant="body2">רכב: {activity.vehicleNumber}</Typography>
-                    </Box>
-                  )}
-                  {activity.driverName && (
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <PersonIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                      <Typography variant="body2">נהג: {activity.driverName}</Typography>
+                      <Typography variant="body2">ניוד: {activity.mobility}</Typography>
                     </Box>
                   )}
                 </Box>
+
+                {!isActivityComplete(activity) && (
+                  <Alert severity="warning" sx={{ mt: 1 }}>
+                    פעילות לא מלאה - יש למלא את כל השדות
+                  </Alert>
+                )}
 
                 <Accordion sx={{ mt: 2 }}>
                   <AccordionSummary 
@@ -606,8 +791,7 @@ const Activities: React.FC = () => {
                 <TableCell>שעה</TableCell>
                 <TableCell>מפקד</TableCell>
                 <TableCell>מוביל משימה</TableCell>
-                <TableCell>רכב</TableCell>
-                <TableCell>נהג</TableCell>
+                <TableCell>ניוד</TableCell>
                 <TableCell>משתתפים</TableCell>
                 <TableCell>סטטוס</TableCell>
                 <TableCell>פעולות</TableCell>
@@ -618,7 +802,10 @@ const Activities: React.FC = () => {
                 <TableRow 
                   key={activity.id} 
                   hover 
-                  sx={{ cursor: 'pointer' }}
+                  sx={{ 
+                    cursor: 'pointer',
+                    backgroundColor: isActivityComplete(activity) ? 'white' : '#ffebee'
+                  }}
                   onClick={() => handleActivityClick(activity.id)}
                 >
                   <TableCell>
@@ -663,12 +850,7 @@ const Activities: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">
-                      {activity.vehicleNumber || '-'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2">
-                      {activity.driverName || '-'}
+                      {activity.mobility || '-'}
                     </Typography>
                   </TableCell>
                   <TableCell>
@@ -868,38 +1050,159 @@ const Activities: React.FC = () => {
               />
             </Box>
             <Box sx={{ mt: 2 }}>
-              <Autocomplete
-                options={vehicles}
-                getOptionLabel={(option) => `${option.type} - ${option.number} (${option.status === 'available' ? 'פנוי' : option.status === 'maintenance' ? 'בטיפול' : 'במשימה'})`}
-                value={vehicles.find(v => v.id === formData.vehicleId) || null}
-                onChange={(_, newValue) => handleVehicleSelect(newValue)}
-                getOptionDisabled={(option) => option.status !== 'available'}
-                renderInput={(params) => (
-                  <TextField {...params} label="רכב" />
-                )}
-              />
-            </Box>
-            <Box sx={{ mt: 2 }}>
-              <Autocomplete
-                options={soldiers.filter(s => s.qualifications?.includes('נהג'))}
-                getOptionLabel={(option) => `${option.name} (${option.personalNumber})`}
-                value={soldiers.find(s => s.id === formData.driverId) || null}
-                onChange={(_, newValue) => handleDriverSelect(newValue)}
-                renderInput={(params) => (
-                  <TextField {...params} label="נהג" />
-                )}
-              />
+              <Typography variant="h6" gutterBottom>ניוד</Typography>
+              <FormControl fullWidth>
+                <InputLabel>בחר נסיעות</InputLabel>
+                <Select
+                  multiple
+                  value={selectedTripIds}
+                  onChange={async (e) => {
+                    const value = e.target.value as string[];
+                    const previousTripIds = selectedTripIds;
+                    setSelectedTripIds(value);
+                    
+                    // עדכון שדה הניוד עם מזהי הנסיעות
+                    const selectedTrips = trips.filter(t => value.includes(t.id));
+                    const mobilityText = selectedTrips.map(trip => `TRIP_ID:${trip.id}`).join('; ');
+                    
+                    setFormData(prev => ({
+                      ...prev,
+                      mobility: mobilityText
+                    }));
+                    
+                    // עדכון כל הנסיעות הנבחרות עם קישור לפעילות
+                    for (const tripId of value) {
+                      await updateTrip(tripId, { linkedActivityId: editId || 'temp' });
+                    }
+                    
+                    // הוספת נהגים חדשים למשתתפים
+                    const newTripIds = value.filter(id => !previousTripIds.includes(id));
+                    const updatedParticipants = [...formData.participants];
+                    
+                    for (const tripId of newTripIds) {
+                      const trip = trips.find(t => t.id === tripId);
+                      if (trip && trip.driverId && trip.driverName) {
+                        const driverExists = updatedParticipants.some(p => p.soldierId === trip.driverId);
+                        if (!driverExists) {
+                          const driver = soldiers.find(s => s.id === trip.driverId);
+                          if (driver) {
+                            updatedParticipants.push({
+                              soldierId: trip.driverId,
+                              soldierName: trip.driverName,
+                              personalNumber: driver.personalNumber,
+                              role: 'נהג'
+                            });
+                          }
+                        }
+                      }
+                    }
+                    
+                    // עדכון המשתתפים
+                    if (updatedParticipants.length > formData.participants.length) {
+                      setFormData(prev => ({
+                        ...prev,
+                        participants: updatedParticipants
+                      }));
+                    }
+                  }}
+                  label="בחר נסיעות"
+                >
+                  {trips.filter(trip => !trip.linkedActivityId && !selectedTripIds.includes(trip.id)).map(trip => (
+                    <MenuItem key={trip.id} value={trip.id}>
+                      <Box>
+                        <Typography variant="body2" fontWeight="bold">
+                          {trip.purpose}
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary">
+                          {trip.vehicleNumber && trip.driverName 
+                            ? `רכב ${trip.vehicleNumber}, נהג: ${trip.driverName}`
+                            : 'ללא רכב ונהג'
+                          }
+                        </Typography>
+                        {trip.departureTime && trip.returnTime && (
+                          <Typography variant="caption" color="textSecondary" display="block">
+                            {new Date(trip.departureTime).toLocaleString('he-IL')} - {new Date(trip.returnTime).toLocaleString('he-IL')}
+                          </Typography>
+                        )}
+                        <Typography variant="caption" color="textSecondary" display="block">
+                          מיקום: {trip.location}
+                        </Typography>
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              {formData.mobility && (
+                <Box sx={{ mt: 1 }}>
+                  <Typography variant="body2" color="textSecondary" gutterBottom>
+                    נסיעות נבחרות:
+                  </Typography>
+                  {formData.mobility.split(';').map(tripId => {
+                    const trip = trips.find(t => t.id === tripId.replace('TRIP_ID:', ''));
+                    if (!trip) return null;
+                    
+                    return (
+                      <Box key={trip.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <Typography variant="body2">
+                          {trip.purpose} ({trip.vehicleNumber || 'ללא רכב'})
+                        </Typography>
+                        <IconButton
+                          size="small"
+                          onClick={async () => {
+                            // הסרת הנסיעה מהרשימה
+                            const updatedTripIds = selectedTripIds.filter(id => id !== trip.id);
+                            setSelectedTripIds(updatedTripIds);
+                            
+                            // עדכון שדה הניוד
+                            const updatedMobility = updatedTripIds.map(id => `TRIP_ID:${id}`).join('; ');
+                            setFormData(prev => ({
+                              ...prev,
+                              mobility: updatedMobility
+                            }));
+                            
+                            // הסרת הקישור מהנסיעה (Firebase לא תומך ב-undefined)
+                            await updateTrip(trip.id, { linkedActivityId: '' });
+                            
+                            // הסרת הנהג מהמשתתפים אם הוא קיים
+                            const driverParticipant = formData.participants.find(p => 
+                              p.soldierId === trip.driverId && p.role === 'נהג'
+                            );
+                            
+                            if (driverParticipant) {
+                              const updatedParticipants = formData.participants.filter(p => 
+                                !(p.soldierId === trip.driverId && p.role === 'נהג')
+                              );
+                              
+                              setFormData(prev => ({
+                                ...prev,
+                                participants: updatedParticipants
+                              }));
+                              
+                              // הסרת הפעילות מעמוד האישי של הנהג
+                              const driver = soldiers.find(s => s.id === trip.driverId);
+                              if (driver && editId && trip.driverId) {
+                                const currentActivities = driver.activities || [];
+                                const updatedActivities = currentActivities.filter(activityId => activityId !== editId);
+                                await updateSoldier(trip.driverId, {
+                                  activities: updatedActivities
+                                });
+                              }
+                            }
+                          }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    );
+                  })}
+                </Box>
+              )}
             </Box>
             <Box sx={{ mt: 2 }}>
               <Typography variant="h6" sx={{ mb: 2 }}>
                 משתתפים
               </Typography>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                <Typography variant="body2">
-                  <strong>הערה:</strong> המפקד והנהג מופיעים ברשימת המשתתפים בצורה קריאה בלבד. 
-                  השינויים שלהם נעשים דרך השדות המיוחדים למעלה.
-                </Typography>
-              </Alert>
+
               <Box sx={{ mb: 2 }}>
                 <Autocomplete
                   options={soldiers.filter(s => 
@@ -920,10 +1223,9 @@ const Activities: React.FC = () => {
               </Box>
               <List dense>
                 {formData.participants.map((participant) => {
-                  // בדיקה אם זה המפקד או הנהג
+                  // בדיקה אם זה המפקד
                   const isCommander = participant.soldierId === formData.commanderId;
-                  const isDriver = participant.soldierId === formData.driverId;
-                  const isReadOnly = isCommander || isDriver;
+                  const isReadOnly = isCommander;
                   
                   return (
                     <ListItem key={participant.soldierId}>
@@ -941,14 +1243,7 @@ const Activities: React.FC = () => {
                                 variant="outlined"
                               />
                             )}
-                            {isDriver && (
-                              <Chip 
-                                label="נהג" 
-                                size="small" 
-                                color="secondary" 
-                                variant="outlined"
-                              />
-                            )}
+
                           </Box>
                         }
                         secondary={`${participant.personalNumber} - ${participant.role}`}
@@ -970,6 +1265,14 @@ const Activities: React.FC = () => {
                                 }
                               }}
                             />
+                            {participant.role === 'נהג' && (
+                              <Chip 
+                                label="נהג" 
+                                size="small" 
+                                color="secondary" 
+                                variant="outlined"
+                              />
+                            )}
                           </Box>
                         ) : (
                           // עריכה רגילה למשתתפים אחרים

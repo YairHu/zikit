@@ -6,7 +6,7 @@ import { mockGetAllSoldiers, mockGetSoldierById, mockAddSoldier, mockUpdateSoldi
 const soldiersCollection = collection(db, 'soldiers');
 
 // Use mock database for development
-const USE_MOCK = true;
+const USE_MOCK = false;
 
 export const getAllSoldiers = async (): Promise<Soldier[]> => {
   if (USE_MOCK) {
