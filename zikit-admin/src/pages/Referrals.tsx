@@ -282,7 +282,7 @@ const Referrals: React.FC = () => {
       {viewMode === 'cards' && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {filteredReferrals.map((referral) => (
-            <Card key={referral.id} sx={{ cursor: 'pointer' }} onClick={() => navigate(`/referrals/${referral.id}`)}>
+            <Card key={referral.id}>
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
                   <Box>
@@ -360,7 +360,7 @@ const Referrals: React.FC = () => {
             </TableHead>
             <TableBody>
               {filteredReferrals.map((referral) => (
-                <TableRow key={referral.id} hover onClick={() => navigate(`/referrals/${referral.id}`)} sx={{ cursor: 'pointer' }}>
+                <TableRow key={referral.id} hover>
                   <TableCell>
                     <Box>
                       <Typography variant="body2" fontWeight="bold">

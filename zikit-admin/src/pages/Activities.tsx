@@ -9,7 +9,7 @@ import { getAllActivities, addActivity, updateActivity, deleteActivity } from '.
 import { getAllSoldiers, updateSoldier } from '../services/soldierService';
 import { getAllVehicles } from '../services/vehicleService';
 import { getAllTrips, updateTrip } from '../services/tripService';
-import TripManagement from '../components/TripManagement';
+
 import {
   Container,
   Typography,
@@ -108,7 +108,7 @@ const Activities: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterActivityType, setFilterActivityType] = useState<string>('');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
-  const [showTripManagement, setShowTripManagement] = useState(false);
+
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -1071,16 +1071,8 @@ const Activities: React.FC = () => {
               />
             </Box>
             <Box sx={{ mt: 2 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h6" gutterBottom>ניוד</Typography>
-                <Button
-                  variant="outlined"
-                  startIcon={<AddIcon />}
-                  onClick={() => setShowTripManagement(true)}
-                  size="small"
-                >
-                  ניהול נסיעות
-                </Button>
               </Box>
               <FormControl fullWidth>
                 <InputLabel>בחר נסיעות</InputLabel>
@@ -1393,21 +1385,7 @@ const Activities: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Trip Management Dialog */}
-      {editId && (
-        <TripManagement
-          open={showTripManagement}
-          onClose={() => setShowTripManagement(false)}
-          activity={activities.find(a => a.id === editId) || formData as Activity}
-          onActivityUpdate={(updatedActivity) => {
-            setFormData(prev => ({
-              ...prev,
-              mobility: updatedActivity.mobility
-            }));
-            refresh();
-          }}
-        />
-      )}
+
     </Container>
   );
 };

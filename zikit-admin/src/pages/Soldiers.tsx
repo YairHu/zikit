@@ -40,7 +40,15 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  Checkbox,
+  FormControlLabel,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Collapse,
+  Tooltip
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -54,7 +62,10 @@ import {
   Star as StarIcon,
   LocalOffer as BadgeIcon,
   Security as SecurityIcon,
-  SupervisorAccount as SupervisorAccountIcon
+  SupervisorAccount as SupervisorAccountIcon,
+  Settings as SettingsIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon
 } from '@mui/icons-material';
 
 
@@ -72,6 +83,25 @@ const Soldiers: React.FC = () => {
   const [filterPresence, setFilterPresence] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'cards' | 'table' | 'hierarchy'>('cards');
+  const [showColumnSettings, setShowColumnSettings] = useState(false);
+  
+  // הגדרת השדות הזמינים לתצוגה טבלאית
+  const availableColumns = [
+    { key: 'name', label: 'שם', visible: true },
+    { key: 'personalNumber', label: 'מספר אישי', visible: true },
+    { key: 'team', label: 'צוות', visible: true },
+    { key: 'role', label: 'תפקיד', visible: true },
+    { key: 'framework', label: 'מסגרת', visible: false },
+    { key: 'commanders', label: 'מפקדים', visible: false },
+    { key: 'profile', label: 'פרופיל', visible: true },
+    { key: 'presence', label: 'נוכחות', visible: true },
+    { key: 'qualifications', label: 'כשירויות', visible: true },
+    { key: 'licenses', label: 'רישיונות', visible: true },
+    { key: 'drivingLicenses', label: 'היתרים', visible: false },
+    { key: 'actions', label: 'פעולות', visible: true }
+  ];
+  
+  const [visibleColumns, setVisibleColumns] = useState(availableColumns);
 
   const refresh = useCallback(() => {
     setLoading(true);
@@ -875,7 +905,24 @@ const Soldiers: React.FC = () => {
     }
   };
 
+  // פונקציות לניהול השדות הנראים
+  const handleColumnVisibilityChange = (columnKey: string, visible: boolean) => {
+    setVisibleColumns(prev => 
+      prev.map(col => 
+        col.key === columnKey ? { ...col, visible } : col
+      )
+    );
+  };
 
+  const toggleAllColumns = (visible: boolean) => {
+    setVisibleColumns(prev => 
+      prev.map(col => ({ ...col, visible }))
+    );
+  };
+
+  const resetToDefault = () => {
+    setVisibleColumns(availableColumns);
+  };
 
   // פונקציה לארגון החיילים לפי צוותים
   const getSoldiersByTeam = () => {
@@ -1001,15 +1048,28 @@ const Soldiers: React.FC = () => {
 
       {/* View Mode Tabs */}
       <Box sx={{ mb: 3 }}>
-        <Tabs 
-          value={viewMode} 
-          onChange={(e, newValue) => setViewMode(newValue)}
-          sx={{ mb: 2 }}
-        >
-          <Tab label="תצוגת כרטיסים" value="cards" />
-          <Tab label="תצוגה טבלאית" value="table" />
-          <Tab label="תצוגה היררכית" value="hierarchy" />
-        </Tabs>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Tabs 
+            value={viewMode} 
+            onChange={(e, newValue) => setViewMode(newValue)}
+          >
+            <Tab label="תצוגת כרטיסים" value="cards" />
+            <Tab label="תצוגה טבלאית" value="table" />
+            <Tab label="תצוגה היררכית" value="hierarchy" />
+          </Tabs>
+          
+          {viewMode === 'table' && (
+            <Tooltip title="הגדרות עמודות">
+              <IconButton 
+                onClick={() => setShowColumnSettings(true)}
+                color="primary"
+                sx={{ ml: 2 }}
+              >
+                <SettingsIcon />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Box>
       </Box>
 
       {/* Search and Filters */}
@@ -1100,161 +1160,205 @@ const Soldiers: React.FC = () => {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 'bold' }}>שם</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>מספר אישי</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>צוות</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>תפקיד</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>מסגרת</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>מפקדים</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>פרופיל</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>נוכחות</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>כשירויות</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>רישיונות</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>היתרים</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>פעולות</TableCell>
+                {visibleColumns.filter(col => col.visible).map((column) => (
+                  <TableCell key={column.key} sx={{ fontWeight: 'bold' }}>
+                    {column.label}
+                  </TableCell>
+                ))}
               </TableRow>
             </TableHead>
             <TableBody>
               {filteredData.map((soldier) => (
-                                    <TableRow key={soldier.id} hover>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Avatar sx={{ width: 32, height: 32, bgcolor: getProfileColor(soldier.profile) }}>
-                            {soldier.name.charAt(0)}
-                          </Avatar>
-                          <Typography 
-                            variant="body2" 
-                            sx={{ 
-                              fontWeight: 500,
-                              cursor: 'pointer',
-                              '&:hover': { 
-                                color: 'primary.main',
-                                textDecoration: 'underline'
-                              }
-                            }}
-                            onClick={() => navigate(`/soldiers/${soldier.id}`)}
-                          >
-                            {soldier.name}
-                          </Typography>
-                        </Box>
-                      </TableCell>
-                  <TableCell>{soldier.personalNumber}</TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={soldier.team} 
-                      size="small" 
-                      color="primary" 
-                      variant="outlined"
-                      sx={{ 
-                        cursor: 'pointer',
-                        '&:hover': { 
-                          bgcolor: 'primary.main',
-                          color: 'white'
-                        }
-                      }}
-                      onClick={() => {
-                        // מצא את ה-ID של הצוות לפי השם
-                        const teamId = soldier.team.replace('צוות ', '');
-                        navigate(`/teams/${teamId}`);
-                      }}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Chip label={soldier.role} size="small" color="secondary" variant="outlined" />
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                      {soldier.framework?.pluga && (
-                        <Chip label={`פלוגה: ${soldier.framework.pluga}`} size="small" color="info" variant="outlined" />
-                      )}
-                      {soldier.framework?.pelaga && (
-                        <Chip label={`פלגה: ${soldier.framework.pelaga}`} size="small" color="info" variant="outlined" />
-                      )}
-                      {soldier.framework?.miflag && (
-                        <Chip label={`מפלג: ${soldier.framework.miflag}`} size="small" color="info" variant="outlined" />
-                      )}
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                      {soldier.commanders?.mefakedTzevet && (
-                        <Chip label={`מפקד צוות: ${soldier.commanders.mefakedTzevet}`} size="small" color="warning" variant="outlined" />
-                      )}
-                      {soldier.commanders?.mefakedMiflag && (
-                        <Chip label={`מפקד מפלג: ${soldier.commanders.mefakedMiflag}`} size="small" color="warning" variant="outlined" />
-                      )}
-                      {soldier.commanders?.samal && (
-                        <Chip label={`סמ"פ: ${soldier.commanders.samal}`} size="small" color="warning" variant="outlined" />
-                      )}
-                      {soldier.commanders?.mefakedPluga && (
-                        <Chip label={`מ"פ: ${soldier.commanders.mefakedPluga}`} size="small" color="warning" variant="outlined" />
-                      )}
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={soldier.profile} 
-                      size="small" 
-                      color={getProfileColor(soldier.profile) as any}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'} 
-                      size="small" 
-                      sx={{ 
-                        bgcolor: getPresenceColor(soldier.presence),
-                        color: 'white',
-                        fontWeight: 600
-                      }}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {soldier.qualifications?.slice(0, 2).map((qual, index) => (
-                        <Chip key={index} label={qual} size="small" variant="outlined" />
-                      ))}
-                      {soldier.qualifications && soldier.qualifications.length > 2 && (
-                        <Chip label={`+${soldier.qualifications.length - 2}`} size="small" />
-                      )}
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {soldier.licenses?.map((license, index) => (
-                        <Chip key={index} label={license} size="small" color="success" variant="outlined" />
-                      ))}
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {soldier.qualifications?.includes('נהג') ? (
-                        soldier.drivingLicenses && soldier.drivingLicenses.length > 0 ? (
-                          soldier.drivingLicenses.map((license, index) => (
-                            <Chip key={index} label={license} size="small" color="warning" variant="filled" />
-                          ))
-                        ) : (
-                          <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                            אין היתרים
-                          </Typography>
-                        )
-                      ) : (
-                        <Typography variant="body2" sx={{ color: 'text.disabled' }}>
-                          לא נהג
-                        </Typography>
-                      )}
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', gap: 0.5 }}>
-                      <IconButton size="small" color="primary" onClick={() => handleOpenForm(soldier)}>
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton size="small" color="error" onClick={() => setDeleteId(soldier.id)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  </TableCell>
+                <TableRow key={soldier.id} hover>
+                  {visibleColumns.filter(col => col.visible).map((column) => {
+                    switch (column.key) {
+                      case 'name':
+                        return (
+                          <TableCell key={column.key}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Avatar sx={{ width: 32, height: 32, bgcolor: getProfileColor(soldier.profile) }}>
+                                {soldier.name.charAt(0)}
+                              </Avatar>
+                              <Typography 
+                                variant="body2" 
+                                sx={{ 
+                                  fontWeight: 500,
+                                  cursor: 'pointer',
+                                  '&:hover': { 
+                                    color: 'primary.main',
+                                    textDecoration: 'underline'
+                                  }
+                                }}
+                                onClick={() => navigate(`/soldiers/${soldier.id}`)}
+                              >
+                                {soldier.name}
+                              </Typography>
+                            </Box>
+                          </TableCell>
+                        );
+                      
+                      case 'personalNumber':
+                        return <TableCell key={column.key}>{soldier.personalNumber}</TableCell>;
+                      
+                      case 'team':
+                        return (
+                          <TableCell key={column.key}>
+                            <Chip 
+                              label={soldier.team} 
+                              size="small" 
+                              color="primary" 
+                              variant="outlined"
+                              sx={{ 
+                                cursor: 'pointer',
+                                '&:hover': { 
+                                  bgcolor: 'primary.main',
+                                  color: 'white'
+                                }
+                              }}
+                              onClick={() => {
+                                const teamId = soldier.team.replace('צוות ', '');
+                                navigate(`/teams/${teamId}`);
+                              }}
+                            />
+                          </TableCell>
+                        );
+                      
+                      case 'role':
+                        return (
+                          <TableCell key={column.key}>
+                            <Chip label={soldier.role} size="small" color="secondary" variant="outlined" />
+                          </TableCell>
+                        );
+                      
+                      case 'framework':
+                        return (
+                          <TableCell key={column.key}>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                              {soldier.framework?.pluga && (
+                                <Chip label={`פלוגה: ${soldier.framework.pluga}`} size="small" color="info" variant="outlined" />
+                              )}
+                              {soldier.framework?.pelaga && (
+                                <Chip label={`פלגה: ${soldier.framework.pelaga}`} size="small" color="info" variant="outlined" />
+                              )}
+                              {soldier.framework?.miflag && (
+                                <Chip label={`מפלג: ${soldier.framework.miflag}`} size="small" color="info" variant="outlined" />
+                              )}
+                            </Box>
+                          </TableCell>
+                        );
+                      
+                      case 'commanders':
+                        return (
+                          <TableCell key={column.key}>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                              {soldier.commanders?.mefakedTzevet && (
+                                <Chip label={`מפקד צוות: ${soldier.commanders.mefakedTzevet}`} size="small" color="warning" variant="outlined" />
+                              )}
+                              {soldier.commanders?.mefakedMiflag && (
+                                <Chip label={`מפקד מפלג: ${soldier.commanders.mefakedMiflag}`} size="small" color="warning" variant="outlined" />
+                              )}
+                              {soldier.commanders?.samal && (
+                                <Chip label={`סמ"פ: ${soldier.commanders.samal}`} size="small" color="warning" variant="outlined" />
+                              )}
+                              {soldier.commanders?.mefakedPluga && (
+                                <Chip label={`מ"פ: ${soldier.commanders.mefakedPluga}`} size="small" color="warning" variant="outlined" />
+                              )}
+                            </Box>
+                          </TableCell>
+                        );
+                      
+                      case 'profile':
+                        return (
+                          <TableCell key={column.key}>
+                            <Chip 
+                              label={soldier.profile} 
+                              size="small" 
+                              color={getProfileColor(soldier.profile) as any}
+                            />
+                          </TableCell>
+                        );
+                      
+                      case 'presence':
+                        return (
+                          <TableCell key={column.key}>
+                            <Chip 
+                              label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'} 
+                              size="small" 
+                              sx={{ 
+                                bgcolor: getPresenceColor(soldier.presence),
+                                color: 'white',
+                                fontWeight: 600
+                              }}
+                            />
+                          </TableCell>
+                        );
+                      
+                      case 'qualifications':
+                        return (
+                          <TableCell key={column.key}>
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                              {soldier.qualifications?.slice(0, 2).map((qual, index) => (
+                                <Chip key={index} label={qual} size="small" variant="outlined" />
+                              ))}
+                              {soldier.qualifications && soldier.qualifications.length > 2 && (
+                                <Chip label={`+${soldier.qualifications.length - 2}`} size="small" />
+                              )}
+                            </Box>
+                          </TableCell>
+                        );
+                      
+                      case 'licenses':
+                        return (
+                          <TableCell key={column.key}>
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                              {soldier.licenses?.map((license, index) => (
+                                <Chip key={index} label={license} size="small" color="success" variant="outlined" />
+                              ))}
+                            </Box>
+                          </TableCell>
+                        );
+                      
+                      case 'drivingLicenses':
+                        return (
+                          <TableCell key={column.key}>
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                              {soldier.qualifications?.includes('נהג') ? (
+                                soldier.drivingLicenses && soldier.drivingLicenses.length > 0 ? (
+                                  soldier.drivingLicenses.map((license, index) => (
+                                    <Chip key={index} label={license} size="small" color="warning" variant="filled" />
+                                  ))
+                                ) : (
+                                  <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                                    אין היתרים
+                                  </Typography>
+                                )
+                              ) : (
+                                <Typography variant="body2" sx={{ color: 'text.disabled' }}>
+                                  לא נהג
+                                </Typography>
+                              )}
+                            </Box>
+                          </TableCell>
+                        );
+                      
+                      case 'actions':
+                        return (
+                          <TableCell key={column.key}>
+                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                              <IconButton size="small" color="primary" onClick={() => handleOpenForm(soldier)}>
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                              <IconButton size="small" color="error" onClick={() => setDeleteId(soldier.id)}>
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Box>
+                          </TableCell>
+                        );
+                      
+                      default:
+                        return <TableCell key={column.key}></TableCell>;
+                    }
+                  })}
                 </TableRow>
               ))}
             </TableBody>
@@ -1872,6 +1976,87 @@ const Soldiers: React.FC = () => {
         onSuccess={handleFormSuccess}
         mode={editId ? 'edit' : 'add'}
       />
+
+      {/* Column Settings Dialog */}
+      <Dialog 
+        open={showColumnSettings} 
+        onClose={() => setShowColumnSettings(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <SettingsIcon />
+            <Typography>הגדרות עמודות</Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+              בחר אילו עמודות להציג בטבלה
+            </Typography>
+            
+            <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+              <Button 
+                size="small" 
+                variant="outlined"
+                onClick={() => toggleAllColumns(true)}
+              >
+                הצג הכל
+              </Button>
+              <Button 
+                size="small" 
+                variant="outlined"
+                onClick={() => toggleAllColumns(false)}
+              >
+                הסתר הכל
+              </Button>
+              <Button 
+                size="small" 
+                variant="outlined"
+                onClick={resetToDefault}
+              >
+                ברירת מחדל
+              </Button>
+            </Box>
+          </Box>
+          
+          <List sx={{ maxHeight: 400, overflow: 'auto' }}>
+            {visibleColumns.map((column) => (
+              <ListItem key={column.key} dense>
+                <ListItemIcon>
+                  <Checkbox
+                    edge="start"
+                    checked={column.visible}
+                    onChange={(e) => handleColumnVisibilityChange(column.key, e.target.checked)}
+                    tabIndex={-1}
+                    disableRipple
+                  />
+                </ListItemIcon>
+                <ListItemText 
+                  primary={column.label}
+                  sx={{ 
+                    textDecoration: column.visible ? 'none' : 'line-through',
+                    opacity: column.visible ? 1 : 0.6
+                  }}
+                />
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  {column.visible ? (
+                    <VisibilityIcon sx={{ fontSize: 16, color: 'success.main' }} />
+                  ) : (
+                    <VisibilityOffIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
+                  )}
+                </Box>
+              </ListItem>
+            ))}
+          </List>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowColumnSettings(false)}>
+            סגור
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteId} onClose={() => setDeleteId(null)}>

@@ -22,7 +22,6 @@ import {
   Divider
 } from '@mui/material';
 import {
-  Add as AddIcon,
   Delete as DeleteIcon,
   DirectionsCar as CarIcon,
   Person as PersonIcon,
@@ -33,7 +32,7 @@ import { Trip } from '../models/Trip';
 import { Vehicle } from '../models/Vehicle';
 import { Driver } from '../models/Driver';
 import { Activity } from '../models/Activity';
-import { getAllTrips, addTrip, updateTrip, deleteTrip, checkAvailability } from '../services/tripService';
+import { getAllTrips, updateTrip, deleteTrip } from '../services/tripService';
 import { getAllVehicles } from '../services/vehicleService';
 import { getAllSoldiers } from '../services/soldierService';
 
@@ -54,21 +53,9 @@ const TripManagement: React.FC<TripManagementProps> = ({
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showNewTripForm, setShowNewTripForm] = useState(false);
   const [showExistingTrips, setShowExistingTrips] = useState(false);
   const [selectedTripId, setSelectedTripId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  
-  // נתונים לטופס נסיעה חדשה
-  const [newTripData, setNewTripData] = useState({
-    vehicleId: '',
-    driverId: '',
-    location: '',
-    departureTime: '',
-    returnTime: '',
-    purpose: '',
-    status: 'מתוכננת' as 'מתוכננת' | 'בביצוע' | 'הסתיימה' | 'בוטלה'
-  });
 
   useEffect(() => {
     if (open) {
@@ -104,86 +91,7 @@ const TripManagement: React.FC<TripManagementProps> = ({
     }
   };
 
-  const handleAddNewTrip = async () => {
-    try {
-      // בדיקת זמינות אם יש רכב ונהג
-      if (newTripData.vehicleId && newTripData.driverId && newTripData.departureTime && newTripData.returnTime) {
-        const availability = await checkAvailability(
-          newTripData.vehicleId,
-          newTripData.driverId,
-          newTripData.departureTime,
-          newTripData.returnTime
-        );
-        
-        if (!availability.isAvailable) {
-          setError('הרכב או הנהג כבר משובץ לנסיעה אחרת בזמן זה');
-          return;
-        }
-      }
 
-      const selectedVehicle = vehicles.find(v => v.id === newTripData.vehicleId);
-      const selectedDriver = drivers.find(d => d.id === newTripData.driverId);
-
-      // יצירת אובייקט נסיעה ללא ערכים undefined (Firebase לא תומך בהם)
-      const tripData: any = {
-        location: newTripData.location,
-        purpose: newTripData.purpose,
-        status: newTripData.status,
-        linkedActivityId: activity.id
-      };
-
-      // הוספת שדות אופציונליים רק אם יש להם ערכים
-      if (newTripData.vehicleId && newTripData.vehicleId.trim()) {
-        tripData.vehicleId = newTripData.vehicleId;
-        if (selectedVehicle?.number) {
-          tripData.vehicleNumber = selectedVehicle.number;
-        }
-      }
-
-      if (newTripData.driverId && newTripData.driverId.trim()) {
-        tripData.driverId = newTripData.driverId;
-        if (selectedDriver?.name) {
-          tripData.driverName = selectedDriver.name;
-        }
-      }
-
-      if (newTripData.departureTime && newTripData.departureTime.trim()) {
-        tripData.departureTime = newTripData.departureTime;
-      }
-
-      if (newTripData.returnTime && newTripData.returnTime.trim()) {
-        tripData.returnTime = newTripData.returnTime;
-      }
-
-      await addTrip(tripData);
-      
-            // עדכון שדה הניוד בפעילות
-      const mobilityText = selectedVehicle && selectedDriver
-        ? `רכב ${selectedVehicle.number}, נהג: ${selectedDriver.name}`     
-        : 'ללא ניוד';
-      
-      const updatedActivity = {
-        ...activity,
-        mobility: mobilityText
-      };
-      onActivityUpdate(updatedActivity);
-      
-      setShowNewTripForm(false);
-      setNewTripData({
-        vehicleId: '',
-        driverId: '',
-        location: '',
-        departureTime: '',
-        returnTime: '',
-        purpose: '',
-        status: 'מתוכננת'
-      });
-      loadData();
-    } catch (error) {
-      console.error('שגיאה בהוספת נסיעה:', error);
-      setError('שגיאה בהוספת נסיעה');
-    }
-  };
 
   const handleLinkExistingTrip = async () => {
     if (!selectedTripId) {
@@ -380,13 +288,6 @@ const TripManagement: React.FC<TripManagementProps> = ({
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Button
               variant="outlined"
-              startIcon={<AddIcon />}
-              onClick={() => setShowNewTripForm(true)}
-            >
-              יצירת נסיעה חדשה
-            </Button>
-            <Button
-              variant="outlined"
               onClick={() => setShowExistingTrips(true)}
             >
               קישור נסיעה קיימת
@@ -394,90 +295,7 @@ const TripManagement: React.FC<TripManagementProps> = ({
           </Box>
         </Box>
 
-        {/* טופס נסיעה חדשה */}
-        {showNewTripForm && (
-          <Box sx={{ mt: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
-            <Typography variant="h6" gutterBottom>
-              יצירת נסיעה חדשה
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <FormControl fullWidth>
-                  <InputLabel>רכב</InputLabel>
-                  <Select
-                    value={newTripData.vehicleId}
-                    onChange={(e) => setNewTripData(prev => ({ ...prev, vehicleId: e.target.value }))}
-                    label="רכב"
-                  >
-                    <MenuItem value="">ללא רכב</MenuItem>
-                    {vehicles.map(vehicle => (
-                      <MenuItem key={vehicle.id} value={vehicle.id}>
-                        {vehicle.number} - {vehicle.type} ({vehicle.seats} מקומות)
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                <FormControl fullWidth>
-                  <InputLabel>נהג</InputLabel>
-                  <Select
-                    value={newTripData.driverId}
-                    onChange={(e) => setNewTripData(prev => ({ ...prev, driverId: e.target.value }))}
-                    label="נהג"
-                  >
-                    <MenuItem value="">ללא נהג</MenuItem>
-                    {drivers.map(driver => (
-                      <MenuItem key={driver.id} value={driver.id}>
-                        {driver.name} - {driver.role}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Box>
-              <TextField
-                fullWidth
-                label="מיקום"
-                value={newTripData.location}
-                onChange={(e) => setNewTripData(prev => ({ ...prev, location: e.target.value }))}
-                required
-              />
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <TextField
-                  fullWidth
-                  label="זמן יציאה"
-                  type="datetime-local"
-                  value={newTripData.departureTime}
-                  onChange={(e) => setNewTripData(prev => ({ ...prev, departureTime: e.target.value }))}
-                  InputLabelProps={{ shrink: true }}
-                />
-                <TextField
-                  fullWidth
-                  label="זמן חזרה"
-                  type="datetime-local"
-                  value={newTripData.returnTime}
-                  onChange={(e) => setNewTripData(prev => ({ ...prev, returnTime: e.target.value }))}
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Box>
-              <TextField
-                fullWidth
-                label="מטרת הנסיעה"
-                value={newTripData.purpose}
-                onChange={(e) => setNewTripData(prev => ({ ...prev, purpose: e.target.value }))}
-                required
-                multiline
-                rows={3}
-              />
-            </Box>
-            <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
-              <Button variant="contained" onClick={handleAddNewTrip}>
-                הוסף נסיעה
-              </Button>
-              <Button variant="outlined" onClick={() => setShowNewTripForm(false)}>
-                ביטול
-              </Button>
-            </Box>
-          </Box>
-        )}
+
 
         {/* בחירת נסיעה קיימת */}
         {showExistingTrips && (

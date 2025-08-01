@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
 import { Activity, ActivityDeliverable } from '../models/Activity';
+import { Trip } from '../models/Trip';
 import { getActivityById, addActivityDeliverable, updateActivityStatus } from '../services/activityService';
-import { addTrip } from '../services/tripService';
-import { getAllVehicles } from '../services/vehicleService';
-import { getAllSoldiers } from '../services/soldierService';
+import { getAllTrips } from '../services/tripService';
+
 import TripManagement from '../components/TripManagement';
 import {
   Container,
@@ -48,9 +48,7 @@ import {
   Description as DescriptionIcon,
   Image as ImageIcon
 } from '@mui/icons-material';
-import { Trip } from '../models/Trip';
-import { Vehicle } from '../models/Vehicle';
-import { Soldier } from '../models/Soldier';
+
 
 const ActivityDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -60,24 +58,7 @@ const ActivityDetails: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showDeliverablesDialog, setShowDeliverablesDialog] = useState(false);
   const [showTripManagement, setShowTripManagement] = useState(false);
-  const [showNewTripDialog, setShowNewTripDialog] = useState(false);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [soldiers, setSoldiers] = useState<Soldier[]>([]);
-  const [newTrip, setNewTrip] = useState<{
-    vehicleId: string;
-    driverId: string;
-    departureTime: string;
-    returnTime: string;
-    destination: string;
-    purpose: string;
-  }>({
-    vehicleId: '',
-    driverId: '',
-    departureTime: '',
-    returnTime: '',
-    destination: '',
-    purpose: ''
-  });
+  const [trips, setTrips] = useState<Trip[]>([]);
   const [newDeliverable, setNewDeliverable] = useState<{
     type: 'text' | 'image';
     title: string;
@@ -98,21 +79,19 @@ const ActivityDetails: React.FC = () => {
   }, [id]);
 
   useEffect(() => {
-    // Load vehicles and soldiers for trip creation
-    const loadData = async () => {
+    // Load trips for mobility display
+    const loadTrips = async () => {
       try {
-        const [vehiclesData, soldiersData] = await Promise.all([
-          getAllVehicles(),
-          getAllSoldiers()
-        ]);
-        setVehicles(vehiclesData);
-        setSoldiers(soldiersData);
+        const tripsData = await getAllTrips();
+        setTrips(tripsData);
       } catch (error) {
-        console.error('Error loading data for trip creation:', error);
+        console.error('Error loading trips:', error);
       }
     };
-    loadData();
+    loadTrips();
   }, []);
+
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -122,6 +101,37 @@ const ActivityDetails: React.FC = () => {
       case 'בוטלה': return 'error';
       default: return 'default';
     }
+  };
+
+  const formatMobilityDisplay = (mobility: string) => {
+    if (!mobility) return '';
+    
+    // אם זה מכיל TRIP_ID, נמיר לתצוגת נסיעות
+    if (mobility.includes('TRIP_ID:')) {
+      const tripIds = mobility.split(';').map(id => id.replace('TRIP_ID:', '').trim());
+      const tripDetails = tripIds
+        .map(tripId => {
+          const trip = trips.find(t => t.id === tripId);
+          if (!trip) return null;
+          
+          if (trip.vehicleNumber && trip.driverName) {
+            return `רכב ${trip.vehicleNumber}, נהג: ${trip.driverName}`;
+          } else if (trip.vehicleNumber) {
+            return `רכב ${trip.vehicleNumber}`;
+          } else if (trip.driverName) {
+            return `נהג: ${trip.driverName}`;
+          } else {
+            return trip.purpose || 'נסיעה ללא פרטים';
+          }
+        })
+        .filter(Boolean)
+        .join(' | ');
+      
+      return tripDetails || 'נסיעות';
+    }
+    
+    // אחרת, החזר כמו שזה
+    return mobility;
   };
 
   const handleEdit = () => {
@@ -177,62 +187,7 @@ const ActivityDetails: React.FC = () => {
     }
   };
 
-  const handleCreateNewTrip = async () => {
-    if (!activity || !newTrip.vehicleId || !newTrip.driverId || !newTrip.departureTime || !newTrip.returnTime || !newTrip.destination || !newTrip.purpose) {
-      return;
-    }
 
-    try {
-      // יצירת אובייקט נסיעה ללא ערכים ריקים/undefined (Firebase לא תומך)
-      const tripData: any = {
-        linkedActivityId: activity.id,
-        purpose: newTrip.purpose || '',
-        status: 'מתוכננת' as const,
-        location: newTrip.destination || ''
-      };
-
-      // הוספת שדות אופציונליים רק אם יש להם ערכים תקינים
-      if (newTrip.vehicleId && newTrip.vehicleId.trim()) {
-        tripData.vehicleId = newTrip.vehicleId;
-      }
-
-      if (newTrip.driverId && newTrip.driverId.trim()) {
-        tripData.driverId = newTrip.driverId;
-      }
-
-      if (newTrip.departureTime && newTrip.departureTime.trim()) {
-        tripData.departureTime = newTrip.departureTime;
-      }
-
-      if (newTrip.returnTime && newTrip.returnTime.trim()) {
-        tripData.returnTime = newTrip.returnTime;
-      }
-
-      if (newTrip.destination && newTrip.destination.trim()) {
-        tripData.destination = newTrip.destination;
-      }
-
-      await addTrip(tripData);
-      
-      // Reset form
-      setNewTrip({
-        vehicleId: '',
-        driverId: '',
-        departureTime: '',
-        returnTime: '',
-        destination: '',
-        purpose: ''
-      });
-      
-      setShowNewTripDialog(false);
-      
-      // Show success message
-      alert('הנסיעה נוצרה בהצלחה!');
-    } catch (error) {
-      console.error('Error creating trip:', error);
-      alert('שגיאה ביצירת הנסיעה');
-    }
-  };
 
   if (loading) {
     return (
@@ -345,25 +300,15 @@ const ActivityDetails: React.FC = () => {
                 </Box>
               </Box>
 
-              {/* Mobility Section with New Trip Button */}
+              {/* Mobility Section */}
               <Box sx={{ mt: 3, p: 2, border: '1px solid #e0e0e0', borderRadius: 1, bgcolor: '#fafafa' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <DirectionsCarIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                    <Typography variant="h6">ניוד</Typography>
-                  </Box>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<DirectionsCarIcon />}
-                    onClick={() => setShowNewTripDialog(true)}
-                  >
-                    יצירת נסיעה חדשה
-                  </Button>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                  <DirectionsCarIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                  <Typography variant="h6">ניוד</Typography>
                 </Box>
                 
                 {activity.mobility ? (
-                  <Typography variant="body1">{activity.mobility}</Typography>
+                  <Typography variant="body1">{formatMobilityDisplay(activity.mobility)}</Typography>
                 ) : (
                   <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
                     לא הוגדר ניוד לפעילות זו
@@ -531,98 +476,7 @@ const ActivityDetails: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* New Trip Creation Dialog */}
-      <Dialog 
-        open={showNewTripDialog} 
-        onClose={() => setShowNewTripDialog(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>יצירת נסיעה חדשה</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              נסיעה עבור פעילות: {activity.name}
-            </Typography>
-            
-            <FormControl fullWidth>
-              <InputLabel>רכב</InputLabel>
-              <Select
-                value={newTrip.vehicleId}
-                label="רכב"
-                onChange={(e) => setNewTrip(prev => ({ ...prev, vehicleId: e.target.value }))}
-              >
-                {vehicles.map(vehicle => (
-                  <MenuItem key={vehicle.id} value={vehicle.id}>
-                    {vehicle.number} - {vehicle.type}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
 
-            <FormControl fullWidth>
-              <InputLabel>נהג</InputLabel>
-              <Select
-                value={newTrip.driverId}
-                label="נהג"
-                onChange={(e) => setNewTrip(prev => ({ ...prev, driverId: e.target.value }))}
-              >
-                {soldiers.filter(soldier => soldier.licenses?.includes('C')).map(soldier => (
-                  <MenuItem key={soldier.id} value={soldier.id}>
-                    {soldier.name} - {soldier.personalNumber}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <TextField
-              label="יעד"
-              value={newTrip.destination}
-              onChange={(e) => setNewTrip(prev => ({ ...prev, destination: e.target.value }))}
-              fullWidth
-            />
-
-            <TextField
-              label="מטרת הנסיעה"
-              value={newTrip.purpose}
-              onChange={(e) => setNewTrip(prev => ({ ...prev, purpose: e.target.value }))}
-              multiline
-              rows={2}
-              fullWidth
-            />
-
-            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-              <TextField
-                label="שעת יציאה"
-                type="datetime-local"
-                value={newTrip.departureTime}
-                onChange={(e) => setNewTrip(prev => ({ ...prev, departureTime: e.target.value }))}
-                InputLabelProps={{ shrink: true }}
-                fullWidth
-              />
-
-              <TextField
-                label="שעת חזרה"
-                type="datetime-local"
-                value={newTrip.returnTime}
-                onChange={(e) => setNewTrip(prev => ({ ...prev, returnTime: e.target.value }))}
-                InputLabelProps={{ shrink: true }}
-                fullWidth
-              />
-            </Box>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowNewTripDialog(false)}>ביטול</Button>
-          <Button 
-            onClick={handleCreateNewTrip}
-            variant="contained"
-            disabled={!newTrip.vehicleId || !newTrip.driverId || !newTrip.departureTime || !newTrip.returnTime || !newTrip.destination || !newTrip.purpose}
-          >
-            צור נסיעה
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Trip Management Dialog */}
       {activity && (
