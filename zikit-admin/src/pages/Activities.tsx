@@ -9,6 +9,7 @@ import { getAllActivities, addActivity, updateActivity, deleteActivity } from '.
 import { getAllSoldiers, updateSoldier } from '../services/soldierService';
 import { getAllVehicles } from '../services/vehicleService';
 import { getAllTrips, updateTrip } from '../services/tripService';
+import TripManagement from '../components/TripManagement';
 import {
   Container,
   Typography,
@@ -107,6 +108,7 @@ const Activities: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterActivityType, setFilterActivityType] = useState<string>('');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [showTripManagement, setShowTripManagement] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -364,14 +366,17 @@ const Activities: React.FC = () => {
   const handleUpdateParticipantRole = (soldierId: string, role: string) => {
     // בדיקה אם זה המפקד - לא ניתן לערוך את התפקיד שלו
     if (soldierId === formData.commanderId) {
-      alert('לא ניתן לערוך את תפקיד מפקד הפעילות. התפקיד נקבע אוטומטית.');
+      return;
+    }
+    
+    // בדיקה אם זה מוביל משימה - לא ניתן לערוך את התפקיד שלו
+    if (soldierId === formData.taskLeaderId) {
       return;
     }
     
     // בדיקה אם זה נהג - לא ניתן לערוך את התפקיד שלו
     const participant = formData.participants.find(p => p.soldierId === soldierId);
-    if (participant && participant.role === 'נהג') {
-      alert('לא ניתן לערוך את תפקיד הנהג. התפקיד נקבע אוטומטית.');
+    if (participant && participant.role.includes('נהג')) {
       return;
     }
     
@@ -386,14 +391,17 @@ const Activities: React.FC = () => {
   const handleRemoveParticipant = async (soldierId: string) => {
     // בדיקה אם זה המפקד - לא ניתן למחוק אותו
     if (soldierId === formData.commanderId) {
-      alert('לא ניתן למחוק את מפקד הפעילות. יש לשנות את המפקד דרך שדה "מפקד הפעילות".');
+      return;
+    }
+    
+    // בדיקה אם זה מוביל משימה - לא ניתן למחוק אותו
+    if (soldierId === formData.taskLeaderId) {
       return;
     }
     
     // בדיקה אם זה נהג - לא ניתן למחוק אותו דרך הממשק
     const participant = formData.participants.find(p => p.soldierId === soldierId);
-    if (participant && participant.role === 'נהג') {
-      alert('לא ניתן למחוק נהג דרך הממשק. יש להסיר את הנסיעה מהניוד כדי להסיר את הנהג.');
+    if (participant && participant.role.includes('נהג')) {
       return;
     }
     
@@ -417,21 +425,6 @@ const Activities: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // ולידציה - בדיקה אם כל השדות מלאים
-    const isComplete = formData.name && 
-                      formData.team && 
-                      formData.location && 
-                      formData.plannedDate && 
-                      formData.plannedTime && 
-                      formData.commanderId && 
-                      formData.taskLeaderId && 
-                      formData.participants.length > 0;
-    
-    if (!isComplete) {
-      alert('יש למלא את כל השדות החובה בפעילות');
-      return;
-    }
     
     try {
       let activityId: string;
@@ -457,11 +450,16 @@ const Activities: React.FC = () => {
           if (!driverExists) {
             const driver = soldiers.find(s => s.id === trip.driverId);
             if (driver) {
+              // מציאת סוג הרכב
+              const vehicle = vehicles.find(v => v.id === trip.vehicleId);
+              const vehicleType = vehicle ? vehicle.type : '';
+              const roleText = vehicleType ? `נהג ${vehicleType}` : 'נהג';
+              
               updatedParticipants.push({
                 soldierId: trip.driverId,
                 soldierName: trip.driverName,
                 personalNumber: driver.personalNumber,
-                role: 'נהג'
+                role: roleText
               });
               driversToUpdate.push(trip.driverId);
             }
@@ -551,6 +549,37 @@ const Activities: React.FC = () => {
     }
   };
 
+  const formatMobilityDisplay = (mobility: string) => {
+    if (!mobility) return '';
+    
+    // אם זה מכיל TRIP_ID, נמיר לתצוגת נסיעות
+    if (mobility.includes('TRIP_ID:')) {
+      const tripIds = mobility.split(';').map(id => id.replace('TRIP_ID:', '').trim());
+      const tripDetails = tripIds
+        .map(tripId => {
+          const trip = trips.find(t => t.id === tripId);
+          if (!trip) return null;
+          
+          if (trip.vehicleNumber && trip.driverName) {
+            return `רכב ${trip.vehicleNumber}, נהג: ${trip.driverName}`;
+          } else if (trip.vehicleNumber) {
+            return `רכב ${trip.vehicleNumber}`;
+          } else if (trip.driverName) {
+            return `נהג: ${trip.driverName}`;
+          } else {
+            return trip.purpose || 'נסיעה ללא פרטים';
+          }
+        })
+        .filter(Boolean)
+        .join(' | ');
+      
+      return tripDetails || 'נסיעות';
+    }
+    
+    // אחרת, החזר כמו שזה
+    return mobility;
+  };
+
   const isActivityComplete = (activity: Activity) => {
     return activity.name && 
            activity.team && 
@@ -559,7 +588,8 @@ const Activities: React.FC = () => {
            activity.plannedTime && 
            activity.commanderId && 
            activity.taskLeaderId && 
-           activity.participants.length > 0;
+           activity.participants.length > 0 &&
+           activity.mobility; // בדיקה שיש ניוד משובץ
   };
 
   const filteredActivities = activities.filter(activity => {
@@ -739,7 +769,7 @@ const Activities: React.FC = () => {
                   {activity.mobility && (
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                       <DirectionsCarIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                      <Typography variant="body2">ניוד: {activity.mobility}</Typography>
+                      <Typography variant="body2">ניוד: {formatMobilityDisplay(activity.mobility)}</Typography>
                     </Box>
                   )}
                 </Box>
@@ -850,7 +880,7 @@ const Activities: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">
-                      {activity.mobility || '-'}
+                      {activity.mobility ? formatMobilityDisplay(activity.mobility) : '-'}
                     </Typography>
                   </TableCell>
                   <TableCell>
@@ -917,7 +947,6 @@ const Activities: React.FC = () => {
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
-                  required
                 />
               </Box>
               <Box>
@@ -928,7 +957,6 @@ const Activities: React.FC = () => {
                     value={formData.team}
                     onChange={(e) => handleSelectChange('team', e.target.value)}
                     label="צוות"
-                    required
                   >
                     {teams.map(team => (
                       <MenuItem key={team} value={team}>{team}</MenuItem>
@@ -943,7 +971,6 @@ const Activities: React.FC = () => {
                   name="location"
                   value={formData.location}
                   onChange={handleChange}
-                  required
                 />
               </Box>
               <Box>
@@ -954,7 +981,6 @@ const Activities: React.FC = () => {
                     value={formData.region}
                     onChange={(e) => handleSelectChange('region', e.target.value)}
                     label="חטמר"
-                    required
                   >
                     {regions.map(region => (
                       <MenuItem key={region} value={region}>{region}</MenuItem>
@@ -970,7 +996,6 @@ const Activities: React.FC = () => {
                     value={formData.activityType}
                     onChange={(e) => handleSelectChange('activityType', e.target.value)}
                     label="סוג פעילות"
-                    required
                   >
                     {activityTypes.map(type => (
                       <MenuItem key={type} value={type}>{type}</MenuItem>
@@ -980,14 +1005,13 @@ const Activities: React.FC = () => {
               </Box>
               {formData.activityType === 'אחר' && (
                 <Box>
-                  <TextField
-                    fullWidth
-                    label="פירוט סוג פעילות"
-                    name="activityTypeOther"
-                    value={formData.activityTypeOther}
-                    onChange={handleChange}
-                    required
-                  />
+                                  <TextField
+                  fullWidth
+                  label="פירוט סוג פעילות"
+                  name="activityTypeOther"
+                  value={formData.activityTypeOther}
+                  onChange={handleChange}
+                />
                 </Box>
               )}
               <Box>
@@ -998,7 +1022,6 @@ const Activities: React.FC = () => {
                   type="date"
                   value={formData.plannedDate}
                   onChange={handleChange}
-                  required
                   InputLabelProps={{ shrink: true }}
                 />
               </Box>
@@ -1010,7 +1033,6 @@ const Activities: React.FC = () => {
                   type="time"
                   value={formData.plannedTime}
                   onChange={handleChange}
-                  required
                   InputLabelProps={{ shrink: true }}
                 />
               </Box>
@@ -1022,7 +1044,6 @@ const Activities: React.FC = () => {
                   type="number"
                   value={formData.duration}
                   onChange={handleChange}
-                  required
                   inputProps={{ min: 1, max: 24 }}
                 />
               </Box>
@@ -1034,7 +1055,7 @@ const Activities: React.FC = () => {
                 value={soldiers.find(s => s.id === formData.commanderId) || null}
                 onChange={(_, newValue) => handleCommanderSelect(newValue)}
                 renderInput={(params) => (
-                  <TextField {...params} label="מפקד הפעילות" required />
+                  <TextField {...params} label="מפקד הפעילות" />
                 )}
               />
             </Box>
@@ -1050,7 +1071,17 @@ const Activities: React.FC = () => {
               />
             </Box>
             <Box sx={{ mt: 2 }}>
-              <Typography variant="h6" gutterBottom>ניוד</Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6" gutterBottom>ניוד</Typography>
+                <Button
+                  variant="outlined"
+                  startIcon={<AddIcon />}
+                  onClick={() => setShowTripManagement(true)}
+                  size="small"
+                >
+                  ניהול נסיעות
+                </Button>
+              </Box>
               <FormControl fullWidth>
                 <InputLabel>בחר נסיעות</InputLabel>
                 <Select
@@ -1086,11 +1117,16 @@ const Activities: React.FC = () => {
                         if (!driverExists) {
                           const driver = soldiers.find(s => s.id === trip.driverId);
                           if (driver) {
+                            // מציאת סוג הרכב
+                            const vehicle = vehicles.find(v => v.id === trip.vehicleId);
+                            const vehicleType = vehicle ? vehicle.type : '';
+                            const roleText = vehicleType ? `נהג ${vehicleType}` : 'נהג';
+                            
                             updatedParticipants.push({
                               soldierId: trip.driverId,
                               soldierName: trip.driverName,
                               personalNumber: driver.personalNumber,
-                              role: 'נהג'
+                              role: roleText
                             });
                           }
                         }
@@ -1107,7 +1143,7 @@ const Activities: React.FC = () => {
                   }}
                   label="בחר נסיעות"
                 >
-                  {trips.filter(trip => !trip.linkedActivityId && !selectedTripIds.includes(trip.id)).map(trip => (
+                  {trips.filter(trip => (!trip.linkedActivityId || trip.linkedActivityId === editId) && !selectedTripIds.includes(trip.id)).map(trip => (
                     <MenuItem key={trip.id} value={trip.id}>
                       <Box>
                         <Typography variant="body2" fontWeight="bold">
@@ -1132,20 +1168,33 @@ const Activities: React.FC = () => {
                   ))}
                 </Select>
               </FormControl>
-              {formData.mobility && (
+              {selectedTripIds.length > 0 && (
                 <Box sx={{ mt: 1 }}>
                   <Typography variant="body2" color="textSecondary" gutterBottom>
                     נסיעות נבחרות:
                   </Typography>
-                  {formData.mobility.split(';').map(tripId => {
-                    const trip = trips.find(t => t.id === tripId.replace('TRIP_ID:', ''));
+                  {selectedTripIds.map(tripId => {
+                    const trip = trips.find(t => t.id === tripId);
                     if (!trip) return null;
                     
                     return (
-                      <Box key={trip.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                        <Typography variant="body2">
-                          {trip.purpose} ({trip.vehicleNumber || 'ללא רכב'})
-                        </Typography>
+                      <Box key={trip.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, p: 1, border: '1px solid #e0e0e0', borderRadius: 1 }}>
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="body2" fontWeight="bold">
+                            {trip.purpose}
+                          </Typography>
+                          <Typography variant="caption" color="textSecondary">
+                            {trip.vehicleNumber && trip.driverName 
+                              ? `רכב ${trip.vehicleNumber}, נהג: ${trip.driverName}`
+                              : 'ללא רכב ונהג'
+                            }
+                          </Typography>
+                          {trip.departureTime && trip.returnTime && (
+                            <Typography variant="caption" color="textSecondary" display="block">
+                              {new Date(trip.departureTime).toLocaleString('he-IL')} - {new Date(trip.returnTime).toLocaleString('he-IL')}
+                            </Typography>
+                          )}
+                        </Box>
                         <IconButton
                           size="small"
                           onClick={async () => {
@@ -1165,12 +1214,12 @@ const Activities: React.FC = () => {
                             
                             // הסרת הנהג מהמשתתפים אם הוא קיים
                             const driverParticipant = formData.participants.find(p => 
-                              p.soldierId === trip.driverId && p.role === 'נהג'
+                              p.soldierId === trip.driverId && p.role.includes('נהג')
                             );
                             
                             if (driverParticipant) {
                               const updatedParticipants = formData.participants.filter(p => 
-                                !(p.soldierId === trip.driverId && p.role === 'נהג')
+                                !(p.soldierId === trip.driverId && p.role.includes('נהג'))
                               );
                               
                               setFormData(prev => ({
@@ -1223,9 +1272,11 @@ const Activities: React.FC = () => {
               </Box>
               <List dense>
                 {formData.participants.map((participant) => {
-                  // בדיקה אם זה המפקד
+                  // בדיקה אם זה המפקד, מוביל משימה או נהג
                   const isCommander = participant.soldierId === formData.commanderId;
-                  const isReadOnly = isCommander;
+                  const isTaskLeader = participant.soldierId === formData.taskLeaderId;
+                  const isDriver = participant.role.includes('נהג');
+                  const isReadOnly = isCommander || isTaskLeader || isDriver;
                   
                   return (
                     <ListItem key={participant.soldierId}>
@@ -1243,37 +1294,42 @@ const Activities: React.FC = () => {
                                 variant="outlined"
                               />
                             )}
-
+                            {isTaskLeader && (
+                              <Chip 
+                                label="מוביל משימה" 
+                                size="small" 
+                                color="secondary" 
+                                variant="outlined"
+                              />
+                            )}
+                            {isDriver && (
+                              <Chip 
+                                label="נהג" 
+                                size="small" 
+                                color="info" 
+                                variant="outlined"
+                              />
+                            )}
                           </Box>
                         }
                         secondary={`${participant.personalNumber} - ${participant.role}`}
                       />
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         {isReadOnly ? (
-                          // קריאה בלבד למפקד ונהג
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <TextField
-                              size="small"
-                              placeholder="תפקיד בפעילות"
-                              value={participant.role}
-                              disabled
-                              sx={{ 
-                                minWidth: 150,
-                                '& .MuiInputBase-input.Mui-disabled': {
-                                  color: 'text.primary',
-                                  WebkitTextFillColor: 'text.primary'
-                                }
-                              }}
-                            />
-                            {participant.role === 'נהג' && (
-                              <Chip 
-                                label="נהג" 
-                                size="small" 
-                                color="secondary" 
-                                variant="outlined"
-                              />
-                            )}
-                          </Box>
+                          // קריאה בלבד למפקד, מוביל משימה ונהג
+                          <TextField
+                            size="small"
+                            placeholder="תפקיד בפעילות"
+                            value={participant.role}
+                            disabled
+                            sx={{ 
+                              minWidth: 150,
+                              '& .MuiInputBase-input.Mui-disabled': {
+                                color: 'text.primary',
+                                WebkitTextFillColor: 'text.primary'
+                              }
+                            }}
+                          />
                         ) : (
                           // עריכה רגילה למשתתפים אחרים
                           <>
@@ -1301,13 +1357,12 @@ const Activities: React.FC = () => {
             <Box sx={{ mt: 2 }}>
               <FormControl fullWidth>
                 <InputLabel>סטטוס</InputLabel>
-                <Select
-                  name="status"
-                  value={formData.status}
-                  onChange={(e) => handleSelectChange('status', e.target.value)}
-                  label="סטטוס"
-                  required
-                >
+                                  <Select
+                    name="status"
+                    value={formData.status}
+                    onChange={(e) => handleSelectChange('status', e.target.value)}
+                    label="סטטוס"
+                  >
                   {statuses.map(status => (
                     <MenuItem key={status} value={status}>{status}</MenuItem>
                   ))}
@@ -1337,6 +1392,22 @@ const Activities: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Trip Management Dialog */}
+      {editId && (
+        <TripManagement
+          open={showTripManagement}
+          onClose={() => setShowTripManagement(false)}
+          activity={activities.find(a => a.id === editId) || formData as Activity}
+          onActivityUpdate={(updatedActivity) => {
+            setFormData(prev => ({
+              ...prev,
+              mobility: updatedActivity.mobility
+            }));
+            refresh();
+          }}
+        />
+      )}
     </Container>
   );
 };
