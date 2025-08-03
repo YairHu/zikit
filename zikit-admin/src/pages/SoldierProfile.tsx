@@ -156,7 +156,7 @@ const SoldierProfile: React.FC = () => {
             פרופיל חייל
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            {soldier.name} • {soldier.personalNumber} • {soldier.team}
+            {soldier.name} • {soldier.personalNumber}
           </Typography>
         </Box>
         {user && (user.role === 'mefaked_tzevet' || user.role === 'mefaked_pluga' || user.role === 'admin') && (
@@ -208,7 +208,7 @@ const SoldierProfile: React.FC = () => {
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography variant="body2" color="text.secondary">צוות:</Typography>
-                    <Typography variant="body2" fontWeight="bold">{soldier.team}</Typography>
+                    <Typography variant="body2" fontWeight="bold">{soldier.frameworkId || 'לא שויך למסגרת'}</Typography>
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography variant="body2" color="text.secondary">תפקיד:</Typography>

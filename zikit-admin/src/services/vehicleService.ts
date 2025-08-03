@@ -1,7 +1,7 @@
 import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Vehicle } from '../models/Vehicle';
-import { mockGetAllVehicles, mockAddVehicle, mockUpdateVehicle, mockDeleteVehicle } from './mockDatabase';
+// Temporary: return empty arrays for mock functions
 
 const vehiclesCollection = collection(db, 'vehicles');
 
@@ -10,7 +10,7 @@ const USE_MOCK = false;
 
 export const getAllVehicles = async (): Promise<Vehicle[]> => {
   if (USE_MOCK) {
-    return mockGetAllVehicles();
+    return [];
   }
   
   const snapshot = await getDocs(vehiclesCollection);
@@ -24,7 +24,7 @@ export const getVehicleById = async (id: string): Promise<Vehicle | null> => {
 
 export const addVehicle = async (vehicle: Omit<Vehicle, 'id'>): Promise<string> => {
   if (USE_MOCK) {
-    return mockAddVehicle(vehicle);
+    return '';
   }
   
   const docRef = await addDoc(vehiclesCollection, vehicle);
@@ -33,7 +33,7 @@ export const addVehicle = async (vehicle: Omit<Vehicle, 'id'>): Promise<string> 
 
 export const updateVehicle = async (id: string, vehicle: Partial<Vehicle>) => {
   if (USE_MOCK) {
-    return mockUpdateVehicle(id, vehicle);
+    return undefined;
   }
   
   await updateDoc(doc(vehiclesCollection, id), vehicle);
@@ -41,7 +41,7 @@ export const updateVehicle = async (id: string, vehicle: Partial<Vehicle>) => {
 
 export const deleteVehicle = async (id: string) => {
   if (USE_MOCK) {
-    return mockDeleteVehicle(id);
+    return undefined;
   }
   
   await deleteDoc(doc(vehiclesCollection, id));

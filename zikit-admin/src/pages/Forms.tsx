@@ -116,9 +116,9 @@ const Forms: React.FC = () => {
     }
   ];
   const demoSoldiers: Soldier[] = [
-    { id: 'mefaked_pluga', name: 'מפקד פלוגה', personalNumber: '1000001', team: 'מפקדה', role: 'מפקד פלוגה', profile: '97', qualifications: ['פיקוד', 'ניווט', 'קשר'], licenses: ['B', 'C'], certifications: ['קורס מפקדי פלוגות'] },
-    { id: 'samal_pluga', name: 'סגן מפקד פלוגה', personalNumber: '1000002', team: 'מפקדה', role: 'סגן מפקד פלוגה', profile: '97', qualifications: ['פיקוד', 'ניווט', 'קשר'], licenses: ['B', 'C'], certifications: ['קורס מפקדי צוותים'] },
-    { id: 'mefaked_tzevet_10', name: 'מפקד צוות 10', personalNumber: '1000015', team: 'צוות 10', role: 'מפקד צוות', profile: '97', qualifications: ['פיקוד', 'ניווט', 'קשר'], licenses: ['B'], certifications: ['קורס מפקדי צוותים'] }
+    { id: 'mefaked_pluga', name: 'מפקד פלוגה', personalNumber: '1000001', frameworkId: '1', role: 'מפקד פלוגה', profile: '97', qualifications: ['פיקוד', 'ניווט', 'קשר'], licenses: ['B', 'C'], certifications: ['קורס מפקדי פלוגות'] },
+    { id: 'samal_pluga', name: 'סגן מפקד פלוגה', personalNumber: '1000002', frameworkId: '1', role: 'סגן מפקד פלוגה', profile: '97', qualifications: ['פיקוד', 'ניווט', 'קשר'], licenses: ['B', 'C'], certifications: ['קורס מפקדי צוותים'] },
+    { id: 'mefaked_tzevet_10', name: 'מפקד צוות 10', personalNumber: '1000015', frameworkId: '2', role: 'מפקד צוות', profile: '97', qualifications: ['פיקוד', 'ניווט', 'קשר'], licenses: ['B'], certifications: ['קורס מפקדי צוותים'] }
   ];
 
   const data = forms.length > 0 ? forms : demo;
@@ -359,7 +359,7 @@ const Forms: React.FC = () => {
                 >
                   {soldiersData.map(soldier => (
                     <MenuItem key={soldier.id} value={soldier.id}>
-                      {soldier.name} - {soldier.team}
+                      {soldier.name} ({soldier.personalNumber})
                     </MenuItem>
                   ))}
                 </Select>

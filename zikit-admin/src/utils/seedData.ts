@@ -9,7 +9,7 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'מפקד פלוגה',
     personalNumber: '1000001',
-    team: 'מפקדה',
+    frameworkId: '1', // פלוגת זיק"ת
     role: 'מפקד פלוגה',
     profile: '97',
     qualifications: ['פיקוד', 'ניווט', 'קשר'],
@@ -20,18 +20,6 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
     militaryBackground: 'שירות קרבי 8 שנים',
     notes: 'מפקד מנוסה עם ניסיון בפיקוד על פלוגות',
     medicalProfile: 'A1',
-    framework: {
-      pluga: 'פלוגה א',
-      pelaga: 'פלגה א',
-      miflag: 'מפלג א',
-      tzevet: 'מפקדה'
-    },
-    commanders: {
-      mefakedTzevet: '',
-      mefakedMiflag: '',
-      samal: 'סגן מפקד פלוגה',
-      mefakedPluga: ''
-    },
     braurTest: {
       strength: 'passed',
       running: '12:45'
@@ -45,7 +33,7 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'סגן מפקד פלוגה',
     personalNumber: '1000002',
-    team: 'מפקדה',
+    frameworkId: '1', // פלוגת זיק"ת
     role: 'סגן מפקד פלוגה',
     profile: '97',
     qualifications: ['פיקוד', 'ניווט', 'קשר'],
@@ -71,7 +59,7 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'רספ',
     personalNumber: '1000006',
-    team: 'מפקדה',
+    frameworkId: 'מפקדה',
     role: 'רספ',
     profile: '97',
     qualifications: ['פיקוד', 'קשר', 'טכנולוג'],
@@ -95,7 +83,7 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'קצין ניהול',
     personalNumber: '1000008',
-    team: 'מפקדה',
+    frameworkId: 'מפקדה',
     role: 'קצין ניהול',
     profile: '97',
     qualifications: ['פיקוד', 'קשר', 'בנאי'],
@@ -121,7 +109,7 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'מפקד צוות 10',
     personalNumber: '1000015',
-    team: 'צוות 10',
+    frameworkId: 'צוות 10',
     role: 'מפקד צוות',
     profile: '97',
     qualifications: ['פיקוד', 'ניווט', 'קשר'],
@@ -132,18 +120,7 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
     militaryBackground: 'שירות קרבי 4 שנים',
     notes: 'מפקד צוות צעיר ומוכשר',
     medicalProfile: 'A1',
-    framework: {
-      pluga: 'פלוגה א',
-      pelaga: 'פלגה א',
-      miflag: 'מפלג א',
-      tzevet: 'צוות 10'
-    },
-    commanders: {
-      mefakedTzevet: 'מפקד צוות 10',
-      mefakedMiflag: 'מפקד מפלג א',
-      samal: 'סגן מפקד פלוגה',
-      mefakedPluga: 'מפקד פלוגה'
-    },
+
     braurTest: {
       strength: 'passed',
       running: '12:30'
@@ -157,7 +134,7 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'סמל צוות 10',
     personalNumber: '1000016',
-    team: 'צוות 10',
+    frameworkId: 'צוות 10',
     role: 'סמל',
     profile: '97',
     qualifications: ['פיקוד', 'קשר', 'חובש'],
@@ -181,7 +158,7 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'חייל 1 צוות 10',
     personalNumber: '1000019',
-    team: 'צוות 10',
+    frameworkId: 'צוות 10',
     role: 'חייל',
     profile: '97',
     qualifications: ['רוגר', 'נהג', 'חובש'],
@@ -206,7 +183,7 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'חייל 2 צוות 10',
     personalNumber: '1000020',
-    team: 'צוות 10',
+    frameworkId: 'צוות 10',
     role: 'חייל',
     profile: '97',
     qualifications: ['קלע', 'צלם', 'מטמין'],
@@ -232,7 +209,7 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'מפקד צוות 20',
     personalNumber: '1000024',
-    team: 'צוות 20',
+    frameworkId: 'צוות 20',
     role: 'מפקד צוות',
     profile: '97',
     qualifications: ['פיקוד', 'ניווט', 'קשר'],
@@ -243,18 +220,7 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
     militaryBackground: 'שירות קרבי 5 שנים',
     notes: 'מפקד צוות מנוסה עם משפחה',
     medicalProfile: 'A1',
-    framework: {
-      pluga: 'פלוגה א',
-      pelaga: 'פלגה ב',
-      miflag: 'מפלג ב',
-      tzevet: 'צוות 20'
-    },
-    commanders: {
-      mefakedTzevet: 'מפקד צוות 20',
-      mefakedMiflag: 'מפקד מפלג ב',
-      samal: 'סגן מפקד פלוגה',
-      mefakedPluga: 'מפקד פלוגה'
-    },
+
     braurTest: {
       strength: 'passed',
       running: '12:55'
@@ -268,7 +234,7 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'חייל 1 צוות 20',
     personalNumber: '1000028',
-    team: 'צוות 20',
+    frameworkId: 'צוות 20',
     role: 'חייל',
     profile: '97',
     qualifications: ['רוגר', 'נהג', 'חובש'],
@@ -295,7 +261,7 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'מפקד צוות 30',
     personalNumber: '1000033',
-    team: 'צוות 30',
+    frameworkId: 'צוות 30',
     role: 'מפקד צוות',
     profile: '97',
     qualifications: ['פיקוד', 'ניווט', 'קשר'],
@@ -306,18 +272,7 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
     militaryBackground: 'שירות קרבי 4 שנים',
     notes: 'מפקד צוות צעיר עם פוטנציאל',
     medicalProfile: 'A1',
-    framework: {
-      pluga: 'פלוגה א',
-      pelaga: 'פלגה ב',
-      miflag: 'מפלג ג',
-      tzevet: 'צוות 30'
-    },
-    commanders: {
-      mefakedTzevet: 'מפקד צוות 30',
-      mefakedMiflag: 'מפקד מפלג ג',
-      samal: 'סגן מפקד פלוגה',
-      mefakedPluga: 'מפקד פלוגה'
-    },
+
     braurTest: {
       strength: 'passed',
       running: '13:25'
@@ -331,7 +286,7 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'חייל 1 צוות 30',
     personalNumber: '1000037',
-    team: 'צוות 30',
+    frameworkId: 'צוות 30',
     role: 'חייל',
     profile: '97',
     qualifications: ['רוגר', 'נהג', 'חובש'],
@@ -522,7 +477,7 @@ const calculateVacationStatus = (totalDays: number): 'good' | 'warning' | 'criti
 export const demoActivities = [
   {
     name: 'סיור ביטחון',
-    team: 'צוות 10',
+    frameworkId: 'צוות 10',
     location: 'גבעת המורה',
     region: 'מנשה',
     activityType: 'מארב ירי',
@@ -568,7 +523,7 @@ export const demoActivities = [
   },
   {
     name: 'אבטחת אירוע',
-    team: 'צוות 20',
+    frameworkId: 'צוות 20',
     location: 'מרכז העיר',
     region: 'שומרון',
     activityType: 'אמלמ',
@@ -636,7 +591,7 @@ export const demoDuties = [
     ],
     requiredEquipment: 'סינרים, כפפות',
     notes: 'תורנות בוקר',
-    team: 'צוות 10',
+    frameworkId: 'צוות 10',
     status: 'פעילה'
   },
   {
@@ -654,7 +609,7 @@ export const demoDuties = [
     ],
     requiredEquipment: 'נשק, אפוד',
     notes: 'תורנות לילה',
-    team: 'צוות 10',
+    frameworkId: 'צוות 10',
     status: 'פעילה'
   }
 ];
@@ -690,7 +645,7 @@ export const demoReferrals = [
     soldierId: '1000015',
     soldierName: 'מפקד צוות 10',
     personalNumber: '1000015',
-    team: 'צוות 10',
+    frameworkId: 'צוות 10',
     date: '2024-01-15',
     location: 'בית חולים רמב"ם',
     reason: 'בדיקה רפואית שגרתית',
@@ -700,7 +655,7 @@ export const demoReferrals = [
     soldierId: '1000016',
     soldierName: 'סמל צוות 10',
     personalNumber: '1000016',
-    team: 'צוות 10',
+    frameworkId: 'צוות 10',
     date: '2024-01-20',
     location: 'מרפאה צבאית',
     reason: 'בדיקת שיניים',
@@ -710,7 +665,7 @@ export const demoReferrals = [
     soldierId: '1000024',
     soldierName: 'מפקד צוות 20',
     personalNumber: '1000024',
-    team: 'צוות 20',
+    frameworkId: 'צוות 20',
     date: '2024-01-25',
     location: 'בית חולים סורוקה',
     reason: 'בדיקת לב',

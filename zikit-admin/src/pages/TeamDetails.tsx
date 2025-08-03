@@ -76,7 +76,7 @@ const TeamDetails: React.FC = () => {
       setSoldiers(allSoldiers);
       
       // יצירת צוות לפי teamId
-      const teamSoldiers = allSoldiers.filter(s => s.team === `צוות ${teamId}`);
+      const teamSoldiers = allSoldiers.filter(s => s.frameworkId === teamId);
       
       // סינון פעילויות שמכילות חיילים מהצוות (גם אם הצוות לא מוגדר בפעילות)
       const teamActivities = activities.filter(activity => {

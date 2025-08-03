@@ -8,7 +8,8 @@ export interface ActivityParticipant {
 export interface Activity {
   id: string;
   name: string;
-  team: string;
+  frameworkId?: string; // מזהה המסגרת שמבצעת את הפעילות
+  team?: string; // לתאימות לאחור - יוסר בעתיד
   location: string;
   region: 'מנשה' | 'אפרים' | 'שומרון' | 'יהודה' | 'בנימין' | 'עציון' | 'הבקעה והעמקים';
   activityType: 'מארב ירי' | 'אמלמ' | 'זווית אחרת' | 'אחר';

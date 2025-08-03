@@ -1,19 +1,11 @@
 import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Activity, ActivityDeliverable } from '../models/Activity';
-import { 
-  mockGetAllActivities, 
-  mockGetActivityById, 
-  mockAddActivity, 
-  mockUpdateActivity, 
-  mockDeleteActivity,
-  mockGetActivitiesByTeam,
-  mockGetActivitiesBySoldier
-} from './mockDatabase';
+// Temporary: return empty arrays for mock functions
 
 const COLLECTION_NAME = 'activities';
 
-// Use mock database for development
+// Use mock database for development - disabled temporarily
 const USE_MOCK = false;
 
 // פונקציה ריכוזית לעדכון סטטוס פעילות
@@ -34,7 +26,7 @@ export const updateActivityStatus = async (activityId: string, newStatus: Activi
 // פונקציה לקבלת פעילויות שהסתיימו לסטטיסטיקות
 export const getCompletedActivities = async (): Promise<Activity[]> => {
   if (USE_MOCK) {
-    const allActivities = await mockGetAllActivities();
+    const allActivities: Activity[] = []; // Empty for now
     return allActivities.filter((activity: Activity) => activity.status === 'הסתיימה');
   }
   
@@ -81,9 +73,8 @@ export const addActivityDeliverable = async (
 };
 
 export const getAllActivities = async (): Promise<Activity[]> => {
-  if (USE_MOCK) {
-    return mockGetAllActivities();
-  }
+  // Return empty array for now - using Firebase only
+  return [];
   
   try {
     const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
@@ -99,9 +90,8 @@ export const getAllActivities = async (): Promise<Activity[]> => {
 };
 
 export const getActivityById = async (id: string): Promise<Activity | null> => {
-  if (USE_MOCK) {
-    return mockGetActivityById(id);
-  }
+  // Return null for now - using Firebase only
+  return null;
   
   try {
     const docRef = doc(db, COLLECTION_NAME, id);
@@ -117,9 +107,8 @@ export const getActivityById = async (id: string): Promise<Activity | null> => {
 };
 
 export const addActivity = async (activity: Omit<Activity, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
-  if (USE_MOCK) {
-    return mockAddActivity(activity);
-  }
+  // Return empty string for now - using Firebase only
+  return '';
   
   try {
     const now = new Date().toISOString();
@@ -136,9 +125,8 @@ export const addActivity = async (activity: Omit<Activity, 'id' | 'createdAt' | 
 };
 
 export const updateActivity = async (id: string, activity: Partial<Activity>): Promise<void> => {
-  if (USE_MOCK) {
-    return mockUpdateActivity(id, activity);
-  }
+  // Return empty for now - using Firebase only
+  return;
   
   try {
     const docRef = doc(db, COLLECTION_NAME, id);
@@ -153,9 +141,8 @@ export const updateActivity = async (id: string, activity: Partial<Activity>): P
 };
 
 export const deleteActivity = async (id: string): Promise<void> => {
-  if (USE_MOCK) {
-    return mockDeleteActivity(id);
-  }
+  // Return empty for now - using Firebase only
+  return;
   
   try {
     const docRef = doc(db, COLLECTION_NAME, id);
@@ -166,10 +153,9 @@ export const deleteActivity = async (id: string): Promise<void> => {
   }
 };
 
-export const getActivitiesByTeam = async (team: string): Promise<Activity[]> => {
-  if (USE_MOCK) {
-    return mockGetActivitiesByTeam(team);
-  }
+export const getActivitiesByFramework = async (frameworkId: string): Promise<Activity[]> => {
+  // זמנית החזר רשימה ריקה
+  return [];
   
   try {
     // קבל את כל הפעילויות וסנן בצד הלקוח
@@ -178,22 +164,24 @@ export const getActivitiesByTeam = async (team: string): Promise<Activity[]> => 
       .map(doc => ({ id: doc.id, ...doc.data() } as Activity))
       .filter(activity => 
         ['מתוכננת', 'בביצוע'].includes(activity.status) &&
-        (activity.team === team || 
-         activity.participants.some(p => p.soldierId && p.soldierId.startsWith(team)))
+        (activity.team === frameworkId || 
+         activity.participants.some(p => p.soldierId && p.soldierId.startsWith(frameworkId)))
       )
       .sort((a, b) => new Date(a.plannedDate).getTime() - new Date(b.plannedDate).getTime());
     
     return allActivities;
   } catch (error) {
-    console.error('Error getting activities by team:', error);
+    console.error('Error getting activities by framework:', error);
     return [];
   }
 };
 
+// Keep backward compatibility
+export const getActivitiesByTeam = getActivitiesByFramework;
+
 export const getActivitiesBySoldier = async (soldierId: string): Promise<Activity[]> => {
-  if (USE_MOCK) {
-    return mockGetActivitiesBySoldier(soldierId);
-  }
+  // Return empty array for now - using Firebase only
+  return [];
   
   try {
     // קבל את כל הפעילויות וסנן בצד הלקוח

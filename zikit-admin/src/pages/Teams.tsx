@@ -39,165 +39,47 @@ import {
   Assignment as AssignmentIcon,
   Schedule as ScheduleIcon,
   ViewList as ViewListIcon,
-  ViewModule as ViewModuleIcon
+  ViewModule as ViewModuleIcon,
+  AccountTree as AccountTreeIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
 import { Soldier } from '../models/Soldier';
 import { Activity } from '../models/Activity';
 import { Duty } from '../models/Duty';
+import { Framework, FrameworkWithDetails } from '../models/Framework';
 import { getAllSoldiers } from '../services/soldierService';
+import { getAllFrameworks, getFrameworkWithDetails } from '../services/frameworkService';
 import { getActivitiesByTeam } from '../services/activityService';
 import { getDutiesByTeam } from '../services/dutyService';
 import { getPresenceColor, getProfileColor } from '../utils/colors';
 
-interface Team {
-  id: string;
-  name: string;
-  plagaId: 'A' | 'B' | 'ZAVIT';
-  plagaName: string;
-  framework: {
-    pluga: string;
-    pelaga: string;
-    miflag: string;
-    tzevet: string;
-  };
-  soldiers: Soldier[];
-  totalSoldiers: number;
-  commanders: Soldier[];
-  fighters: Soldier[];
-  activities: Activity[];
-  duties: Duty[];
-}
-
 const Teams: React.FC = () => {
   const navigate = useNavigate();
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [soldiers, setSoldiers] = useState<Soldier[]>([]);
+  const [frameworks, setFrameworks] = useState<FrameworkWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [error, setError] = useState<string>('');
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
+      setError('');
       
-      // טעינת כל החיילים, הפעילויות והתורנויות
-      const [allSoldiers, activities10, activities20, activities30, activities40, activities50, duties10, duties20, duties30, duties40, duties50] = await Promise.all([
-        getAllSoldiers(),
-        getActivitiesByTeam('צוות 10'),
-        getActivitiesByTeam('צוות 20'),
-        getActivitiesByTeam('צוות 30'),
-        getActivitiesByTeam('צוות 40'),
-        getActivitiesByTeam('צוות 50'),
-        getDutiesByTeam('צוות 10'),
-        getDutiesByTeam('צוות 20'),
-        getDutiesByTeam('צוות 30'),
-        getDutiesByTeam('צוות 40'),
-        getDutiesByTeam('צוות 50')
-      ]);
-      setSoldiers(allSoldiers);
+      // טעינת כל המסגרות
+      const allFrameworks = await getAllFrameworks();
       
-      // יצירת צוותים לפי הנתונים
-      const teamsData: Team[] = [
-        {
-          id: '10',
-          name: 'צוות 10',
-          plagaId: 'A',
-          plagaName: 'פלגה א',
-          framework: {
-            pluga: 'פלוגה א',
-            pelaga: 'פלגה א',
-            miflag: 'מפלג א',
-            tzevet: 'צוות 10'
-          },
-          soldiers: allSoldiers.filter(s => s.team === 'צוות 10'),
-          totalSoldiers: allSoldiers.filter(s => s.team === 'צוות 10').length,
-          commanders: allSoldiers.filter(s => s.team === 'צוות 10' && 
-            (s.role === 'מפקד צוות' || s.role === 'סמל' || s.role === 'מפקד')),
-          fighters: allSoldiers.filter(s => s.team === 'צוות 10' && s.role === 'חייל'),
-          activities: activities10,
-          duties: duties10
-        },
-        {
-          id: '20',
-          name: 'צוות 20',
-          plagaId: 'A',
-          plagaName: 'פלגה א',
-          framework: {
-            pluga: 'פלוגה א',
-            pelaga: 'פלגה א',
-            miflag: 'מפלג א',
-            tzevet: 'צוות 20'
-          },
-          soldiers: allSoldiers.filter(s => s.team === 'צוות 20'),
-          totalSoldiers: allSoldiers.filter(s => s.team === 'צוות 20').length,
-          commanders: allSoldiers.filter(s => s.team === 'צוות 20' && 
-            (s.role === 'מפקד צוות' || s.role === 'סמל' || s.role === 'מפקד')),
-          fighters: allSoldiers.filter(s => s.team === 'צוות 20' && s.role === 'חייל'),
-          activities: activities20,
-          duties: duties20
-        },
-        {
-          id: '30',
-          name: 'צוות 30',
-          plagaId: 'A',
-          plagaName: 'פלגה א',
-          framework: {
-            pluga: 'פלוגה א',
-            pelaga: 'פלגה א',
-            miflag: 'מפלג א',
-            tzevet: 'צוות 30'
-          },
-          soldiers: allSoldiers.filter(s => s.team === 'צוות 30'),
-          totalSoldiers: allSoldiers.filter(s => s.team === 'צוות 30').length,
-          commanders: allSoldiers.filter(s => s.team === 'צוות 30' && 
-            (s.role === 'מפקד צוות' || s.role === 'סמל' || s.role === 'מפקד')),
-          fighters: allSoldiers.filter(s => s.team === 'צוות 30' && s.role === 'חייל'),
-          activities: activities30,
-          duties: duties30
-        },
-        {
-          id: '40',
-          name: 'צוות 40',
-          plagaId: 'B',
-          plagaName: 'פלגה ב',
-          framework: {
-            pluga: 'פלוגה א',
-            pelaga: 'פלגה ב',
-            miflag: 'מפלג ב',
-            tzevet: 'צוות 40'
-          },
-          soldiers: allSoldiers.filter(s => s.team === 'צוות 40'),
-          totalSoldiers: allSoldiers.filter(s => s.team === 'צוות 40').length,
-          commanders: allSoldiers.filter(s => s.team === 'צוות 40' && 
-            (s.role === 'מפקד צוות' || s.role === 'סמל' || s.role === 'מפקד')),
-          fighters: allSoldiers.filter(s => s.team === 'צוות 40' && s.role === 'חייל'),
-          activities: activities40,
-          duties: duties40
-        },
-        {
-          id: '50',
-          name: 'צוות 50',
-          plagaId: 'B',
-          plagaName: 'פלגה ב',
-          framework: {
-            pluga: 'פלוגה א',
-            pelaga: 'פלגה ב',
-            miflag: 'מפלג ב',
-            tzevet: 'צוות 50'
-          },
-          soldiers: allSoldiers.filter(s => s.team === 'צוות 50'),
-          totalSoldiers: allSoldiers.filter(s => s.team === 'צוות 50').length,
-          commanders: allSoldiers.filter(s => s.team === 'צוות 50' && 
-            (s.role === 'מפקד צוות' || s.role === 'סמל' || s.role === 'מפקד')),
-          fighters: allSoldiers.filter(s => s.team === 'צוות 50' && s.role === 'חייל'),
-          activities: activities50,
-          duties: duties50
-        }
-      ];
+      // לכל מסגרת, נטען את הפרטים המלאים
+      const frameworksWithDetails = await Promise.all(
+        allFrameworks.map(framework => getFrameworkWithDetails(framework.id))
+      );
       
-      setTeams(teamsData);
+      // סינון רק המסגרות שנטענו בהצלחה
+      const validFrameworks = frameworksWithDetails.filter(f => f !== null) as FrameworkWithDetails[];
+      
+      setFrameworks(validFrameworks);
     } catch (error) {
       console.error('שגיאה בטעינת נתונים:', error);
+      setError('שגיאה בטעינת נתוני המסגרות');
     } finally {
       setLoading(false);
     }
@@ -209,8 +91,12 @@ const Teams: React.FC = () => {
 
 
 
-  const handleSoldierClick = (soldier: Soldier) => {
-    navigate(`/soldiers/${soldier.id}`);
+  const handleSoldierClick = (soldierId: string) => {
+    navigate(`/soldiers/${soldierId}`);
+  };
+
+  const handleFrameworkClick = (frameworkId: string) => {
+    navigate(`/frameworks/${frameworkId}`); // יצטרך ליצור עמוד פרטי מסגרת
   };
 
 
@@ -220,16 +106,31 @@ const Teams: React.FC = () => {
   if (loading) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Typography>טוען צוותים...</Typography>
+        <Typography>טוען מסגרות...</Typography>
       </Container>
     );
   }
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        צוותים
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h4" component="h1">
+          מסגרות
+        </Typography>
+        <Button
+          variant="outlined"
+          startIcon={<AccountTreeIcon />}
+          onClick={() => navigate('/framework-management')}
+        >
+          ניהול מבנה פלוגה
+        </Button>
+      </Box>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
       
       {/* View Mode Tabs */}
       <Box sx={{ mb: 3 }}>
@@ -241,81 +142,109 @@ const Teams: React.FC = () => {
       
       {viewMode === 'cards' ? (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 3 }}>
-        {teams.map((team) => (
-          <Card key={team.id}>
+        {frameworks.map((framework) => (
+          <Card key={framework.id}>
             <CardContent>
-                              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
-                    <GroupIcon />
-                  </Avatar>
-                  <Box sx={{ flex: 1 }}>
-                    <Typography 
-                      variant="h6" 
-                      fontWeight="bold"
-                      onClick={() => navigate(`/teams/${team.id}`)}
-                      sx={{ 
-                        cursor: 'pointer',
-                        '&:hover': { 
-                          color: 'primary.main',
-                          textDecoration: 'underline'
-                        }
-                      }}
-                    >
-                      {team.name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {team.plagaName} • {team.totalSoldiers} חיילים
-                    </Typography>
-                  </Box>
-                  <Badge badgeContent={team.totalSoldiers} color="primary">
-                    <GroupIcon />
-                  </Badge>
-                </Box>
-                
-                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={() => navigate(`/teams/${team.id}`)}
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
+                  <AccountTreeIcon />
+                </Avatar>
+                <Box sx={{ flex: 1 }}>
+                  <Typography 
+                    variant="h6" 
+                    fontWeight="bold"
+                    onClick={() => handleFrameworkClick(framework.id)}
                     sx={{ 
-                      borderRadius: 2,
-                      textTransform: 'none',
-                      fontWeight: 600
+                      cursor: 'pointer',
+                      '&:hover': { 
+                        color: 'primary.main',
+                        textDecoration: 'underline'
+                      }
                     }}
                   >
-                    צפה בפרטי הצוות
-                  </Button>
+                    {framework.name}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {framework.level} • {framework.totalSoldiers} חיילים • מפקד: {framework.commander?.name || 'לא מוגדר'}
+                  </Typography>
                 </Box>
+                <Badge badgeContent={framework.totalSoldiers} color="primary">
+                  <GroupIcon />
+                </Badge>
+              </Box>
+              
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => handleFrameworkClick(framework.id)}
+                  sx={{ 
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    fontWeight: 600
+                  }}
+                >
+                  צפה בפרטי המסגרת
+                </Button>
+              </Box>
 
               <Divider sx={{ my: 2 }} />
 
-              {/* פעילויות מבצעיות */}
-              {team.activities.length > 0 && (
-                <Accordion>
+              {/* חיילי המסגרת */}
+              {framework.soldiers.length > 0 && (
+                <Accordion defaultExpanded>
                   <AccordionSummary 
                     expandIcon={<ExpandMoreIcon />}
                     onClick={(e) => e.stopPropagation()}
                   >
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <AssignmentIcon sx={{ mr: 1, color: 'warning.main' }} />
-                      <Typography variant="h6">פעילויות מבצעיות</Typography>
+                      <PersonIcon sx={{ mr: 1, color: 'primary.main' }} />
+                      <Typography variant="h6">חיילי המסגרת</Typography>
                       <Chip 
-                        label={team.activities.length} 
+                        label={framework.soldiers.length} 
                         size="small" 
-                        color="warning" 
+                        color="primary" 
                         sx={{ ml: 1 }}
                       />
                     </Box>
                   </AccordionSummary>
                   <AccordionDetails>
                     <List dense>
-                      {team.activities.map((activity) => (
-                        <ListItem key={activity.id} disablePadding>
-                          <ListItemButton onClick={() => navigate(`/activities/${activity.id}`)}>
+                      {framework.soldiers.map((soldier) => (
+                        <ListItem key={soldier.id} disablePadding>
+                          <ListItemButton 
+                            onClick={() => handleSoldierClick(soldier.id)}
+                            sx={{ 
+                              borderRadius: 1,
+                              mb: 0.5
+                            }}
+                          >
+                            <ListItemAvatar>
+                              <Avatar sx={{ bgcolor: 'primary.main' }}>
+                                {soldier.name.charAt(0)}
+                              </Avatar>
+                            </ListItemAvatar>
                             <ListItemText
-                              primary={activity.name}
-                              secondary={`${activity.plannedDate} - ${activity.location} (${activity.status})`}
+                              primary={
+                                <Typography variant="body1" fontWeight={600}>
+                                  {soldier.name}
+                                </Typography>
+                              }
+                              secondary={
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                                  <Chip 
+                                    label={soldier.role} 
+                                    size="small" 
+                                    color="primary" 
+                                    variant="outlined"
+                                  />
+                                  <Typography variant="body2" color="text.secondary">
+                                    {soldier.personalNumber}
+                                  </Typography>
+                                </Box>
+                              }
                             />
+                            <ArrowForwardIcon color="action" />
                           </ListItemButton>
                         </ListItem>
                       ))}
@@ -324,216 +253,22 @@ const Teams: React.FC = () => {
                 </Accordion>
               )}
 
-              {/* תורנויות */}
-              {team.duties.length > 0 && (
-                <Accordion>
-                  <AccordionSummary 
-                    expandIcon={<ExpandMoreIcon />}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <ScheduleIcon sx={{ mr: 1, color: 'info.main' }} />
-                      <Typography variant="h6">תורנויות</Typography>
-                      <Chip 
-                        label={team.duties.length} 
-                        size="small" 
-                        color="info" 
-                        sx={{ ml: 1 }}
-                      />
-                    </Box>
-                  </AccordionSummary>
-                  <AccordionDetails>
-                    <List dense>
-                      {team.duties.map((duty) => (
-                        <ListItem key={duty.id} disablePadding>
-                          <ListItemButton onClick={() => navigate(`/duties/${duty.id}`)}>
-                            <ListItemText
-                              primary={duty.type}
-                              secondary={`${duty.startDate} ${duty.startTime} - ${duty.location} (${duty.status})`}
-                            />
-                          </ListItemButton>
-                        </ListItem>
-                      ))}
-                    </List>
-                  </AccordionDetails>
-                </Accordion>
-              )}
-
-              {/* סגל הצוות */}
-              <Accordion defaultExpanded>
-                <AccordionSummary 
-                  expandIcon={<ExpandMoreIcon />}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <StarIcon sx={{ mr: 1, color: 'primary.main' }} />
-                    <Typography variant="h6">סגל הצוות</Typography>
-                    <Chip 
-                      label={team.commanders.length} 
-                      size="small" 
-                      color="primary" 
-                      sx={{ ml: 1 }}
-                    />
-                  </Box>
-                </AccordionSummary>
-                <AccordionDetails>
-                  <List dense>
-                    {team.commanders.map((soldier) => (
-                      <ListItem key={soldier.id} disablePadding>
-                        <ListItemButton 
-                          onClick={() => handleSoldierClick(soldier)}
-                          sx={{ 
-                            border: `2px solid ${getPresenceColor(soldier.presence)}`,
-                            borderRadius: 1,
-                            mb: 0.5
-                          }}
-                        >
-                          <ListItemAvatar>
-                            <Avatar sx={{ bgcolor: getProfileColor(soldier.profile) }}>
-                              {soldier.name.charAt(0)}
-                            </Avatar>
-                          </ListItemAvatar>
-                          <ListItemText
-                            primary={
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Typography variant="body1" fontWeight={600}>
-                                  {soldier.name}
-                                </Typography>
-                                <Chip 
-                                  label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'} 
-                                  size="small" 
-                                  sx={{ 
-                                    bgcolor: getPresenceColor(soldier.presence),
-                                    color: 'white',
-                                    fontWeight: 600
-                                  }}
-                                />
-                              </Box>
-                            }
-                            secondary={
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                                <Chip 
-                                  label={soldier.role} 
-                                  size="small" 
-                                  color="primary" 
-                                  variant="outlined"
-                                />
-                                <Typography variant="body2" color="text.secondary">
-                                  {soldier.personalNumber}
-                                </Typography>
-                                <Chip 
-                                  label={soldier.profile}
-                                  size="small" 
-                                  sx={{ 
-                                    bgcolor: getProfileColor(soldier.profile),
-                                    color: 'white',
-                                    fontWeight: 600
-                                  }}
-                                />
-                              </Box>
-                            }
-                          />
-                          <ArrowForwardIcon color="action" />
-                        </ListItemButton>
-                      </ListItem>
-                    ))}
-                  </List>
-                </AccordionDetails>
-              </Accordion>
-
-              {/* לוחמי הצוות */}
-              <Accordion>
-                <AccordionSummary 
-                  expandIcon={<ExpandMoreIcon />}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <PersonIcon sx={{ mr: 1, color: 'secondary.main' }} />
-                    <Typography variant="h6">לוחמים</Typography>
-                    <Chip 
-                      label={team.fighters.length} 
-                      size="small" 
-                      color="secondary" 
-                      sx={{ ml: 1 }}
-                    />
-                  </Box>
-                </AccordionSummary>
-                <AccordionDetails>
-                  <List dense>
-                    {team.fighters.map((soldier) => (
-                      <ListItem key={soldier.id} disablePadding>
-                        <ListItemButton 
-                          onClick={() => handleSoldierClick(soldier)}
-                          sx={{ 
-                            border: `2px solid ${getPresenceColor(soldier.presence)}`,
-                            borderRadius: 1,
-                            mb: 0.5
-                          }}
-                        >
-                          <ListItemAvatar>
-                            <Avatar sx={{ bgcolor: getProfileColor(soldier.profile) }}>
-                              {soldier.name.charAt(0)}
-                            </Avatar>
-                          </ListItemAvatar>
-                          <ListItemText
-                            primary={
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Typography variant="body1" fontWeight={600}>
-                                  {soldier.name}
-                                </Typography>
-                                <Chip 
-                                  label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'} 
-                                  size="small" 
-                                  sx={{ 
-                                    bgcolor: getPresenceColor(soldier.presence),
-                                    color: 'white',
-                                    fontWeight: 600
-                                  }}
-                                />
-                              </Box>
-                            }
-                            secondary={
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                                <Chip 
-                                  label={soldier.role} 
-                                  size="small" 
-                                  color="secondary" 
-                                  variant="outlined"
-                                />
-                                <Typography variant="body2" color="text.secondary">
-                                  {soldier.personalNumber}
-                                </Typography>
-                                <Chip 
-                                  label={soldier.profile}
-                                  size="small" 
-                                  sx={{ 
-                                    bgcolor: getProfileColor(soldier.profile),
-                                    color: 'white',
-                                    fontWeight: 600
-                                  }}
-                                />
-                              </Box>
-                            }
-                          />
-                          <ArrowForwardIcon color="action" />
-                        </ListItemButton>
-                      </ListItem>
-                    ))}
-                  </List>
-                </AccordionDetails>
-              </Accordion>
-
-              {/* כשירויות הצוות */}
-              {team.soldiers.length > 0 && (
+              {/* מסגרות בנות */}
+              {framework.childFrameworks.length > 0 && (
                 <Box sx={{ mt: 2 }}>
                   <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    כשירויות נבחרות:
+                    מסגרות בנות:
                   </Typography>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                    {Array.from(new Set(
-                      team.soldiers.flatMap(s => s.qualifications || [])
-                    )).slice(0, 5).map((qual) => (
-                      <Chip key={qual} label={qual} size="small" variant="outlined" />
+                    {framework.childFrameworks.map((child) => (
+                      <Chip 
+                        key={child.id} 
+                        label={child.name} 
+                        size="small" 
+                        variant="outlined"
+                        onClick={() => handleFrameworkClick(child.id)}
+                        sx={{ cursor: 'pointer' }}
+                      />
                     ))}
                   </Box>
                 </Box>
@@ -548,19 +283,18 @@ const Teams: React.FC = () => {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>שם צוות</TableCell>
-                <TableCell>פלגה</TableCell>
-                <TableCell>מספר חיילים</TableCell>
-                <TableCell>מפקדים</TableCell>
-                <TableCell>לוחמים</TableCell>
-                <TableCell>פעילויות</TableCell>
-                <TableCell>תורנויות</TableCell>
+                <TableCell>שם מסגרת</TableCell>
+                <TableCell>רמה</TableCell>
+                <TableCell>מפקד</TableCell>
+                <TableCell>חיילים ישירים</TableCell>
+                <TableCell>סה"כ חיילים</TableCell>
+                <TableCell>מסגרות בנות</TableCell>
                 <TableCell>פעולות</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {teams.map((team) => (
-                <TableRow key={team.id} hover>
+              {frameworks.map((framework) => (
+                <TableRow key={framework.id} hover>
                   <TableCell>
                     <Typography 
                       variant="body2" 
@@ -572,44 +306,39 @@ const Teams: React.FC = () => {
                           textDecoration: 'underline'
                         }
                       }}
-                      onClick={() => navigate(`/teams/${team.id}`)}
+                      onClick={() => handleFrameworkClick(framework.id)}
                     >
-                      {team.name}
+                      {framework.name}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Chip label={team.plagaName} size="small" variant="outlined" />
+                    <Chip label={framework.level} size="small" variant="outlined" />
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">
-                      {team.totalSoldiers}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2">
-                      {team.commanders.length}
+                      {framework.commander?.name || 'לא מוגדר'}
                     </Typography>
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">
-                      {team.fighters.length}
+                      {framework.soldiers.length}
                     </Typography>
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">
-                      {team.activities.length}
+                      {framework.totalSoldiers}
                     </Typography>
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">
-                      {team.duties.length}
+                      {framework.childFrameworks.length}
                     </Typography>
                   </TableCell>
                   <TableCell>
                     <Button
                       variant="outlined"
                       size="small"
-                      onClick={() => navigate(`/teams/${team.id}`)}
+                      onClick={() => handleFrameworkClick(framework.id)}
                     >
                       צפה בפרטים
                     </Button>
@@ -621,9 +350,9 @@ const Teams: React.FC = () => {
         </TableContainer>
       )}
 
-      {teams.length === 0 && (
+      {frameworks.length === 0 && (
         <Alert severity="info" sx={{ mt: 3 }}>
-          לא נמצאו צוותים. ייתכן שצריך להכניס נתונים ראשוניים.
+          לא נמצאו מסגרות. לחץ על "ניהול מבנה פלוגה" כדי ליצור מסגרות חדשות.
         </Alert>
       )}
     </Container>

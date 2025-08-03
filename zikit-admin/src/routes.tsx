@@ -22,6 +22,7 @@ import DataSeeder from './pages/DataSeeder';
 import ActivityDetails from './pages/ActivityDetails';
 import ActivityStatistics from './pages/ActivityStatistics';
 import DutyDetails from './pages/DutyDetails';
+import FrameworkManagement from './pages/FrameworkManagement';
 import { signOutUser } from './services/authService';
 import { Drawer, List, ListItem, ListItemIcon, ListItemText, IconButton, AppBar, Toolbar, Typography, Box, Divider, Avatar, Collapse } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
@@ -65,6 +66,7 @@ const getMenuItems = (user: any) => {
   ];
 
   const adminItems = [
+    { text: 'ניהול מבנה פלוגה', icon: <GroupsIcon />, path: '/framework-management' },
     { text: 'חיילים ממתינים', icon: <PersonIcon />, path: '/pending-soldiers' },
     { text: 'קישור חיילים', icon: <LinkIcon />, path: '/soldier-linking' },
     { text: 'ניהול משתמשים', icon: <SettingsIcon />, path: '/users' },
@@ -218,6 +220,7 @@ const AppRoutes: React.FC = () => {
           <Route path="/forms" element={<Forms />} />
           <Route path="/users" element={<UserManagement />} />
           <Route path="/profile" element={<PersonalProfile />} />
+          <Route path="/framework-management" element={<FrameworkManagement />} />
           <Route path="/pending-soldiers" element={<PendingSoldiers />} />
           <Route path="/soldier-linking" element={<SoldierLinking />} />
           <Route path="/data-seeder" element={<DataSeeder />} />

@@ -34,7 +34,7 @@ const Referrals: React.FC = () => {
     soldierId: '',
     soldierName: '',
     personalNumber: '',
-    team: '',
+    frameworkId: '',
     date: '',
     location: '',
     reason: '',
@@ -76,7 +76,7 @@ const Referrals: React.FC = () => {
         soldierId: referral.soldierId,
         soldierName: referral.soldierName,
         personalNumber: referral.personalNumber,
-        team: referral.team,
+        frameworkId: referral.frameworkId || referral.team || '',
         date: referral.date,
         location: referral.location,
         reason: referral.reason,
@@ -88,7 +88,7 @@ const Referrals: React.FC = () => {
         soldierId: '',
         soldierName: '',
         personalNumber: '',
-        team: '',
+        frameworkId: '',
         date: '',
         location: '',
         reason: '',
@@ -105,7 +105,7 @@ const Referrals: React.FC = () => {
       soldierId: '',
       soldierName: '',
       personalNumber: '',
-      team: '',
+      frameworkId: '',
       date: '',
       location: '',
       reason: '',
@@ -134,7 +134,7 @@ const Referrals: React.FC = () => {
         soldierId: soldier.id,
         soldierName: soldier.name,
         personalNumber: soldier.personalNumber,
-        team: soldier.team
+        frameworkId: soldier.frameworkId || ''
       }));
     }
   };
@@ -184,7 +184,7 @@ const Referrals: React.FC = () => {
     return matchesSearch && matchesStatus && matchesTeam;
   });
 
-  const teams = Array.from(new Set(soldiers.map(s => s.team)));
+  const teams = Array.from(new Set(soldiers.map(s => s.frameworkId).filter(Boolean)));
 
   if (loading) {
     return (

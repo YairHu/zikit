@@ -6,7 +6,7 @@ import { mockGetAllSoldiers, mockGetSoldierById, mockAddSoldier, mockUpdateSoldi
 const soldiersCollection = collection(db, 'soldiers');
 
 // Use mock database for development
-const USE_MOCK = false;
+const USE_MOCK = true;
 
 export const getAllSoldiers = async (): Promise<Soldier[]> => {
   if (USE_MOCK) {
@@ -49,4 +49,13 @@ export const deleteSoldier = async (id: string) => {
   }
   
   await deleteDoc(doc(soldiersCollection, id));
+};
+
+export const getSoldiersByFramework = async (frameworkId: string): Promise<Soldier[]> => {
+  const allSoldiers = await getAllSoldiers();
+  return allSoldiers.filter(soldier => soldier.frameworkId === frameworkId);
+};
+
+export const updateSoldierFramework = async (soldierId: string, frameworkId: string | undefined) => {
+  await updateSoldier(soldierId, { frameworkId });
 }; 

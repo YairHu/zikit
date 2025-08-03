@@ -14,7 +14,8 @@ export interface Duty {
   participants: DutyParticipant[];
   requiredEquipment?: string; // לא חובה
   notes?: string; // לא חובה
-  team: string; // צוות התורנות
+  frameworkId?: string; // מזהה המסגרת שמבצעת את התורנות
+  team?: string; // לתאימות לאחור - יוסר בעתיד
   status: 'פעילה' | 'הסתיימה' | 'בוטלה';
   createdAt: string;
   updatedAt: string;

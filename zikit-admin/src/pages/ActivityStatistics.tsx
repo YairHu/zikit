@@ -93,7 +93,7 @@ const ActivityStatistics: React.FC = () => {
 
   // פילטור פעילויות
   const filteredActivities = activities.filter(activity => {
-    if (selectedTeam !== 'all' && activity.team !== selectedTeam) return false;
+    if (selectedTeam !== 'all' && (activity.frameworkId || activity.team) !== selectedTeam) return false;
     if (selectedRegion !== 'all' && activity.region !== selectedRegion) return false;
     if (selectedActivityType !== 'all' && activity.activityType !== selectedActivityType) return false;
     return true;
@@ -101,7 +101,8 @@ const ActivityStatistics: React.FC = () => {
 
   // נתונים לגרפים
   const teamStats = filteredActivities.reduce((acc, activity) => {
-    acc[activity.team] = (acc[activity.team] || 0) + 1;
+    const key = activity.frameworkId || activity.team || 'לא מוגדר';
+    acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 

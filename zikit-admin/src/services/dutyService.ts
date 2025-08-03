@@ -1,7 +1,7 @@
 import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Duty } from '../models/Duty';
-import { mockGetAllDuties, mockGetDutyById, mockAddDuty, mockUpdateDuty, mockDeleteDuty, mockGetDutiesByTeam, mockGetDutiesBySoldier } from './mockDatabase';
+// Temporary: return empty arrays for mock functions
 
 const COLLECTION_NAME = 'duties';
 
@@ -9,9 +9,8 @@ const COLLECTION_NAME = 'duties';
 const USE_MOCK = false;
 
 export const getAllDuties = async (): Promise<Duty[]> => {
-  if (USE_MOCK) {
-    return mockGetAllDuties();
-  }
+  // Return empty array for now - using Firebase only
+  return [];
   
   try {
     const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
@@ -27,9 +26,8 @@ export const getAllDuties = async (): Promise<Duty[]> => {
 };
 
 export const getDutyById = async (id: string): Promise<Duty | null> => {
-  if (USE_MOCK) {
-    return mockGetDutyById(id);
-  }
+  // Return null for now - using Firebase only
+  return null;
   
   try {
     const docRef = doc(db, COLLECTION_NAME, id);
@@ -46,7 +44,7 @@ export const getDutyById = async (id: string): Promise<Duty | null> => {
 
 export const addDuty = async (duty: Omit<Duty, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
   if (USE_MOCK) {
-    return mockAddDuty(duty);
+    return '';
   }
   
   try {
@@ -65,7 +63,7 @@ export const addDuty = async (duty: Omit<Duty, 'id' | 'createdAt' | 'updatedAt'>
 
 export const updateDuty = async (id: string, duty: Partial<Duty>): Promise<void> => {
   if (USE_MOCK) {
-    return mockUpdateDuty(id, duty);
+    return undefined;
   }
   
   try {
@@ -82,7 +80,7 @@ export const updateDuty = async (id: string, duty: Partial<Duty>): Promise<void>
 
 export const deleteDuty = async (id: string): Promise<void> => {
   if (USE_MOCK) {
-    return mockDeleteDuty(id);
+    return undefined;
   }
   
   try {
@@ -94,10 +92,9 @@ export const deleteDuty = async (id: string): Promise<void> => {
   }
 };
 
-export const getDutiesByTeam = async (team: string): Promise<Duty[]> => {
-  if (USE_MOCK) {
-    return mockGetDutiesByTeam(team);
-  }
+export const getDutiesByFramework = async (frameworkId: string): Promise<Duty[]> => {
+  // זמנית החזר רשימה ריקה
+  return [];
   
   try {
     // קבל את כל התורנויות וסנן בצד הלקוח
@@ -106,20 +103,23 @@ export const getDutiesByTeam = async (team: string): Promise<Duty[]> => {
       .map(doc => ({ id: doc.id, ...doc.data() } as Duty))
       .filter(duty => 
         duty.status === 'פעילה' &&
-        (duty.team === team || duty.participants.some(p => p.soldierId && p.soldierId.startsWith(team)))
+        (duty.team === frameworkId || duty.participants.some(p => p.soldierId && p.soldierId.startsWith(frameworkId)))
       )
       .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
     
     return allDuties;
   } catch (error) {
-    console.error('Error getting duties by team:', error);
+    console.error('Error getting duties by framework:', error);
     return [];
   }
 };
 
+// Keep backward compatibility  
+export const getDutiesByTeam = getDutiesByFramework;
+
 export const getDutiesBySoldier = async (soldierId: string): Promise<Duty[]> => {
   if (USE_MOCK) {
-    return mockGetDutiesBySoldier(soldierId);
+    return [];
   }
   
   try {

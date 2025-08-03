@@ -3,7 +3,8 @@ export interface Referral {
   soldierId: string;
   soldierName: string;
   personalNumber: string;
-  team: string;
+  frameworkId?: string; // מזהה המסגרת של החייל
+  team?: string; // לתאימות לאחור - יוסר בעתיד
   date: string; // תאריך ההפניה
   location: string; // מיקום ההפניה
   reason: string; // סיבת ההפניה

@@ -150,7 +150,7 @@ const Soldiers: React.FC = () => {
       id: 'mefaked_pluga',
       name: 'מפקד פלוגה',
       personalNumber: '1000001',
-      team: 'מפקדה',
+      frameworkId: 'מפקדה',
       role: 'מפקד פלוגה',
       profile: '97',
       qualifications: ['פיקוד', 'ניווט', 'קשר'],
@@ -162,7 +162,7 @@ const Soldiers: React.FC = () => {
       id: 'samal_pluga',
       name: 'סגן מפקד פלוגה',
       personalNumber: '1000002',
-      team: 'מפקדה',
+      frameworkId: 'מפקדה',
       role: 'סגן מפקד פלוגה',
       profile: '97',
       qualifications: ['פיקוד', 'ניווט', 'קשר'],
@@ -176,7 +176,7 @@ const Soldiers: React.FC = () => {
       id: 'mefaked_plaga_a',
       name: 'מפקד פלגה א',
       personalNumber: '1000003',
-      team: 'פלגה א',
+      frameworkId: 'פלגה א',
       role: 'מפקד פלגה',
       profile: '97',
       qualifications: ['פיקוד', 'ניווט', 'קשר'],
@@ -188,7 +188,7 @@ const Soldiers: React.FC = () => {
       id: 'mefaked_plaga_b',
       name: 'מפקד פלגה ב',
       personalNumber: '1000004',
-      team: 'פלגה ב',
+      frameworkId: 'פלגה ב',
       role: 'מפקד פלגה',
       profile: '97',
       qualifications: ['פיקוד', 'ניווט', 'קשר'],
@@ -199,7 +199,7 @@ const Soldiers: React.FC = () => {
       id: 'mefaked_plaga_zavit',
       name: 'מפקד פלגה זווית',
       personalNumber: '1000005',
-      team: 'פלגה זווית',
+      frameworkId: 'פלגה זווית',
       role: 'מפקד פלגה',
       profile: '97',
       qualifications: ['פיקוד', 'ניווט', 'קשר'],
@@ -212,7 +212,7 @@ const Soldiers: React.FC = () => {
       id: 'rasap',
       name: 'רספ',
       personalNumber: '1000006',
-      team: 'מפקדה',
+      frameworkId: 'מפקדה',
       role: 'רספ',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'טכנולוג'],
@@ -223,7 +223,7 @@ const Soldiers: React.FC = () => {
       id: 'sarsap',
       name: 'סרספ',
       personalNumber: '1000007',
-      team: 'מפקדה',
+      frameworkId: 'מפקדה',
       role: 'סרספ',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'טכנולוג'],
@@ -234,7 +234,7 @@ const Soldiers: React.FC = () => {
       id: 'katzin_niul',
       name: 'קצין ניהול',
       personalNumber: '1000008',
-      team: 'מפקדה',
+      frameworkId: 'מפקדה',
       role: 'קצין ניהול',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'בנאי'],
@@ -245,7 +245,7 @@ const Soldiers: React.FC = () => {
       id: 'manip',
       name: 'מניפ',
       personalNumber: '1000009',
-      team: 'מפקדה',
+      frameworkId: 'מפקדה',
       role: 'מניפ',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'טכנולוג'],
@@ -256,7 +256,7 @@ const Soldiers: React.FC = () => {
       id: 'chofel',
       name: 'חופל',
       personalNumber: '1000010',
-      team: 'מפקדה',
+      frameworkId: 'מפקדה',
       role: 'חופל',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'טכנולוג'],
@@ -267,7 +267,7 @@ const Soldiers: React.FC = () => {
       id: 'pap',
       name: 'פפ',
       personalNumber: '1000011',
-      team: 'מפקדה',
+      frameworkId: 'מפקדה',
       role: 'פפ',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'טכנולוג'],
@@ -278,7 +278,7 @@ const Soldiers: React.FC = () => {
       id: 'samal_rechavim',
       name: 'סמל רכבים',
       personalNumber: '1000012',
-      team: 'מפקדה',
+      frameworkId: 'מפקדה',
       role: 'סמל רכבים',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'נהג'],
@@ -289,7 +289,7 @@ const Soldiers: React.FC = () => {
       id: 'samal_nahagim',
       name: 'סמל נהגים',
       personalNumber: '1000013',
-      team: 'מפקדה',
+      frameworkId: 'מפקדה',
       role: 'סמל נהגים',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'נהג'],
@@ -300,7 +300,7 @@ const Soldiers: React.FC = () => {
       id: 'mashkash',
       name: 'משק"ש',
       personalNumber: '1000014',
-      team: 'מפקדה',
+      frameworkId: 'מפקדה',
       role: 'משק"ש',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'קשר'],
@@ -313,7 +313,7 @@ const Soldiers: React.FC = () => {
       id: 'mefaked_tzevet_10',
       name: 'מפקד צוות 10',
       personalNumber: '1000015',
-      team: 'צוות 10',
+      frameworkId: 'צוות 10',
       role: 'מפקד צוות',
       profile: '97',
       qualifications: ['פיקוד', 'ניווט', 'קשר'],
@@ -324,7 +324,7 @@ const Soldiers: React.FC = () => {
       id: 'samal_10',
       name: 'סמל צוות 10',
       personalNumber: '1000016',
-      team: 'צוות 10',
+      frameworkId: 'צוות 10',
       role: 'סמל',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'חובש'],
@@ -335,7 +335,7 @@ const Soldiers: React.FC = () => {
       id: 'mefaked_1_10',
       name: 'מפקד 1 צוות 10',
       personalNumber: '1000017',
-      team: 'צוות 10',
+      frameworkId: 'צוות 10',
       role: 'מפקד',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'קלע'],
@@ -346,7 +346,7 @@ const Soldiers: React.FC = () => {
       id: 'mefaked_2_10',
       name: 'מפקד 2 צוות 10',
       personalNumber: '1000018',
-      team: 'צוות 10',
+      frameworkId: 'צוות 10',
       role: 'מפקד',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'נגביסט'],
@@ -357,7 +357,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_1_10',
       name: 'חייל 1 צוות 10',
       personalNumber: '1000019',
-      team: 'צוות 10',
+      frameworkId: 'צוות 10',
       role: 'חייל',
       profile: '97',
       qualifications: ['חובש', 'קלע', 'צלם'],
@@ -368,7 +368,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_2_10',
       name: 'חייל 2 צוות 10',
       personalNumber: '1000020',
-      team: 'צוות 10',
+      frameworkId: 'צוות 10',
       role: 'חייל',
       profile: '97',
       qualifications: ['מטמין', 'טכנולוג', 'בנאי'],
@@ -379,7 +379,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_3_10',
       name: 'חייל 3 צוות 10',
       personalNumber: '1000021',
-      team: 'צוות 10',
+      frameworkId: 'צוות 10',
       role: 'חייל',
       profile: '97',
       qualifications: ['רחפניסט', 'קשר', 'רוגר'],
@@ -390,7 +390,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_4_10',
       name: 'חייל 4 צוות 10',
       personalNumber: '1000022',
-      team: 'צוות 10',
+      frameworkId: 'צוות 10',
       role: 'חייל',
       profile: '97',
       qualifications: ['נהג', 'קשר', 'קלע'],
@@ -401,7 +401,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_5_10',
       name: 'חייל 5 צוות 10',
       personalNumber: '1000023',
-      team: 'צוות 10',
+      frameworkId: 'צוות 10',
       role: 'חייל',
       profile: '97',
       qualifications: ['נגביסט', 'צלם', 'מטמין'],
@@ -414,7 +414,7 @@ const Soldiers: React.FC = () => {
       id: 'mefaked_tzevet_20',
       name: 'מפקד צוות 20',
       personalNumber: '1000024',
-      team: 'צוות 20',
+      frameworkId: 'צוות 20',
       role: 'מפקד צוות',
       profile: '97',
       qualifications: ['פיקוד', 'ניווט', 'קשר'],
@@ -425,7 +425,7 @@ const Soldiers: React.FC = () => {
       id: 'samal_20',
       name: 'סמל צוות 20',
       personalNumber: '1000025',
-      team: 'צוות 20',
+      frameworkId: 'צוות 20',
       role: 'סמל',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'חובש'],
@@ -436,7 +436,7 @@ const Soldiers: React.FC = () => {
       id: 'mefaked_1_20',
       name: 'מפקד 1 צוות 20',
       personalNumber: '1000026',
-      team: 'צוות 20',
+      frameworkId: 'צוות 20',
       role: 'מפקד',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'קלע'],
@@ -447,7 +447,7 @@ const Soldiers: React.FC = () => {
       id: 'mefaked_2_20',
       name: 'מפקד 2 צוות 20',
       personalNumber: '1000027',
-      team: 'צוות 20',
+      frameworkId: 'צוות 20',
       role: 'מפקד',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'נגביסט'],
@@ -458,7 +458,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_1_20',
       name: 'חייל 1 צוות 20',
       personalNumber: '1000028',
-      team: 'צוות 20',
+      frameworkId: 'צוות 20',
       role: 'חייל',
       profile: '97',
       qualifications: ['טכנולוג', 'בנאי', 'רחפניסט'],
@@ -469,7 +469,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_2_20',
       name: 'חייל 2 צוות 20',
       personalNumber: '1000029',
-      team: 'צוות 20',
+      frameworkId: 'צוות 20',
       role: 'חייל',
       profile: '97',
       qualifications: ['קשר', 'רוגר', 'נהג'],
@@ -480,7 +480,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_3_20',
       name: 'חייל 3 צוות 20',
       personalNumber: '1000030',
-      team: 'צוות 20',
+      frameworkId: 'צוות 20',
       role: 'חייל',
       profile: '97',
       qualifications: ['חובש', 'קלע', 'צלם'],
@@ -491,7 +491,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_4_20',
       name: 'חייל 4 צוות 20',
       personalNumber: '1000031',
-      team: 'צוות 20',
+      frameworkId: 'צוות 20',
       role: 'חייל',
       profile: '97',
       qualifications: ['מטמין', 'טכנולוג', 'בנאי'],
@@ -502,7 +502,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_5_20',
       name: 'חייל 5 צוות 20',
       personalNumber: '1000032',
-      team: 'צוות 20',
+      frameworkId: 'צוות 20',
       role: 'חייל',
       profile: '97',
       qualifications: ['נגביסט', 'רחפניסט', 'קשר'],
@@ -515,7 +515,7 @@ const Soldiers: React.FC = () => {
       id: 'mefaked_tzevet_30',
       name: 'מפקד צוות 30',
       personalNumber: '1000033',
-      team: 'צוות 30',
+      frameworkId: 'צוות 30',
       role: 'מפקד צוות',
       profile: '97',
       qualifications: ['פיקוד', 'ניווט', 'קשר'],
@@ -526,7 +526,7 @@ const Soldiers: React.FC = () => {
       id: 'samal_30',
       name: 'סמל צוות 30',
       personalNumber: '1000034',
-      team: 'צוות 30',
+      frameworkId: 'צוות 30',
       role: 'סמל',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'חובש'],
@@ -537,7 +537,7 @@ const Soldiers: React.FC = () => {
       id: 'mefaked_1_30',
       name: 'מפקד 1 צוות 30',
       personalNumber: '1000035',
-      team: 'צוות 30',
+      frameworkId: 'צוות 30',
       role: 'מפקד',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'קלע'],
@@ -548,7 +548,7 @@ const Soldiers: React.FC = () => {
       id: 'mefaked_2_30',
       name: 'מפקד 2 צוות 30',
       personalNumber: '1000036',
-      team: 'צוות 30',
+      frameworkId: 'צוות 30',
       role: 'מפקד',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'נגביסט'],
@@ -559,7 +559,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_1_30',
       name: 'חייל 1 צוות 30',
       personalNumber: '1000037',
-      team: 'צוות 30',
+      frameworkId: 'צוות 30',
       role: 'חייל',
       profile: '97',
       qualifications: ['רוגר', 'נהג', 'חובש'],
@@ -570,7 +570,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_2_30',
       name: 'חייל 2 צוות 30',
       personalNumber: '1000038',
-      team: 'צוות 30',
+      frameworkId: 'צוות 30',
       role: 'חייל',
       profile: '97',
       qualifications: ['קלע', 'צלם', 'מטמין'],
@@ -581,7 +581,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_3_30',
       name: 'חייל 3 צוות 30',
       personalNumber: '1000039',
-      team: 'צוות 30',
+      frameworkId: 'צוות 30',
       role: 'חייל',
       profile: '97',
       qualifications: ['טכנולוג', 'בנאי', 'רחפניסט'],
@@ -592,7 +592,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_4_30',
       name: 'חייל 4 צוות 30',
       personalNumber: '1000040',
-      team: 'צוות 30',
+      frameworkId: 'צוות 30',
       role: 'חייל',
       profile: '97',
       qualifications: ['קשר', 'נגביסט', 'צלם'],
@@ -603,7 +603,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_5_30',
       name: 'חייל 5 צוות 30',
       personalNumber: '1000041',
-      team: 'צוות 30',
+      frameworkId: 'צוות 30',
       role: 'חייל',
       profile: '97',
       qualifications: ['נהג', 'חובש', 'קלע'],
@@ -616,7 +616,7 @@ const Soldiers: React.FC = () => {
       id: 'mefaked_tzevet_40',
       name: 'מפקד צוות 40',
       personalNumber: '1000042',
-      team: 'צוות 40',
+      frameworkId: 'צוות 40',
       role: 'מפקד צוות',
       profile: '97',
       qualifications: ['פיקוד', 'ניווט', 'קשר'],
@@ -627,7 +627,7 @@ const Soldiers: React.FC = () => {
       id: 'samal_40',
       name: 'סמל צוות 40',
       personalNumber: '1000043',
-      team: 'צוות 40',
+      frameworkId: 'צוות 40',
       role: 'סמל',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'חובש'],
@@ -638,7 +638,7 @@ const Soldiers: React.FC = () => {
       id: 'mefaked_1_40',
       name: 'מפקד 1 צוות 40',
       personalNumber: '1000044',
-      team: 'צוות 40',
+      frameworkId: 'צוות 40',
       role: 'מפקד',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'קלע'],
@@ -649,7 +649,7 @@ const Soldiers: React.FC = () => {
       id: 'mefaked_2_40',
       name: 'מפקד 2 צוות 40',
       personalNumber: '1000045',
-      team: 'צוות 40',
+      frameworkId: 'צוות 40',
       role: 'מפקד',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'נגביסט'],
@@ -660,7 +660,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_1_40',
       name: 'חייל 1 צוות 40',
       personalNumber: '1000046',
-      team: 'צוות 40',
+      frameworkId: 'צוות 40',
       role: 'חייל',
       profile: '97',
       qualifications: ['מטמין', 'טכנולוג', 'בנאי'],
@@ -671,7 +671,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_2_40',
       name: 'חייל 2 צוות 40',
       personalNumber: '1000047',
-      team: 'צוות 40',
+      frameworkId: 'צוות 40',
       role: 'חייל',
       profile: '97',
       qualifications: ['רחפניסט', 'קשר', 'רוגר'],
@@ -682,7 +682,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_3_40',
       name: 'חייל 3 צוות 40',
       personalNumber: '1000048',
-      team: 'צוות 40',
+      frameworkId: 'צוות 40',
       role: 'חייל',
       profile: '97',
       qualifications: ['נהג', 'קשר', 'קלע'],
@@ -693,7 +693,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_4_40',
       name: 'חייל 4 צוות 40',
       personalNumber: '1000049',
-      team: 'צוות 40',
+      frameworkId: 'צוות 40',
       role: 'חייל',
       profile: '97',
       qualifications: ['נגביסט', 'צלם', 'מטמין'],
@@ -704,7 +704,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_5_40',
       name: 'חייל 5 צוות 40',
       personalNumber: '1000050',
-      team: 'צוות 40',
+      frameworkId: 'צוות 40',
       role: 'חייל',
       profile: '97',
       qualifications: ['חובש', 'טכנולוג', 'בנאי'],
@@ -717,7 +717,7 @@ const Soldiers: React.FC = () => {
       id: 'mefaked_tzevet_50',
       name: 'מפקד צוות 50',
       personalNumber: '1000051',
-      team: 'צוות 50',
+      frameworkId: 'צוות 50',
       role: 'מפקד צוות',
       profile: '97',
       qualifications: ['פיקוד', 'ניווט', 'קשר'],
@@ -728,7 +728,7 @@ const Soldiers: React.FC = () => {
       id: 'samal_50',
       name: 'סמל צוות 50',
       personalNumber: '1000052',
-      team: 'צוות 50',
+      frameworkId: 'צוות 50',
       role: 'סמל',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'חובש'],
@@ -739,7 +739,7 @@ const Soldiers: React.FC = () => {
       id: 'mefaked_1_50',
       name: 'מפקד 1 צוות 50',
       personalNumber: '1000053',
-      team: 'צוות 50',
+      frameworkId: 'צוות 50',
       role: 'מפקד',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'קלע'],
@@ -750,7 +750,7 @@ const Soldiers: React.FC = () => {
       id: 'mefaked_2_50',
       name: 'מפקד 2 צוות 50',
       personalNumber: '1000054',
-      team: 'צוות 50',
+      frameworkId: 'צוות 50',
       role: 'מפקד',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'נגביסט'],
@@ -761,7 +761,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_1_50',
       name: 'חייל 1 צוות 50',
       personalNumber: '1000055',
-      team: 'צוות 50',
+      frameworkId: 'צוות 50',
       role: 'חייל',
       profile: '97',
       qualifications: ['רוגר', 'נהג', 'חובש'],
@@ -772,7 +772,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_2_50',
       name: 'חייל 2 צוות 50',
       personalNumber: '1000056',
-      team: 'צוות 50',
+      frameworkId: 'צוות 50',
       role: 'חייל',
       profile: '97',
       qualifications: ['קלע', 'צלם', 'מטמין'],
@@ -783,7 +783,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_3_50',
       name: 'חייל 3 צוות 50',
       personalNumber: '1000057',
-      team: 'צוות 50',
+      frameworkId: 'צוות 50',
       role: 'חייל',
       profile: '97',
       qualifications: ['טכנולוג', 'בנאי', 'רחפניסט'],
@@ -794,7 +794,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_4_50',
       name: 'חייל 4 צוות 50',
       personalNumber: '1000058',
-      team: 'צוות 50',
+      frameworkId: 'צוות 50',
       role: 'חייל',
       profile: '97',
       qualifications: ['קשר', 'נגביסט', 'צלם'],
@@ -805,7 +805,7 @@ const Soldiers: React.FC = () => {
       id: 'chayal_5_50',
       name: 'חייל 5 צוות 50',
       personalNumber: '1000059',
-      team: 'צוות 50',
+      frameworkId: 'צוות 50',
       role: 'חייל',
       profile: '97',
       qualifications: ['נהג', 'חובש', 'קלע'],
@@ -818,7 +818,7 @@ const Soldiers: React.FC = () => {
       id: 'nagad_technologia',
       name: 'נגד טכנולוגיה',
       personalNumber: '1000060',
-      team: 'פלגה זווית',
+      frameworkId: 'פלגה זווית',
       role: 'נגד טכנולוגיה',
       profile: '97',
       qualifications: ['טכנולוג', 'קשר', 'רחפניסט'],
@@ -829,7 +829,7 @@ const Soldiers: React.FC = () => {
       id: 'nagad_hasvaa',
       name: 'נגד הסוואה',
       personalNumber: '1000061',
-      team: 'פלגה זווית',
+      frameworkId: 'פלגה זווית',
       role: 'נגד הסוואה',
       profile: '97',
       qualifications: ['הסוואה', 'קשר', 'צלם'],
@@ -840,7 +840,7 @@ const Soldiers: React.FC = () => {
       id: 'mashak_technologia',
       name: 'משק טכנולוגיה',
       personalNumber: '1000062',
-      team: 'פלגה זווית',
+      frameworkId: 'פלגה זווית',
       role: 'משק טכנולוגיה',
       profile: '97',
       qualifications: ['טכנולוג', 'קשר', 'רחפניסט'],
@@ -851,7 +851,7 @@ const Soldiers: React.FC = () => {
       id: 'mashak_hasvaa',
       name: 'משק הסוואה',
       personalNumber: '1000063',
-      team: 'פלגה זווית',
+      frameworkId: 'פלגה זווית',
       role: 'משק הסוואה',
       profile: '97',
       qualifications: ['הסוואה', 'קשר', 'צלם'],
@@ -862,7 +862,7 @@ const Soldiers: React.FC = () => {
       id: 'samalet_mador',
       name: 'סמלת מדור',
       personalNumber: '1000064',
-      team: 'פלגה זווית',
+      frameworkId: 'פלגה זווית',
       role: 'סמלת מדור',
       profile: '97',
       qualifications: ['פיקוד', 'קשר', 'חובש'],
@@ -876,7 +876,7 @@ const Soldiers: React.FC = () => {
   console.log('Using data:', data.length, 'items (soldiers from Firebase:', soldiers.length, ', demo:', demo.length, ')');
 
   const filteredData = data.filter(s =>
-    (!filterTeam || s.team.includes(filterTeam)) &&
+          (!filterTeam || (s.frameworkId && s.frameworkId.includes(filterTeam))) &&
     (!filterRole || s.role.includes(filterRole)) &&
     (!filterQualification || (s.qualifications && s.qualifications.join(',').includes(filterQualification))) &&
     (!filterPresence || s.presence === filterPresence) &&
@@ -929,10 +929,11 @@ const Soldiers: React.FC = () => {
     const teams: { [key: string]: Soldier[] } = {};
     
     filteredData.forEach((soldier: Soldier) => {
-      if (!teams[soldier.team]) {
-        teams[soldier.team] = [];
+      const frameworkId = soldier.frameworkId || 'לא מוגדר';
+      if (!teams[frameworkId]) {
+        teams[frameworkId] = [];
       }
-      teams[soldier.team].push(soldier);
+      teams[frameworkId].push(soldier);
     });
     
     return teams;
@@ -944,73 +945,73 @@ const Soldiers: React.FC = () => {
       pluga: {
         name: 'מפקדת פלוגה',
         type: 'pluga',
-        soldiers: filteredData.filter(s => s.team === 'מפקדה'),
+        soldiers: filteredData.filter(s => s.frameworkId === '1'), // פלוגת זיק"ת
         children: {
           plagaA: {
             name: 'פלגה א',
             type: 'plaga',
-            soldiers: filteredData.filter(s => s.team === 'פלגה א'),
+            soldiers: filteredData.filter(s => s.frameworkId === 'פלגה א'),
             children: {
               team1: {
                 name: 'צוות 1',
                 type: 'team',
-                soldiers: filteredData.filter(s => s.team === 'צוות 1')
+                soldiers: filteredData.filter(s => s.frameworkId === 'צוות 1')
               },
               team2: {
                 name: 'צוות 2',
                 type: 'team',
-                soldiers: filteredData.filter(s => s.team === 'צוות 2')
+                soldiers: filteredData.filter(s => s.frameworkId === 'צוות 2')
               },
               team3: {
                 name: 'צוות 3',
                 type: 'team',
-                soldiers: filteredData.filter(s => s.team === 'צוות 3')
+                soldiers: filteredData.filter(s => s.frameworkId === 'צוות 3')
               }
             }
           },
           plagaB: {
             name: 'פלגה ב',
             type: 'plaga',
-            soldiers: filteredData.filter(s => s.team === 'פלגה ב'),
+            soldiers: filteredData.filter(s => s.frameworkId === 'פלגה ב'),
             children: {
               team4: {
                 name: 'צוות 4',
                 type: 'team',
-                soldiers: filteredData.filter(s => s.team === 'צוות 4')
+                soldiers: filteredData.filter(s => s.frameworkId === 'צוות 4')
               },
               team5: {
                 name: 'צוות 5',
                 type: 'team',
-                soldiers: filteredData.filter(s => s.team === 'צוות 5')
+                soldiers: filteredData.filter(s => s.frameworkId === 'צוות 5')
               },
               team6: {
                 name: 'צוות 6',
                 type: 'team',
-                soldiers: filteredData.filter(s => s.team === 'צוות 6')
+                soldiers: filteredData.filter(s => s.frameworkId === 'צוות 6')
               }
             }
           },
           plagaZavit: {
             name: 'פלגה זווית',
             type: 'plaga',
-            soldiers: filteredData.filter(s => s.team === 'פלגה זווית'),
+            soldiers: filteredData.filter(s => s.frameworkId === 'פלגה זווית'),
             children: {
               team7: {
                 name: 'צוות 7',
                 type: 'team',
-                soldiers: filteredData.filter(s => s.team === 'צוות 7')
+                soldiers: filteredData.filter(s => s.frameworkId === 'צוות 7')
               },
               team8: {
                 name: 'צוות 8',
                 type: 'team',
-                soldiers: filteredData.filter(s => s.team === 'צוות 8')
+                soldiers: filteredData.filter(s => s.frameworkId === 'צוות 8')
               }
             }
           },
           mplag: {
             name: 'מפל"ג',
             type: 'mplag',
-            soldiers: filteredData.filter(s => s.team === 'מפל"ג')
+            soldiers: filteredData.filter(s => s.frameworkId === 'מפל"ג')
           }
         }
       }
@@ -1204,7 +1205,7 @@ const Soldiers: React.FC = () => {
                         return (
                           <TableCell key={column.key}>
                             <Chip 
-                              label={soldier.team} 
+                              label={soldier.frameworkId} 
                               size="small" 
                               color="primary" 
                               variant="outlined"
@@ -1216,7 +1217,7 @@ const Soldiers: React.FC = () => {
                                 }
                               }}
                               onClick={() => {
-                                const teamId = soldier.team.replace('צוות ', '');
+                                const teamId = soldier.frameworkId?.replace('צוות ', '') || '';
                                 navigate(`/teams/${teamId}`);
                               }}
                             />
@@ -1234,15 +1235,7 @@ const Soldiers: React.FC = () => {
                         return (
                           <TableCell key={column.key}>
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                              {soldier.framework?.pluga && (
-                                <Chip label={`פלוגה: ${soldier.framework.pluga}`} size="small" color="info" variant="outlined" />
-                              )}
-                              {soldier.framework?.pelaga && (
-                                <Chip label={`פלגה: ${soldier.framework.pelaga}`} size="small" color="info" variant="outlined" />
-                              )}
-                              {soldier.framework?.miflag && (
-                                <Chip label={`מפלג: ${soldier.framework.miflag}`} size="small" color="info" variant="outlined" />
-                              )}
+                                                             {/* מסגרת - יוצג מידע על המסגרת בעתיד */}
                             </Box>
                           </TableCell>
                         );
@@ -1251,18 +1244,7 @@ const Soldiers: React.FC = () => {
                         return (
                           <TableCell key={column.key}>
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                              {soldier.commanders?.mefakedTzevet && (
-                                <Chip label={`מפקד צוות: ${soldier.commanders.mefakedTzevet}`} size="small" color="warning" variant="outlined" />
-                              )}
-                              {soldier.commanders?.mefakedMiflag && (
-                                <Chip label={`מפקד מפלג: ${soldier.commanders.mefakedMiflag}`} size="small" color="warning" variant="outlined" />
-                              )}
-                              {soldier.commanders?.samal && (
-                                <Chip label={`סמ"פ: ${soldier.commanders.samal}`} size="small" color="warning" variant="outlined" />
-                              )}
-                              {soldier.commanders?.mefakedPluga && (
-                                <Chip label={`מ"פ: ${soldier.commanders.mefakedPluga}`} size="small" color="warning" variant="outlined" />
-                              )}
+                                                             {/* מפקדים - יוצג מידע על המפקדים בעתיד */}
                             </Box>
                           </TableCell>
                         );
@@ -1799,7 +1781,7 @@ const Soldiers: React.FC = () => {
                     <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
                       <Chip 
                         icon={<GroupIcon />}
-                        label={soldier.team} 
+                        label={soldier.frameworkId} 
                         size="small" 
                         color="primary" 
                         variant="outlined"
@@ -1811,7 +1793,7 @@ const Soldiers: React.FC = () => {
                           }
                         }}
                         onClick={() => {
-                          const teamId = soldier.team.replace('צוות ', '');
+                          const teamId = soldier.frameworkId?.replace('צוות ', '') || '';
                           navigate(`/teams/${teamId}`);
                         }}
                       />

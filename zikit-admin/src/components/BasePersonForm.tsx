@@ -26,7 +26,7 @@ interface BasePersonFormProps {
 const emptyPerson: Omit<BasePerson, 'id'> = {
   name: '',
   personalNumber: '',
-  team: '',
+  frameworkId: '',
   role: '',
   profile: '',
   qualifications: [],
@@ -38,18 +38,6 @@ const emptyPerson: Omit<BasePerson, 'id'> = {
   militaryBackground: '',
   notes: '',
   medicalProfile: '',
-  framework: {
-    pluga: '',
-    pelaga: '',
-    miflag: '',
-    tzevet: ''
-  },
-  commanders: {
-    mefakedTzevet: '',
-    mefakedMiflag: '',
-    samal: '',
-    mefakedPluga: ''
-  },
   braurTest: {
     strength: 'passed',
     running: ''
@@ -192,9 +180,9 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
             />
             <TextField
               fullWidth
-              label="צוות"
-              name="team"
-              value={formData.team}
+              label="מסגרת"
+              name="frameworkId"
+              value={formData.frameworkId}
               onChange={handleChange}
             />
             <TextField
@@ -326,93 +314,7 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
               inputProps={{ min: 0, max: 18 }}
             />
             
-            {/* שדות מסגרת */}
-            <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' }, mt: 2 }}>
-              <TextField
-                fullWidth
-                label="פלוגה"
-                name="framework.pluga"
-                value={formData.framework?.pluga || ''}
-                onChange={(e) => setFormData(prev => ({
-                  ...prev,
-                  framework: { ...prev.framework, pluga: e.target.value }
-                }))}
-              />
-            </Box>
-            <TextField
-              fullWidth
-              label="פלגה"
-              name="framework.pelaga"
-              value={formData.framework?.pelaga || ''}
-              onChange={(e) => setFormData(prev => ({
-                ...prev,
-                framework: { ...prev.framework, pelaga: e.target.value }
-              }))}
-            />
-            <TextField
-              fullWidth
-              label="מפלג"
-              name="framework.miflag"
-              value={formData.framework?.miflag || ''}
-              onChange={(e) => setFormData(prev => ({
-                ...prev,
-                framework: { ...prev.framework, miflag: e.target.value }
-              }))}
-            />
-            <TextField
-              fullWidth
-              label="צוות"
-              name="framework.tzevet"
-              value={formData.framework?.tzevet || ''}
-              onChange={(e) => setFormData(prev => ({
-                ...prev,
-                framework: { ...prev.framework, tzevet: e.target.value }
-              }))}
-            />
-            
-            {/* שדות מפקדים */}
-            <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' }, mt: 2 }}>
-              <TextField
-                fullWidth
-                label="מפקד צוות"
-                name="commanders.mefakedTzevet"
-                value={formData.commanders?.mefakedTzevet || ''}
-                onChange={(e) => setFormData(prev => ({
-                  ...prev,
-                  commanders: { ...prev.commanders, mefakedTzevet: e.target.value }
-                }))}
-              />
-            </Box>
-            <TextField
-              fullWidth
-              label="מפקד מפלג"
-              name="commanders.mefakedMiflag"
-              value={formData.commanders?.mefakedMiflag || ''}
-              onChange={(e) => setFormData(prev => ({
-                ...prev,
-                commanders: { ...prev.commanders, mefakedMiflag: e.target.value }
-              }))}
-            />
-            <TextField
-              fullWidth
-              label='סמ"פ'
-              name="commanders.samal"
-              value={formData.commanders?.samal || ''}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({
-                ...prev,
-                commanders: { ...prev.commanders, samal: e.target.value }
-              }))}
-            />
-            <TextField
-              fullWidth
-              label='מ"פ'
-              name="commanders.mefakedPluga"
-              value={formData.commanders?.mefakedPluga || ''}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({
-                ...prev,
-                commanders: { ...prev.commanders, mefakedPluga: e.target.value }
-              }))}
-            />
+
           </Box>
         </DialogContent>
         <DialogActions>
