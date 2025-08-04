@@ -60,19 +60,22 @@ export const getFrameworksByParent = async (parentId?: string): Promise<Framewor
     let q;
     
     if (parentId) {
-      q = query(frameworksRef, where('parentFrameworkId', '==', parentId), orderBy('name'));
+      q = query(frameworksRef, where('parentFrameworkId', '==', parentId));
     } else {
-      q = query(frameworksRef, where('parentFrameworkId', '==', null), orderBy('name'));
+      q = query(frameworksRef, where('parentFrameworkId', '==', null));
     }
     
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => ({
+    const frameworks = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
       createdAt: doc.data().createdAt ? new Date(doc.data().createdAt) : new Date(),
       updatedAt: doc.data().updatedAt ? new Date(doc.data().updatedAt) : new Date()
     })) as Framework[];
+    
+    // מיון בצד הלקוח
+    return frameworks.sort((a, b) => a.name.localeCompare(b.name, 'he'));
   } catch (error) {
     console.error('שגיאה בקבלת מסגרות לפי הורה:', error);
     return [];

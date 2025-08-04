@@ -24,14 +24,16 @@ export const getCompletedActivities = async (): Promise<Activity[]> => {
   try {
     const q = query(
       collection(db, COLLECTION_NAME),
-      where('status', '==', 'הסתיימה'),
-      orderBy('plannedDate', 'desc')
+      where('status', '==', 'הסתיימה')
     );
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
+    const activities = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as Activity[];
+    
+    // מיון בצד הלקוח
+    return activities.sort((a, b) => new Date(b.plannedDate).getTime() - new Date(a.plannedDate).getTime());
   } catch (error) {
     console.error('Error getting completed activities:', error);
     return [];

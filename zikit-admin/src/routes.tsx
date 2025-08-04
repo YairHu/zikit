@@ -23,6 +23,7 @@ import ActivityDetails from './pages/ActivityDetails';
 import ActivityStatistics from './pages/ActivityStatistics';
 import DutyDetails from './pages/DutyDetails';
 import FrameworkManagement from './pages/FrameworkManagement';
+import FrameworkDetails from './pages/FrameworkDetails';
 import { signOutUser } from './services/authService';
 import { Drawer, List, ListItem, ListItemIcon, ListItemText, IconButton, AppBar, Toolbar, Typography, Box, Divider, Avatar, Collapse } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
@@ -208,6 +209,7 @@ const AppRoutes: React.FC = () => {
           <Route path="/soldiers/:id" element={<SoldierProfile />} />
           <Route path="/teams" element={<Teams />} />
           <Route path="/teams/:teamId" element={<TeamDetails />} />
+          <Route path="/frameworks/:id" element={<FrameworkDetails />} />
           <Route path="/trips" element={<Trips />} />
           <Route path="/missions" element={<Missions />} />
           <Route path="/activities" element={<Activities />} />

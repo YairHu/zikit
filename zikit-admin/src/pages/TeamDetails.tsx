@@ -55,7 +55,8 @@ interface Team {
 }
 
 const TeamDetails: React.FC = () => {
-  const { teamId } = useParams<{ teamId: string }>();
+  const { teamId, id } = useParams<{ teamId?: string; id?: string }>();
+  const frameworkId = teamId || id; // תמיכה בשני הפרמטרים
   const navigate = useNavigate();
   const [team, setTeam] = useState<Team | null>(null);
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
@@ -69,19 +70,19 @@ const TeamDetails: React.FC = () => {
       // טעינת כל החיילים, הפעילויות, התורנויות וההפניות
       const [allSoldiers, activities, duties, referrals] = await Promise.all([
         getAllSoldiers(),
-        getActivitiesByTeam(`צוות ${teamId}`),
-        getDutiesByTeam(`צוות ${teamId}`),
-        getReferralsByTeam(`צוות ${teamId}`)
+        getActivitiesByTeam(`צוות ${frameworkId}`),
+        getDutiesByTeam(`צוות ${frameworkId}`),
+        getReferralsByTeam(`צוות ${frameworkId}`)
       ]);
       setSoldiers(allSoldiers);
       
-      // יצירת צוות לפי teamId
-      const teamSoldiers = allSoldiers.filter(s => s.frameworkId === teamId);
+      // יצירת צוות לפי frameworkId
+      const teamSoldiers = allSoldiers.filter(s => s.frameworkId === frameworkId);
       
       // סינון פעילויות שמכילות חיילים מהצוות (גם אם הצוות לא מוגדר בפעילות)
       const teamActivities = activities.filter(activity => {
         // אם הפעילות מוגדרת לצוות זה
-        if (activity.team === `צוות ${teamId}`) return true;
+        if (activity.team === `צוות ${frameworkId}`) return true;
         
         // אם יש חיילים מהצוות שמשתתפים בפעילות
         const hasTeamParticipants = activity.participants.some(p => 
@@ -97,7 +98,7 @@ const TeamDetails: React.FC = () => {
       // סינון תורנויות שמכילות חיילים מהצוות (גם אם הצוות לא מוגדר בתורנות)
       const teamDuties = duties.filter(duty => {
         // אם התורנות מוגדרת לצוות זה
-        if (duty.team === `צוות ${teamId}`) return true;
+        if (duty.team === `צוות ${frameworkId}`) return true;
         
         // אם יש חיילים מהצוות שמשתתפים בתורנות
         const hasTeamParticipants = duty.participants.some(p => 
@@ -108,10 +109,10 @@ const TeamDetails: React.FC = () => {
       });
 
       const teamData: Team = {
-        id: teamId!,
-        name: `צוות ${teamId}`,
-        plagaId: teamId === '10' || teamId === '20' || teamId === '30' ? 'A' : 'B',
-        plagaName: teamId === '10' || teamId === '20' || teamId === '30' ? 'פלגה א' : 'פלגה ב',
+        id: frameworkId!,
+        name: `צוות ${frameworkId}`,
+        plagaId: frameworkId === '10' || frameworkId === '20' || frameworkId === '30' ? 'A' : 'B',
+        plagaName: frameworkId === '10' || frameworkId === '20' || frameworkId === '30' ? 'פלגה א' : 'פלגה ב',
         soldiers: teamSoldiers,
         totalSoldiers: teamSoldiers.length,
         commanders: teamSoldiers.filter(s => 
@@ -129,7 +130,7 @@ const TeamDetails: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [teamId]);
+      }, [frameworkId]);
 
   useEffect(() => {
     loadData();
