@@ -57,6 +57,7 @@ import {
   LocalHospital as ReferralIcon
 } from '@mui/icons-material';
 import { getSoldierById } from '../services/soldierService';
+import { getFrameworkNameById } from '../services/frameworkService';
 import { getActivitiesBySoldier } from '../services/activityService';
 import { getDutiesBySoldier } from '../services/dutyService';
 import { getReferralsBySoldier } from '../services/referralService';
@@ -73,6 +74,7 @@ const SoldierProfile: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useUser();
   const [soldier, setSoldier] = useState<Soldier | null>(null);
+  const [frameworkName, setFrameworkName] = useState<string>('');
   const [activities, setActivities] = useState<Activity[]>([]);
   const [duties, setDuties] = useState<Duty[]>([]);
   const [referrals, setReferrals] = useState<Referral[]>([]);
@@ -87,11 +89,17 @@ const SoldierProfile: React.FC = () => {
         getActivitiesBySoldier(id),
         getDutiesBySoldier(id),
         getReferralsBySoldier(id)
-      ]).then(([soldierData, activitiesData, dutiesData, referralsData]) => {
+      ]).then(async ([soldierData, activitiesData, dutiesData, referralsData]) => {
         setSoldier(soldierData);
         setActivities(activitiesData);
         setDuties(dutiesData);
         setReferrals(referralsData);
+        
+        // קבלת שם המסגרת
+        if (soldierData?.frameworkId) {
+          const name = await getFrameworkNameById(soldierData.frameworkId);
+          setFrameworkName(name);
+        }
       }).finally(() => setLoading(false));
     }
   }, [id]);
@@ -208,7 +216,7 @@ const SoldierProfile: React.FC = () => {
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography variant="body2" color="text.secondary">צוות:</Typography>
-                    <Typography variant="body2" fontWeight="bold">{soldier.frameworkId || 'לא שויך למסגרת'}</Typography>
+                    <Typography variant="body2" fontWeight="bold">{frameworkName || soldier.frameworkId || 'לא שויך למסגרת'}</Typography>
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography variant="body2" color="text.secondary">תפקיד:</Typography>

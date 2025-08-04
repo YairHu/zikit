@@ -1,5 +1,5 @@
 import { Framework, FrameworkWithDetails, FrameworkTree } from '../models/Framework';
-import { getSoldiersByFramework, getAllSoldiers } from './soldierService';
+import { getAllSoldiers } from './soldierService';
 import { db } from '../firebase';
 import { 
   collection, 
@@ -165,7 +165,8 @@ export const deleteFramework = async (id: string): Promise<boolean> => {
     }
     
     // בדיקה שאין חיילים במסגרת
-    const frameworkSoldiers = await getSoldiersByFramework(id);
+    const allSoldiers = await getAllSoldiers();
+    const frameworkSoldiers = allSoldiers.filter(s => s.frameworkId === id);
     if (frameworkSoldiers.length > 0) {
       console.error('לא ניתן למחוק מסגרת עם חיילים');
       return false;
@@ -204,7 +205,18 @@ export const getFrameworkWithDetails = async (id: string): Promise<FrameworkWith
     return directSoldiers + childrenSoldiers.reduce((sum, count) => sum + count, 0);
   };
   
+  // קבלת כל החיילים בהיררכיה כולל מסגרות בנות
+  const getAllSoldiersInHierarchyList = async (frameworkId: string): Promise<any[]> => {
+    const directSoldiers = allSoldiers.filter(s => s.frameworkId === frameworkId);
+    const children = await getFrameworksByParent(frameworkId);
+    const childrenSoldiers = await Promise.all(
+      children.map(child => getAllSoldiersInHierarchyList(child.id))
+    );
+    return [...directSoldiers, ...childrenSoldiers.flat()];
+  };
+  
   const totalSoldiers = await getAllSoldiersInHierarchy(id);
+  const allSoldiersInHierarchy = await getAllSoldiersInHierarchyList(id);
   
   return {
     ...framework,
@@ -225,6 +237,60 @@ export const getFrameworkWithDetails = async (id: string): Promise<FrameworkWith
       role: s.role,
       personalNumber: s.personalNumber
     })),
+    allSoldiersInHierarchy: allSoldiersInHierarchy.map(s => ({
+      id: s.id,
+      name: s.name,
+      role: s.role,
+      personalNumber: s.personalNumber,
+      frameworkId: s.frameworkId
+    })),
     totalSoldiers
   };
+};
+
+export const getFrameworkNameById = async (id: string): Promise<string> => {
+  try {
+    const framework = await getFrameworkById(id);
+    return framework ? framework.name : 'לא נמצא';
+  } catch (error) {
+    console.error('שגיאה בקבלת שם מסגרת:', error);
+    return 'שגיאה';
+  }
+};
+
+// פונקציה לקבלת שמות מסגרות מרובים
+export const getFrameworkNamesByIds = async (ids: string[]): Promise<{ [key: string]: string }> => {
+  try {
+    const frameworks = await getAllFrameworks();
+    const namesMap: { [key: string]: string } = {};
+    
+    ids.forEach(id => {
+      const framework = frameworks.find(f => f.id === id);
+      namesMap[id] = framework ? framework.name : 'לא נמצא';
+    });
+    
+    return namesMap;
+  } catch (error) {
+    console.error('שגיאה בקבלת שמות מסגרות:', error);
+    return {};
+  }
+};
+
+export const getAllSoldiersInFrameworkHierarchy = async (frameworkId: string): Promise<any[]> => {
+  try {
+    const allSoldiers = await getAllSoldiers();
+    const allFrameworks = await getAllFrameworks();
+    
+    const getAllSoldiersInHierarchy = (currentFrameworkId: string): any[] => {
+      const directSoldiers = allSoldiers.filter(s => s.frameworkId === currentFrameworkId);
+      const childFrameworks = allFrameworks.filter(f => f.parentFrameworkId === currentFrameworkId);
+      const childSoldiers = childFrameworks.flatMap(child => getAllSoldiersInHierarchy(child.id));
+      return [...directSoldiers, ...childSoldiers];
+    };
+    
+    return getAllSoldiersInHierarchy(frameworkId);
+  } catch (error) {
+    console.error('שגיאה בקבלת חיילים בהיררכיה:', error);
+    return [];
+  }
 };

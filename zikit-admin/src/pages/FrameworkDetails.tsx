@@ -46,7 +46,7 @@ import { useUser } from '../contexts/UserContext';
 import { FrameworkWithDetails } from '../models/Framework';
 import { Activity } from '../models/Activity';
 import { Duty } from '../models/Duty';
-import { getFrameworkWithDetails } from '../services/frameworkService';
+import { getFrameworkWithDetails, getFrameworkNamesByIds } from '../services/frameworkService';
 import { getActivitiesByFramework } from '../services/activityService';
 import { getDutiesByFramework } from '../services/dutyService';
 import { getPresenceColor, getProfileColor } from '../utils/colors';
@@ -60,6 +60,7 @@ const FrameworkDetails: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [activeTab, setActiveTab] = useState(0);
+  const [frameworkNames, setFrameworkNames] = useState<{ [key: string]: string }>({});
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -84,6 +85,13 @@ const FrameworkDetails: React.FC = () => {
       
       setActivities(activitiesData);
       setDuties(dutiesData);
+      
+      // קבלת שמות המסגרות עבור החיילים בהיררכיה
+      if (frameworkData.allSoldiersInHierarchy) {
+        const frameworkIds = Array.from(new Set(frameworkData.allSoldiersInHierarchy.map(s => s.frameworkId)));
+        const names = await getFrameworkNamesByIds(frameworkIds);
+        setFrameworkNames(names);
+      }
     } catch (error) {
       console.error('שגיאה בטעינת פרטי מסגרת:', error);
       setError('שגיאה בטעינת פרטי המסגרת');
@@ -214,7 +222,8 @@ const FrameworkDetails: React.FC = () => {
       {/* Tabs */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)}>
-          <Tab label={`חיילים (${framework.soldiers.length})`} />
+          <Tab label={`חיילים ישירים (${framework.soldiers.length})`} />
+          <Tab label={`כל החיילים בהיררכיה (${framework.totalSoldiers})`} />
           <Tab label={`מסגרות בנות (${framework.childFrameworks.length})`} />
           <Tab label={`פעילויות (${activities.length})`} />
           <Tab label={`תורנויות (${duties.length})`} />
@@ -226,7 +235,7 @@ const FrameworkDetails: React.FC = () => {
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
-              חיילי המסגרת
+              חיילי המסגרת (ישירים)
             </Typography>
             {framework.soldiers.length > 0 ? (
               <List>
@@ -257,6 +266,40 @@ const FrameworkDetails: React.FC = () => {
       )}
 
       {activeTab === 1 && (
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              כל החיילים בהיררכיה (כולל מסגרות בנות)
+            </Typography>
+            {framework.allSoldiersInHierarchy && framework.allSoldiersInHierarchy.length > 0 ? (
+              <List>
+                {framework.allSoldiersInHierarchy.map((soldier) => (
+                  <ListItem key={soldier.id} disablePadding>
+                    <ListItemButton onClick={() => handleSoldierClick(soldier.id)}>
+                      <ListItemAvatar>
+                        <Avatar sx={{ bgcolor: 'primary.main' }}>
+                          {soldier.name.charAt(0)}
+                        </Avatar>
+                      </ListItemAvatar>
+                                             <ListItemText
+                         primary={soldier.name}
+                         secondary={`${soldier.role} • ${soldier.personalNumber} • מסגרת: ${frameworkNames[soldier.frameworkId] || soldier.frameworkId}`}
+                       />
+                      <ArrowBackIcon color="action" />
+                    </ListItemButton>
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Typography color="text.secondary" align="center">
+                אין חיילים בהיררכיה זו
+              </Typography>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === 2 && (
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
@@ -304,7 +347,7 @@ const FrameworkDetails: React.FC = () => {
         </Card>
       )}
 
-      {activeTab === 2 && (
+      {activeTab === 3 && (
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
@@ -338,7 +381,7 @@ const FrameworkDetails: React.FC = () => {
         </Card>
       )}
 
-      {activeTab === 3 && (
+      {activeTab === 4 && (
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>

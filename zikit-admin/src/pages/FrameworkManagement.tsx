@@ -44,7 +44,8 @@ import {
   createFramework, 
   updateFramework, 
   deleteFramework,
-  getFrameworkTree 
+  getFrameworkTree,
+  getFrameworkWithDetails
 } from '../services/frameworkService';
 import { getAllSoldiers, updateSoldier } from '../services/soldierService';
 import { Soldier } from '../models/Soldier';
@@ -195,8 +196,16 @@ const FrameworkManagement: React.FC = () => {
   };
 
   const handleManageSoldiers = (framework: Framework) => {
-    const soldiersInFramework = soldiers.filter(s => s.frameworkId === framework.id);
-    setFrameworkSoldiers(soldiersInFramework);
+    // קבלת כל החיילים בהיררכיה כולל מסגרות בנות
+    const getAllSoldiersInHierarchy = (frameworkId: string): Soldier[] => {
+      const directSoldiers = soldiers.filter(s => s.frameworkId === frameworkId);
+      const childFrameworks = frameworks.filter(f => f.parentFrameworkId === frameworkId);
+      const childSoldiers = childFrameworks.flatMap(child => getAllSoldiersInHierarchy(child.id));
+      return [...directSoldiers, ...childSoldiers];
+    };
+    
+    const allSoldiersInHierarchy = getAllSoldiersInHierarchy(framework.id);
+    setFrameworkSoldiers(allSoldiersInHierarchy);
     setSelectedFramework(framework);
     setOpenSoldiersDialog(true);
   };
@@ -272,6 +281,16 @@ const FrameworkManagement: React.FC = () => {
       const commander = soldiers.find(s => s.id === tree.framework.commanderId);
       const frameworkSoldiers = soldiers.filter(s => s.frameworkId === tree.framework.id);
       
+      // חישוב סה"כ חיילים כולל במסגרות בנות
+      const getTotalSoldiersInHierarchy = (frameworkId: string): number => {
+        const directSoldiers = soldiers.filter(s => s.frameworkId === frameworkId).length;
+        const childFrameworks = frameworks.filter(f => f.parentFrameworkId === frameworkId);
+        const childSoldiers = childFrameworks.reduce((sum, child) => sum + getTotalSoldiersInHierarchy(child.id), 0);
+        return directSoldiers + childSoldiers;
+      };
+      
+      const totalSoldiers = getTotalSoldiersInHierarchy(tree.framework.id);
+      
       return (
         <Accordion key={tree.framework.id} defaultExpanded={level === 0}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
@@ -287,10 +306,17 @@ const FrameworkManagement: React.FC = () => {
                 sx={{ mr: 1 }}
               />
               <Chip 
-                label={`${frameworkSoldiers.length} חיילים`} 
+                label={`${frameworkSoldiers.length} חיילים ישירים`} 
                 size="small" 
                 color="primary"
               />
+              {totalSoldiers > frameworkSoldiers.length && (
+                <Chip 
+                  label={`${totalSoldiers} סה"כ`} 
+                  size="small" 
+                  color="success"
+                />
+              )}
               <IconButton 
                 size="small" 
                 onClick={(e) => {
@@ -532,14 +558,14 @@ const FrameworkManagement: React.FC = () => {
       {/* Dialog לניהול חיילים */}
       <Dialog open={openSoldiersDialog} onClose={handleCloseSoldiersDialog} maxWidth="md" fullWidth>
         <DialogTitle>
-          ניהול חיילים - {selectedFramework?.name}
+          ניהול חיילים - {selectedFramework?.name} (כולל מסגרות בנות)
         </DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', gap: 3 }}>
             {/* רשימת חיילים במסגרת */}
             <Box sx={{ flex: 1 }}>
               <Typography variant="h6" gutterBottom>
-                חיילים במסגרת ({frameworkSoldiers.length})
+                חיילים במסגרת ובמסגרות בנות ({frameworkSoldiers.length})
               </Typography>
               {frameworkSoldiers.length > 0 ? (
                 <List dense>

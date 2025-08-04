@@ -26,6 +26,13 @@ export interface FrameworkWithDetails extends Framework {
     role: string;
     personalNumber: string;
   }>;
+  allSoldiersInHierarchy?: Array<{
+    id: string;
+    name: string;
+    role: string;
+    personalNumber: string;
+    frameworkId: string;
+  }>;
   totalSoldiers: number; // כולל חיילים במסגרות בנות
 }
 

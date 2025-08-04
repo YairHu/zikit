@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Soldier } from '../models/Soldier';
-import { getAllSoldiers, deleteSoldier } from '../services/soldierService';
+import { getAllSoldiers, getAllSoldiersWithFrameworkNames, deleteSoldier } from '../services/soldierService';
 import { getPresenceColor, getProfileColor } from '../utils/colors';
 import { Link } from 'react-router-dom';
 import SoldierForm from '../components/SoldierForm';
@@ -73,6 +73,7 @@ import {
 const Soldiers: React.FC = () => {
   const navigate = useNavigate();
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
+  const [soldiersWithFrameworkNames, setSoldiersWithFrameworkNames] = useState<(Soldier & { frameworkName?: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -104,21 +105,27 @@ const Soldiers: React.FC = () => {
 
   const refresh = useCallback(() => {
     setLoading(true);
-    getAllSoldiers()
-      .then(data => {
-        console.log('Loaded soldiers from Firebase:', data.length);
+    Promise.all([
+      getAllSoldiers(),
+      getAllSoldiersWithFrameworkNames()
+    ])
+      .then(([soldiersData, soldiersWithNamesData]) => {
+        console.log('Loaded soldiers from Firebase:', soldiersData.length);
         // אם אין נתונים ב-Firebase, השתמש בדמו
-        if (data.length === 0) {
+        if (soldiersData.length === 0) {
           console.log('No soldiers in Firebase, using demo data');
           setSoldiers(demo);
+          setSoldiersWithFrameworkNames(demo.map(s => ({ ...s, frameworkName: s.frameworkId })));
         } else {
-          setSoldiers(data);
+          setSoldiers(soldiersData);
+          setSoldiersWithFrameworkNames(soldiersWithNamesData);
         }
       })
       .catch((error) => {
         console.error('Error loading soldiers from Firebase:', error);
         console.log('Using demo data due to error');
         setSoldiers(demo);
+        setSoldiersWithFrameworkNames(demo.map(s => ({ ...s, frameworkName: s.frameworkId })));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -871,7 +878,7 @@ const Soldiers: React.FC = () => {
   ];
 
   // השתמש בדמו אם אין נתונים מ-Firebase או אם יש שגיאה בטעינה
-  const data = soldiers.length > 0 ? soldiers : demo;
+  const data = soldiersWithFrameworkNames.length > 0 ? soldiersWithFrameworkNames : demo.map(s => ({ ...s, frameworkName: s.frameworkId }));
   console.log('Using data:', data.length, 'items (soldiers from Firebase:', soldiers.length, ', demo:', demo.length, ')');
 
   const filteredData = data.filter(s =>
@@ -1213,7 +1220,7 @@ const Soldiers: React.FC = () => {
                         return (
                           <TableCell key={column.key}>
                             <Chip 
-                              label={soldier.frameworkId || 'לא מוגדר'} 
+                              label={soldier.frameworkName || soldier.frameworkId || 'לא מוגדר'} 
                               size="small" 
                               color="primary" 
                               variant="outlined"
@@ -1774,7 +1781,7 @@ const Soldiers: React.FC = () => {
                     <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
                       <Chip 
                         icon={<GroupIcon />}
-                        label={soldier.frameworkId || 'לא מוגדר'} 
+                        label={soldier.frameworkName || soldier.frameworkId || 'לא מוגדר'} 
                         size="small" 
                         color="primary" 
                         variant="outlined"
