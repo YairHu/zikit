@@ -1,12 +1,8 @@
 import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Activity, ActivityDeliverable } from '../models/Activity';
-// Temporary: return empty arrays for mock functions
 
 const COLLECTION_NAME = 'activities';
-
-// Use mock database for development - disabled temporarily
-const USE_MOCK = false;
 
 // פונקציה ריכוזית לעדכון סטטוס פעילות
 export const updateActivityStatus = async (activityId: string, newStatus: Activity['status']): Promise<void> => {
@@ -25,11 +21,6 @@ export const updateActivityStatus = async (activityId: string, newStatus: Activi
 
 // פונקציה לקבלת פעילויות שהסתיימו לסטטיסטיקות
 export const getCompletedActivities = async (): Promise<Activity[]> => {
-  if (USE_MOCK) {
-    const allActivities: Activity[] = []; // Empty for now
-    return allActivities.filter((activity: Activity) => activity.status === 'הסתיימה');
-  }
-  
   try {
     const q = query(
       collection(db, COLLECTION_NAME),
@@ -73,9 +64,6 @@ export const addActivityDeliverable = async (
 };
 
 export const getAllActivities = async (): Promise<Activity[]> => {
-  // Return empty array for now - using Firebase only
-  return [];
-  
   try {
     const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
     const querySnapshot = await getDocs(q);
@@ -90,9 +78,6 @@ export const getAllActivities = async (): Promise<Activity[]> => {
 };
 
 export const getActivityById = async (id: string): Promise<Activity | null> => {
-  // Return null for now - using Firebase only
-  return null;
-  
   try {
     const docRef = doc(db, COLLECTION_NAME, id);
     const docSnap = await getDoc(docRef);
@@ -107,9 +92,6 @@ export const getActivityById = async (id: string): Promise<Activity | null> => {
 };
 
 export const addActivity = async (activity: Omit<Activity, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
-  // Return empty string for now - using Firebase only
-  return '';
-  
   try {
     const now = new Date().toISOString();
     const docRef = await addDoc(collection(db, COLLECTION_NAME), {
@@ -125,9 +107,6 @@ export const addActivity = async (activity: Omit<Activity, 'id' | 'createdAt' | 
 };
 
 export const updateActivity = async (id: string, activity: Partial<Activity>): Promise<void> => {
-  // Return empty for now - using Firebase only
-  return;
-  
   try {
     const docRef = doc(db, COLLECTION_NAME, id);
     await updateDoc(docRef, {
@@ -141,9 +120,6 @@ export const updateActivity = async (id: string, activity: Partial<Activity>): P
 };
 
 export const deleteActivity = async (id: string): Promise<void> => {
-  // Return empty for now - using Firebase only
-  return;
-  
   try {
     const docRef = doc(db, COLLECTION_NAME, id);
     await deleteDoc(docRef);
@@ -154,9 +130,6 @@ export const deleteActivity = async (id: string): Promise<void> => {
 };
 
 export const getActivitiesByFramework = async (frameworkId: string): Promise<Activity[]> => {
-  // זמנית החזר רשימה ריקה
-  return [];
-  
   try {
     // קבל את כל הפעילויות וסנן בצד הלקוח
     const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
@@ -164,7 +137,7 @@ export const getActivitiesByFramework = async (frameworkId: string): Promise<Act
       .map(doc => ({ id: doc.id, ...doc.data() } as Activity))
       .filter(activity => 
         ['מתוכננת', 'בביצוע'].includes(activity.status) &&
-        (activity.team === frameworkId || 
+        (activity.frameworkId === frameworkId || activity.team === frameworkId || 
          activity.participants.some(p => p.soldierId && p.soldierId.startsWith(frameworkId)))
       )
       .sort((a, b) => new Date(a.plannedDate).getTime() - new Date(b.plannedDate).getTime());
@@ -180,9 +153,6 @@ export const getActivitiesByFramework = async (frameworkId: string): Promise<Act
 export const getActivitiesByTeam = getActivitiesByFramework;
 
 export const getActivitiesBySoldier = async (soldierId: string): Promise<Activity[]> => {
-  // Return empty array for now - using Firebase only
-  return [];
-  
   try {
     // קבל את כל הפעילויות וסנן בצד הלקוח
     const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));

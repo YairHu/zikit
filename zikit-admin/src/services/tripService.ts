@@ -4,7 +4,7 @@ import { Trip } from '../models/Trip';
 import { Vehicle } from '../models/Vehicle';
 import { Driver } from '../models/Driver';
 import { Activity } from '../models/Activity';
-// Temporary: return empty arrays for mock functions
+
 import { updateSoldier } from './soldierService';
 import { updateActivity } from './activityService';
 

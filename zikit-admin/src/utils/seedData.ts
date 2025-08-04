@@ -2,14 +2,14 @@ import { db } from '../firebase';
 import { collection, addDoc, getDocs, deleteDoc } from 'firebase/firestore';
 import { Soldier } from '../models/Soldier';
 import { Vehicle } from '../models/Vehicle';
+import { Framework } from '../models/Framework';
 
 // נתוני חיילים דמו - מעודכן עם כל השדות
 export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   // מפקדי פלוגה
   {
     name: 'מפקד פלוגה',
-    personalNumber: '1000001',
-    frameworkId: '1', // פלוגת זיק"ת
+    personalNumber: '1000000',
     role: 'מפקד פלוגה',
     profile: '97',
     qualifications: ['פיקוד', 'ניווט', 'קשר'],
@@ -31,9 +31,77 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
     }
   },
   {
-    name: 'סגן מפקד פלוגה',
+    name: 'מפקד פלגה א',
+    personalNumber: '1000001',
+    role: 'מפקד פלגה א',
+    profile: '97',
+    qualifications: ['פיקוד', 'ניווט', 'קשר'],
+    licenses: ['B', 'C'],
+    certifications: ['קורס מפקדי פלוגות'],
+    presence: 'פעיל',
+    family: 'נשוי + 2 ילדים',
+    militaryBackground: 'שירות קרבי 8 שנים',
+    notes: 'מפקד מנוסה עם ניסיון בפיקוד על פלוגות',
+    medicalProfile: 'A1',
+    braurTest: {
+      strength: 'passed',
+      running: '12:45'
+    },
+    vacationDays: {
+      total: 30,
+      used: 8,
+      status: 'good'
+    }
+  },
+  {
+    name: 'מפקד פלגה ב',
     personalNumber: '1000002',
-    frameworkId: '1', // פלוגת זיק"ת
+    role: 'מפקד פלגה ב',
+    profile: '97',
+    qualifications: ['פיקוד', 'ניווט', 'קשר'],
+    licenses: ['B', 'C'],
+    certifications: ['קורס מפקדי פלוגות'],
+    presence: 'פעיל',
+    family: 'נשוי + 1 ילד',
+    militaryBackground: 'שירות קרבי 7 שנים',
+    notes: 'מפקד פלוגה ב מנוסה עם יכולות פיקודיות מצוינות',
+    medicalProfile: 'A1',
+    braurTest: {
+      strength: 'passed',
+      running: '12:30'
+    },
+    vacationDays: {
+      total: 30,
+      used: 12,
+      status: 'good'
+    }
+  },
+  {
+    name: 'מפקד פלגה ז"א',
+    personalNumber: '1000003',
+    role: 'מפקד פלגה ז"א',
+    profile: '97',
+    qualifications: ['פיקוד', 'ניווט', 'קשר', 'זיהוי אווירי'],
+    licenses: ['B', 'C'],
+    certifications: ['קורס מפקדי פלוגות', 'קורס זיהוי אווירי'],
+    presence: 'פעיל',
+    family: 'רווק',
+    militaryBackground: 'שירות קרבי 6 שנים',
+    notes: 'מפקד פלוגה ז"א עם התמחות בזיהוי אווירי',
+    medicalProfile: 'A1',
+    braurTest: {
+      strength: 'passed',
+      running: '13:00'
+    },
+    vacationDays: {
+      total: 30,
+      used: 18,
+      status: 'warning'
+    }
+  },
+  {
+    name: 'סגן מפקד פלוגה',
+    personalNumber: '1000004',
     role: 'סגן מפקד פלוגה',
     profile: '97',
     qualifications: ['פיקוד', 'ניווט', 'קשר'],
@@ -59,7 +127,6 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'רספ',
     personalNumber: '1000006',
-    frameworkId: 'מפקדה',
     role: 'רספ',
     profile: '97',
     qualifications: ['פיקוד', 'קשר', 'טכנולוג'],
@@ -83,7 +150,6 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'קצין ניהול',
     personalNumber: '1000008',
-    frameworkId: 'מפקדה',
     role: 'קצין ניהול',
     profile: '97',
     qualifications: ['פיקוד', 'קשר', 'בנאי'],
@@ -109,7 +175,6 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'מפקד צוות 10',
     personalNumber: '1000015',
-    frameworkId: 'צוות 10',
     role: 'מפקד צוות',
     profile: '97',
     qualifications: ['פיקוד', 'ניווט', 'קשר'],
@@ -134,7 +199,6 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'סמל צוות 10',
     personalNumber: '1000016',
-    frameworkId: 'צוות 10',
     role: 'סמל',
     profile: '97',
     qualifications: ['פיקוד', 'קשר', 'חובש'],
@@ -158,7 +222,6 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'חייל 1 צוות 10',
     personalNumber: '1000019',
-    frameworkId: 'צוות 10',
     role: 'חייל',
     profile: '97',
     qualifications: ['רוגר', 'נהג', 'חובש'],
@@ -183,7 +246,6 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'חייל 2 צוות 10',
     personalNumber: '1000020',
-    frameworkId: 'צוות 10',
     role: 'חייל',
     profile: '97',
     qualifications: ['קלע', 'צלם', 'מטמין'],
@@ -209,7 +271,6 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'מפקד צוות 20',
     personalNumber: '1000024',
-    frameworkId: 'צוות 20',
     role: 'מפקד צוות',
     profile: '97',
     qualifications: ['פיקוד', 'ניווט', 'קשר'],
@@ -234,7 +295,6 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'חייל 1 צוות 20',
     personalNumber: '1000028',
-    frameworkId: 'צוות 20',
     role: 'חייל',
     profile: '97',
     qualifications: ['רוגר', 'נהג', 'חובש'],
@@ -261,7 +321,6 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'מפקד צוות 30',
     personalNumber: '1000033',
-    frameworkId: 'צוות 30',
     role: 'מפקד צוות',
     profile: '97',
     qualifications: ['פיקוד', 'ניווט', 'קשר'],
@@ -286,7 +345,6 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
   {
     name: 'חייל 1 צוות 30',
     personalNumber: '1000037',
-    frameworkId: 'צוות 30',
     role: 'חייל',
     profile: '97',
     qualifications: ['רוגר', 'נהג', 'חובש'],
@@ -307,6 +365,214 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
       used: 12,
       status: 'good'
     }
+  },
+  
+  // צוות 40
+  {
+    name: 'מפקד צוות 40',
+    personalNumber: '1000040',
+    role: 'מפקד צוות',
+    profile: '97',
+    qualifications: ['פיקוד', 'ניווט', 'קשר'],
+    licenses: ['B'],
+    certifications: ['קורס מפקדי צוותים'],
+    presence: 'פעיל',
+    family: 'נשוי + 1 ילד',
+    militaryBackground: 'שירות קרבי 5 שנים',
+    notes: 'מפקד צוות מנוסה עם יכולות פיקודיות מצוינות',
+    medicalProfile: 'A1',
+    braurTest: {
+      strength: 'passed',
+      running: '12:55'
+    },
+    vacationDays: {
+      total: 30,
+      used: 10,
+      status: 'good'
+    }
+  },
+  {
+    name: 'חייל 1 צוות 40',
+    personalNumber: '1000041',
+    role: 'חייל',
+    profile: '97',
+    qualifications: ['רוגר', 'נהג', 'חובש'],
+    licenses: ['B', 'C'],
+    certifications: ['הסמכת רוגר'],
+    presence: 'פעיל',
+    family: 'רווק',
+    militaryBackground: 'שירות קרבי 2 שנים',
+    notes: 'חייל מוכשר עם יכולות נהיגה',
+    medicalProfile: 'A1',
+    drivingLicenses: ['דימקס', 'סוואנה'],
+    braurTest: {
+      strength: 'passed',
+      running: '13:30'
+    },
+    vacationDays: {
+      total: 30,
+      used: 8,
+      status: 'good'
+    }
+  },
+  {
+    name: 'חייל 2 צוות 40',
+    personalNumber: '1000042',
+    role: 'חייל',
+    profile: '97',
+    qualifications: ['רוגר', 'נהג'],
+    licenses: ['B'],
+    certifications: ['הסמכת רוגר'],
+    presence: 'פעיל',
+    family: 'רווק',
+    militaryBackground: 'שירות קרבי 1 שנה',
+    notes: 'חייל חדש עם פוטנציאל',
+    medicalProfile: 'A1',
+    braurTest: {
+      strength: 'passed',
+      running: '14:00'
+    },
+    vacationDays: {
+      total: 30,
+      used: 5,
+      status: 'good'
+    }
+  },
+  
+  // צוות 50
+  {
+    name: 'מפקד צוות 50',
+    personalNumber: '1000050',
+    role: 'מפקד צוות',
+    profile: '97',
+    qualifications: ['פיקוד', 'ניווט', 'קשר'],
+    licenses: ['B'],
+    certifications: ['קורס מפקדי צוותים'],
+    presence: 'פעיל',
+    family: 'רווק',
+    militaryBackground: 'שירות קרבי 3 שנים',
+    notes: 'מפקד צוות צעיר עם יכולות פיקודיות טובות',
+    medicalProfile: 'A1',
+    braurTest: {
+      strength: 'passed',
+      running: '13:15'
+    },
+    vacationDays: {
+      total: 30,
+      used: 15,
+      status: 'good'
+    }
+  },
+  {
+    name: 'חייל 1 צוות 50',
+    personalNumber: '1000051',
+    role: 'חייל',
+    profile: '97',
+    qualifications: ['רוגר', 'נהג', 'חובש'],
+    licenses: ['B', 'C'],
+    certifications: ['הסמכת רוגר'],
+    presence: 'פעיל',
+    family: 'רווק',
+    militaryBackground: 'שירות קרבי 2 שנים',
+    notes: 'חייל מוכשר עם יכולות נהיגה',
+    medicalProfile: 'A1',
+    drivingLicenses: ['דימקס', 'סוואנה'],
+    braurTest: {
+      strength: 'passed',
+      running: '13:45'
+    },
+    vacationDays: {
+      total: 30,
+      used: 12,
+      status: 'good'
+    }
+  },
+  {
+    name: 'חייל 2 צוות 50',
+    personalNumber: '1000052',
+    role: 'חייל',
+    profile: '97',
+    qualifications: ['רוגר', 'נהג'],
+    licenses: ['B'],
+    certifications: ['הסמכת רוגר'],
+    presence: 'פעיל',
+    family: 'רווק',
+    militaryBackground: 'שירות קרבי 1 שנה',
+    notes: 'חייל חדש עם פוטנציאל',
+    medicalProfile: 'A1',
+    braurTest: {
+      strength: 'passed',
+      running: '14:10'
+    },
+    vacationDays: {
+      total: 30,
+      used: 6,
+      status: 'good'
+    }
+  }
+];
+
+// נתוני מסגרות דמו
+export const demoFrameworks: Omit<Framework, 'id' | 'createdAt' | 'updatedAt'>[] = [
+  {
+    name: 'פלוגת זיקית',
+    level: 'company',
+    commanderId: '1000000',
+    isActive: true
+  },
+  {
+    name: 'פלגה א',
+    level: 'platoon',
+    commanderId: '1000001',
+    isActive: true
+  },
+  {
+    name: 'פלגה ב',
+    level: 'platoon',
+    commanderId: '1000002',
+    isActive: true
+  },
+  {
+    name: 'פלגת ז"א',
+    level: 'platoon',
+    commanderId: '1000003',
+    isActive: true
+  },
+  {
+    name: 'מפלג',
+    level: 'other',
+    commanderId: '1000004',
+    isActive: true
+  },
+  {
+    name: 'צוות 10',
+    level: 'team',
+    commanderId: '1000015',
+    isActive: true
+  },
+  {
+    name: 'צוות 20',
+    level: 'team',
+    commanderId: '1000024',
+    isActive: true
+  },
+  {
+    name: 'צוות 30',
+    level: 'team',
+    commanderId: '1000033',
+    isActive: true
+  },
+  {
+    name: 'צוות 40',
+    level: 'team',
+    commanderId: '1000040',
+    isActive: true
+  },
+  {
+    name: 'צוות 50',
+    level: 'team',
+    commanderId: '1000050',
+    isActive: true
   }
 ];
 
@@ -431,6 +697,34 @@ export const seedSoldiers = async () => {
   }
 };
 
+export const seedFrameworks = async () => {
+  try {
+    console.log('מתחיל הכנסת נתוני מסגרות...');
+    
+    // מחיקת נתונים קיימים
+    const existingFrameworks = await getDocs(collection(db, 'frameworks'));
+    for (const doc of existingFrameworks.docs) {
+      await deleteDoc(doc.ref);
+    }
+    console.log('נמחקו נתונים קיימים');
+    
+    // הכנסת נתונים חדשים
+    for (const framework of demoFrameworks) {
+      await addDoc(collection(db, 'frameworks'), {
+        ...framework,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    }
+    
+    console.log(`הוכנסו ${demoFrameworks.length} מסגרות בהצלחה`);
+    return true;
+  } catch (error) {
+    console.error('שגיאה בהכנסת נתוני מסגרות:', error);
+    return false;
+  }
+};
+
 export const seedVehicles = async () => {
   try {
     console.log('מתחיל הכנסת נתוני רכבים...');
@@ -477,7 +771,7 @@ const calculateVacationStatus = (totalDays: number): 'good' | 'warning' | 'criti
 export const demoActivities = [
   {
     name: 'סיור ביטחון',
-    frameworkId: 'צוות 10',
+    frameworkId: '10',
     location: 'גבעת המורה',
     region: 'מנשה',
     activityType: 'מארב ירי',
@@ -509,7 +803,7 @@ export const demoActivities = [
         role: 'נהג'
       }
     ],
-    status: 'הסתיימה',
+    status: 'מתוכננת',
     deliverables: [
       {
         id: '1',
@@ -523,7 +817,7 @@ export const demoActivities = [
   },
   {
     name: 'אבטחת אירוע',
-    frameworkId: 'צוות 20',
+    frameworkId: '20',
     location: 'מרכז העיר',
     region: 'שומרון',
     activityType: 'אמלמ',
@@ -566,6 +860,59 @@ export const demoActivities = [
         createdBy: 'מפקד צוות 20'
       }
     ]
+  },
+  {
+    name: 'פעילות פיקוד פלוגתי',
+    frameworkId: '1',
+    location: 'מחנה הפלוגה',
+    region: 'מנשה',
+    activityType: 'אחר',
+    activityTypeOther: 'אימון פיקודי',
+    plannedDate: '2024-01-25',
+    plannedTime: '09:00',
+    duration: 8,
+    commanderId: '1000001',
+    commanderName: 'מפקד פלוגה א',
+    taskLeaderId: '1000004',
+    taskLeaderName: 'סגן מפקד פלוגה',
+    mobility: '',
+    participants: [
+      {
+        soldierId: '1000001',
+        soldierName: 'מפקד פלוגה א',
+        personalNumber: '1000001',
+        role: 'מפקד'
+      },
+      {
+        soldierId: '1000002',
+        soldierName: 'מפקד פלוגה ב',
+        personalNumber: '1000002',
+        role: 'מפקד פלוגה'
+      },
+      {
+        soldierId: '1000003',
+        soldierName: 'מפקד פלוגה ז"א',
+        personalNumber: '1000003',
+        role: 'מפקד פלוגה ז"א'
+      },
+      {
+        soldierId: '1000004',
+        soldierName: 'סגן מפקד פלוגה',
+        personalNumber: '1000004',
+        role: 'סגן מפקד'
+      }
+    ],
+    status: 'מתוכננת',
+    deliverables: [
+      {
+        id: '3',
+        type: 'text',
+        content: 'אימון פיקודי מוצלח. כל מפקדי הפלוגות השתתפו וקיבלו הנחיות חדשות.',
+        title: 'דוח אימון פיקודי',
+        createdAt: '2024-01-25T17:00:00Z',
+        createdBy: 'מפקד פלוגה א'
+      }
+    ]
   }
 ];
 
@@ -591,7 +938,7 @@ export const demoDuties = [
     ],
     requiredEquipment: 'סינרים, כפפות',
     notes: 'תורנות בוקר',
-    frameworkId: 'צוות 10',
+    frameworkId: '10',
     status: 'פעילה'
   },
   {
@@ -609,7 +956,35 @@ export const demoDuties = [
     ],
     requiredEquipment: 'נשק, אפוד',
     notes: 'תורנות לילה',
-    frameworkId: 'צוות 10',
+    frameworkId: '10',
+    status: 'פעילה'
+  },
+  {
+    type: 'פלוגה',
+    location: 'מפקדת הפלוגה',
+    startDate: '2024-01-26',
+    startTime: '08:00',
+    endTime: '16:00',
+    participants: [
+      {
+        soldierId: '1000001',
+        soldierName: 'מפקד פלוגה א',
+        personalNumber: '1000001'
+      },
+      {
+        soldierId: '1000002',
+        soldierName: 'מפקד פלוגה ב',
+        personalNumber: '1000002'
+      },
+      {
+        soldierId: '1000003',
+        soldierName: 'מפקד פלוגה ז"א',
+        personalNumber: '1000003'
+      }
+    ],
+    requiredEquipment: 'מחשבים, מכשירי קשר',
+    notes: 'תורנות פיקוד פלוגתי',
+    frameworkId: '1',
     status: 'פעילה'
   }
 ];
@@ -645,7 +1020,7 @@ export const demoReferrals = [
     soldierId: '1000015',
     soldierName: 'מפקד צוות 10',
     personalNumber: '1000015',
-    frameworkId: 'צוות 10',
+    frameworkId: '10',
     date: '2024-01-15',
     location: 'בית חולים רמב"ם',
     reason: 'בדיקה רפואית שגרתית',
@@ -655,7 +1030,7 @@ export const demoReferrals = [
     soldierId: '1000016',
     soldierName: 'סמל צוות 10',
     personalNumber: '1000016',
-    frameworkId: 'צוות 10',
+    frameworkId: '10',
     date: '2024-01-20',
     location: 'מרפאה צבאית',
     reason: 'בדיקת שיניים',
@@ -665,11 +1040,21 @@ export const demoReferrals = [
     soldierId: '1000024',
     soldierName: 'מפקד צוות 20',
     personalNumber: '1000024',
-    frameworkId: 'צוות 20',
+    frameworkId: '20',
     date: '2024-01-25',
     location: 'בית חולים סורוקה',
     reason: 'בדיקת לב',
     status: 'in_progress'
+  },
+  {
+    soldierId: '1000003',
+    soldierName: 'מפקד פלוגה ז"א',
+    personalNumber: '1000003',
+    frameworkId: '1',
+    date: '2024-01-28',
+    location: 'בית חולים רמב"ם',
+    reason: 'בדיקת עיניים - עדכון אישור זיהוי אווירי',
+    status: 'pending'
   }
 ];
 
@@ -788,6 +1173,7 @@ export const seedReferrals = async () => {
 export const seedAllData = async () => {
   console.log('מתחיל הכנסת כל נתוני הדמו...');
   
+  const frameworksResult = await seedFrameworks();
   const soldiersResult = await seedSoldiers();
   const vehiclesResult = await seedVehicles();
   const activitiesResult = await seedActivities();
@@ -795,7 +1181,7 @@ export const seedAllData = async () => {
   const missionsResult = await seedMissions();
   const referralsResult = await seedReferrals();
   
-  if (soldiersResult && vehiclesResult && activitiesResult && dutiesResult && missionsResult && referralsResult) {
+  if (frameworksResult && soldiersResult && vehiclesResult && activitiesResult && dutiesResult && missionsResult && referralsResult) {
     console.log('כל הנתונים הוכנסו בהצלחה!');
     return true;
   } else {

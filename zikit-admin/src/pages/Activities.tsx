@@ -9,6 +9,7 @@ import { getAllActivities, addActivity, updateActivity, deleteActivity } from '.
 import { getAllSoldiers, updateSoldier } from '../services/soldierService';
 import { getAllVehicles } from '../services/vehicleService';
 import { getAllTrips, updateTrip } from '../services/tripService';
+import { getAllFrameworks } from '../services/frameworkService';
 
 import {
   Container,
@@ -69,7 +70,7 @@ import {
 
 const emptyActivity: Omit<Activity, 'id' | 'createdAt' | 'updatedAt'> = {
   name: '',
-  team: '',
+  frameworkId: '',
   location: '',
   region: 'מנשה',
   activityType: 'מארב ירי',
@@ -87,7 +88,6 @@ const emptyActivity: Omit<Activity, 'id' | 'createdAt' | 'updatedAt'> = {
 };
 
 const regions = ['מנשה', 'אפרים', 'שומרון', 'יהודה', 'בנימין', 'עציון', 'הבקעה והעמקים'];
-const teams = ['צוות 10', 'צוות 20', 'צוות 30', 'צוות 40', 'צוות 50'];
 const statuses = ['מתוכננת', 'בביצוע', 'הסתיימה', 'בוטלה'];
 const activityTypes = ['מארב ירי', 'אמלמ', 'זווית אחרת', 'אחר'];
 
@@ -98,6 +98,7 @@ const Activities: React.FC = () => {
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
+  const [frameworks, setFrameworks] = useState<any[]>([]);
   const [selectedTripIds, setSelectedTripIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -113,16 +114,18 @@ const Activities: React.FC = () => {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [activitiesData, soldiersData, vehiclesData, tripsData] = await Promise.all([
+      const [activitiesData, soldiersData, vehiclesData, tripsData, frameworksData] = await Promise.all([
         getAllActivities(),
         getAllSoldiers(),
         getAllVehicles(),
-        getAllTrips()
+        getAllTrips(),
+        getAllFrameworks()
       ]);
       setActivities(activitiesData);
       setSoldiers(soldiersData);
       setVehicles(vehiclesData);
       setTrips(tripsData);
+      setFrameworks(frameworksData);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -151,7 +154,7 @@ const Activities: React.FC = () => {
     if (activity) {
       setFormData({
         name: activity.name,
-        team: activity.team,
+        frameworkId: activity.frameworkId || '',
         location: activity.location,
         region: activity.region,
         activityType: activity.activityType,
@@ -951,15 +954,16 @@ const Activities: React.FC = () => {
               </Box>
               <Box>
                 <FormControl fullWidth>
-                  <InputLabel>צוות</InputLabel>
+                  <InputLabel>מסגרת</InputLabel>
                   <Select
-                    name="team"
-                    value={formData.team}
-                    onChange={(e) => handleSelectChange('team', e.target.value)}
-                    label="צוות"
+                    name="frameworkId"
+                    value={formData.frameworkId}
+                    onChange={(e) => handleSelectChange('frameworkId', e.target.value)}
+                    label="מסגרת"
                   >
-                    {teams.map(team => (
-                      <MenuItem key={team} value={team}>{team}</MenuItem>
+                    <MenuItem value="">בחר מסגרת</MenuItem>
+                    {frameworks.map(framework => (
+                      <MenuItem key={framework.id} value={framework.id}>{framework.name}</MenuItem>
                     ))}
                   </Select>
                 </FormControl>

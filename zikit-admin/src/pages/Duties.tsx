@@ -4,6 +4,7 @@ import { Duty, DutyParticipant } from '../models/Duty';
 import { Soldier } from '../models/Soldier';
 import { getAllDuties, addDuty, updateDuty, deleteDuty } from '../services/dutyService';
 import { getAllSoldiers } from '../services/soldierService';
+import { getAllFrameworks } from '../services/frameworkService';
 import {
   Container,
   Typography,
@@ -61,18 +62,18 @@ const emptyDuty: Omit<Duty, 'id' | 'createdAt' | 'updatedAt'> = {
   participants: [],
   requiredEquipment: '',
   notes: '',
-  team: '',
+  frameworkId: '',
   status: 'פעילה'
 };
 
 const dutyTypes = ['מטבח', 'רסר', 'פלוגה', 'אחר'];
-const teams = ['צוות 10', 'צוות 20', 'צוות 30', 'צוות 40', 'צוות 50'];
 const statuses = ['פעילה', 'הסתיימה', 'בוטלה'];
 
 const Duties: React.FC = () => {
   const { user } = useUser();
   const [duties, setDuties] = useState<Duty[]>([]);
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
+  const [frameworks, setFrameworks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<Omit<Duty, 'id' | 'createdAt' | 'updatedAt'>>(emptyDuty);
@@ -86,12 +87,14 @@ const Duties: React.FC = () => {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [dutiesData, soldiersData] = await Promise.all([
+      const [dutiesData, soldiersData, frameworksData] = await Promise.all([
         getAllDuties(),
-        getAllSoldiers()
+        getAllSoldiers(),
+        getAllFrameworks()
       ]);
       setDuties(dutiesData);
       setSoldiers(soldiersData);
+      setFrameworks(frameworksData);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -114,7 +117,7 @@ const Duties: React.FC = () => {
         participants: duty.participants,
         requiredEquipment: duty.requiredEquipment || '',
         notes: duty.notes || '',
-        team: duty.team,
+        frameworkId: duty.frameworkId || '',
         status: duty.status
       });
       setEditId(duty.id);
@@ -503,16 +506,17 @@ const Duties: React.FC = () => {
                 InputLabelProps={{ shrink: true }}
               />
               <FormControl fullWidth>
-                <InputLabel>צוות</InputLabel>
+                <InputLabel>מסגרת</InputLabel>
                 <Select
-                  name="team"
-                  value={formData.team}
-                  onChange={(e) => handleSelectChange('team', e.target.value)}
-                  label="צוות"
+                  name="frameworkId"
+                  value={formData.frameworkId}
+                  onChange={(e) => handleSelectChange('frameworkId', e.target.value)}
+                  label="מסגרת"
                   required
                 >
-                  {teams.map(team => (
-                    <MenuItem key={team} value={team}>{team}</MenuItem>
+                  <MenuItem value="">בחר מסגרת</MenuItem>
+                  {frameworks.map(framework => (
+                    <MenuItem key={framework.id} value={framework.id}>{framework.name}</MenuItem>
                   ))}
                 </Select>
               </FormControl>

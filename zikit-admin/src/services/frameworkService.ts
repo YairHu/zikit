@@ -1,64 +1,82 @@
 import { Framework, FrameworkWithDetails, FrameworkTree } from '../models/Framework';
 import { getSoldiersByFramework, getAllSoldiers } from './soldierService';
-
-// Mock database for development - בעתיד יתחבר לבסיס נתונים אמיתי
-let mockFrameworks: Framework[] = [
-  {
-    id: '1',
-    name: 'פלוגת זיק"ת',
-    level: 'company',
-    commanderId: 'commander-1',
-    isActive: true,
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01')
-  },
-  {
-    id: '2',
-    name: 'פלגה א',
-    parentFrameworkId: '1',
-    level: 'platoon',
-    commanderId: 'commander-2',
-    isActive: true,
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01')
-  },
-  {
-    id: '3',
-    name: 'פלגה ב',
-    parentFrameworkId: '1',
-    level: 'platoon',
-    commanderId: 'commander-3',
-    isActive: true,
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01')
-  }
-];
+import { db } from '../firebase';
+import { 
+  collection, 
+  getDocs, 
+  getDoc, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  query, 
+  where,
+  orderBy 
+} from 'firebase/firestore';
 
 export const getAllFrameworks = async (): Promise<Framework[]> => {
-  // סימולציה של קריאה מבסיס נתונים
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve([...mockFrameworks]);
-    }, 100);
-  });
+  try {
+    const frameworksRef = collection(db, 'frameworks');
+    const q = query(frameworksRef, orderBy('name'));
+    const querySnapshot = await getDocs(q);
+    
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt ? new Date(doc.data().createdAt) : new Date(),
+      updatedAt: doc.data().updatedAt ? new Date(doc.data().updatedAt) : new Date()
+    })) as Framework[];
+  } catch (error) {
+    console.error('שגיאה בקבלת מסגרות:', error);
+    return [];
+  }
 };
 
 export const getFrameworkById = async (id: string): Promise<Framework | null> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const framework = mockFrameworks.find(f => f.id === id);
-      resolve(framework || null);
-    }, 100);
-  });
+  try {
+    const frameworkRef = doc(db, 'frameworks', id);
+    const frameworkDoc = await getDoc(frameworkRef);
+    
+    if (frameworkDoc.exists()) {
+      const data = frameworkDoc.data();
+      return {
+        id: frameworkDoc.id,
+        ...data,
+        createdAt: data.createdAt ? new Date(data.createdAt) : new Date(),
+        updatedAt: data.updatedAt ? new Date(data.updatedAt) : new Date()
+      } as Framework;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('שגיאה בקבלת מסגרת:', error);
+    return null;
+  }
 };
 
 export const getFrameworksByParent = async (parentId?: string): Promise<Framework[]> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const frameworks = mockFrameworks.filter(f => f.parentFrameworkId === parentId);
-      resolve(frameworks);
-    }, 100);
-  });
+  try {
+    const frameworksRef = collection(db, 'frameworks');
+    let q;
+    
+    if (parentId) {
+      q = query(frameworksRef, where('parentFrameworkId', '==', parentId), orderBy('name'));
+    } else {
+      q = query(frameworksRef, where('parentFrameworkId', '==', null), orderBy('name'));
+    }
+    
+    const querySnapshot = await getDocs(q);
+    
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt ? new Date(doc.data().createdAt) : new Date(),
+      updatedAt: doc.data().updatedAt ? new Date(doc.data().updatedAt) : new Date()
+    })) as Framework[];
+  } catch (error) {
+    console.error('שגיאה בקבלת מסגרות לפי הורה:', error);
+    return [];
+  }
 };
 
 export const getFrameworkTree = async (): Promise<FrameworkTree[]> => {
@@ -94,60 +112,70 @@ export const getFrameworkTree = async (): Promise<FrameworkTree[]> => {
 };
 
 export const createFramework = async (framework: Omit<Framework, 'id' | 'createdAt' | 'updatedAt'>): Promise<Framework> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const newFramework: Framework = {
-        ...framework,
-        id: Date.now().toString(),
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      mockFrameworks.push(newFramework);
-      resolve(newFramework);
-    }, 100);
-  });
+  try {
+    const frameworksRef = collection(db, 'frameworks');
+    const newFramework = {
+      ...framework,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
+    const docRef = await addDoc(frameworksRef, newFramework);
+    
+    return {
+      id: docRef.id,
+      ...newFramework,
+      createdAt: new Date(newFramework.createdAt),
+      updatedAt: new Date(newFramework.updatedAt)
+    } as Framework;
+  } catch (error) {
+    console.error('שגיאה ביצירת מסגרת:', error);
+    throw error;
+  }
 };
 
 export const updateFramework = async (id: string, updates: Partial<Omit<Framework, 'id' | 'createdAt'>>): Promise<Framework | null> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const index = mockFrameworks.findIndex(f => f.id === id);
-      if (index === -1) {
-        resolve(null);
-        return;
-      }
-
-      mockFrameworks[index] = {
-        ...mockFrameworks[index],
-        ...updates,
-        updatedAt: new Date()
-      };
-      
-      resolve(mockFrameworks[index]);
-    }, 100);
-  });
+  try {
+    const frameworkRef = doc(db, 'frameworks', id);
+    const updateData = {
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
+    
+    await updateDoc(frameworkRef, updateData);
+    
+    // החזרת המסגרת המעודכנת
+    return await getFrameworkById(id);
+  } catch (error) {
+    console.error('שגיאה בעדכון מסגרת:', error);
+    return null;
+  }
 };
 
 export const deleteFramework = async (id: string): Promise<boolean> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      // בדיקה שאין מסגרות בנות
-      const hasChildren = mockFrameworks.some(f => f.parentFrameworkId === id);
-      if (hasChildren) {
-        resolve(false); // לא ניתן למחוק מסגרת עם מסגרות בנות
-        return;
-      }
-
-      const index = mockFrameworks.findIndex(f => f.id === id);
-      if (index === -1) {
-        resolve(false);
-        return;
-      }
-
-      mockFrameworks.splice(index, 1);
-      resolve(true);
-    }, 100);
-  });
+  try {
+    // בדיקה שאין מסגרות בנות
+    const childFrameworks = await getFrameworksByParent(id);
+    if (childFrameworks.length > 0) {
+      console.error('לא ניתן למחוק מסגרת עם מסגרות בנות');
+      return false;
+    }
+    
+    // בדיקה שאין חיילים במסגרת
+    const frameworkSoldiers = await getSoldiersByFramework(id);
+    if (frameworkSoldiers.length > 0) {
+      console.error('לא ניתן למחוק מסגרת עם חיילים');
+      return false;
+    }
+    
+    const frameworkRef = doc(db, 'frameworks', id);
+    await deleteDoc(frameworkRef);
+    
+    return true;
+  } catch (error) {
+    console.error('שגיאה במחיקת מסגרת:', error);
+    return false;
+  }
 };
 
 export const getFrameworkWithDetails = async (id: string): Promise<FrameworkWithDetails | null> => {

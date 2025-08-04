@@ -17,7 +17,7 @@ import {
   seedActivities, 
   seedDuties, 
   seedMissions, 
-  seedReferrals 
+  seedReferrals
 } from '../utils/seedData';
 
 const DataSeeder: React.FC = () => {

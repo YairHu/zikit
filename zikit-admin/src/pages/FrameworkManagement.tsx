@@ -46,7 +46,7 @@ import {
   deleteFramework,
   getFrameworkTree 
 } from '../services/frameworkService';
-import { getAllSoldiers } from '../services/soldierService';
+import { getAllSoldiers, updateSoldier } from '../services/soldierService';
 import { Soldier } from '../models/Soldier';
 
 
@@ -74,6 +74,9 @@ const FrameworkManagement: React.FC = () => {
   });
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
+  const [openSoldiersDialog, setOpenSoldiersDialog] = useState(false);
+  const [selectedFramework, setSelectedFramework] = useState<Framework | null>(null);
+  const [frameworkSoldiers, setFrameworkSoldiers] = useState<Soldier[]>([]);
 
   const loadData = useCallback(async () => {
     try {
@@ -136,23 +139,33 @@ const FrameworkManagement: React.FC = () => {
       }
 
       if (editingFramework) {
-        await updateFramework(editingFramework.id, {
+        const updateData: any = {
           name: formData.name,
-          parentFrameworkId: formData.parentFrameworkId || undefined,
           commanderId: formData.commanderId,
           description: formData.description,
           level: formData.level
-        });
+        };
+        
+        if (formData.parentFrameworkId && formData.parentFrameworkId.trim()) {
+          updateData.parentFrameworkId = formData.parentFrameworkId;
+        }
+        
+        await updateFramework(editingFramework.id, updateData);
         setSuccess('המסגרת עודכנה בהצלחה');
       } else {
-        await createFramework({
+        const createData: any = {
           name: formData.name,
-          parentFrameworkId: formData.parentFrameworkId || undefined,
           commanderId: formData.commanderId,
           description: formData.description,
           level: formData.level,
           isActive: true
-        });
+        };
+        
+        if (formData.parentFrameworkId && formData.parentFrameworkId.trim()) {
+          createData.parentFrameworkId = formData.parentFrameworkId;
+        }
+        
+        await createFramework(createData);
         setSuccess('המסגרת נוצרה בהצלחה');
       }
 
@@ -179,6 +192,73 @@ const FrameworkManagement: React.FC = () => {
         setError('שגיאה במחיקת המסגרת');
       }
     }
+  };
+
+  const handleManageSoldiers = (framework: Framework) => {
+    const soldiersInFramework = soldiers.filter(s => s.frameworkId === framework.id);
+    setFrameworkSoldiers(soldiersInFramework);
+    setSelectedFramework(framework);
+    setOpenSoldiersDialog(true);
+  };
+
+  const handleAddSoldierToFramework = async (soldierId: string) => {
+    if (!selectedFramework) return;
+    
+    try {
+      // עדכון החייל במסד הנתונים
+      const soldier = soldiers.find(s => s.id === soldierId);
+      if (soldier) {
+        await updateSoldier(soldierId, { frameworkId: selectedFramework.id });
+        
+        // עדכון מקומי
+        const updatedSoldiers = soldiers.map(s => 
+          s.id === soldierId ? { ...s, frameworkId: selectedFramework.id } : s
+        );
+        setSoldiers(updatedSoldiers);
+        
+        // עדכון רשימת החיילים במסגרת
+        const updatedFrameworkSoldiers = [...frameworkSoldiers, soldier];
+        setFrameworkSoldiers(updatedFrameworkSoldiers);
+        
+        setSuccess(`החייל ${soldier.name} נוסף למסגרת ${selectedFramework.name}`);
+      }
+    } catch (error) {
+      console.error('שגיאה בהוספת חייל למסגרת:', error);
+      setError('שגיאה בהוספת חייל למסגרת');
+    }
+  };
+
+  const handleRemoveSoldierFromFramework = async (soldierId: string) => {
+    if (!selectedFramework) return;
+    
+    try {
+      // עדכון החייל במסד הנתונים
+      await updateSoldier(soldierId, { frameworkId: '' });
+      
+      // עדכון מקומי
+      const updatedSoldiers = soldiers.map(s => 
+        s.id === soldierId ? { ...s, frameworkId: '' } : s
+      );
+      setSoldiers(updatedSoldiers);
+      
+      // עדכון רשימת החיילים במסגרת
+      const updatedFrameworkSoldiers = frameworkSoldiers.filter(s => s.id !== soldierId);
+      setFrameworkSoldiers(updatedFrameworkSoldiers);
+      
+      const soldier = soldiers.find(s => s.id === soldierId);
+      if (soldier) {
+        setSuccess(`החייל ${soldier.name} הוסר מהמסגרת ${selectedFramework.name}`);
+      }
+    } catch (error) {
+      console.error('שגיאה בהסרת חייל מהמסגרת:', error);
+      setError('שגיאה בהסרת חייל מהמסגרת');
+    }
+  };
+
+  const handleCloseSoldiersDialog = () => {
+    setOpenSoldiersDialog(false);
+    setSelectedFramework(null);
+    setFrameworkSoldiers([]);
   };
 
   const generateOrgChart = () => {
@@ -229,6 +309,16 @@ const FrameworkManagement: React.FC = () => {
               >
                 <DeleteIcon />
               </IconButton>
+              <IconButton 
+                size="small" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleManageSoldiers(tree.framework);
+                }}
+                title="ניהול חיילים"
+              >
+                <GroupIcon />
+              </IconButton>
             </Box>
           </AccordionSummary>
           <AccordionDetails>
@@ -243,11 +333,21 @@ const FrameworkManagement: React.FC = () => {
               )}
             </Box>
             
-            {frameworkSoldiers.length > 0 && (
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" gutterBottom>
+            <Box sx={{ mb: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                <Typography variant="subtitle2">
                   חיילים במסגרת:
                 </Typography>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<GroupIcon />}
+                  onClick={() => handleManageSoldiers(tree.framework)}
+                >
+                  ניהול חיילים
+                </Button>
+              </Box>
+              {frameworkSoldiers.length > 0 ? (
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                   {frameworkSoldiers.map(soldier => (
                     <Chip
@@ -259,8 +359,12 @@ const FrameworkManagement: React.FC = () => {
                     />
                   ))}
                 </Box>
-              </Box>
-            )}
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  אין חיילים במסגרת זו
+                </Typography>
+              )}
+            </Box>
             
             {tree.children.length > 0 && (
               <Box>
@@ -422,6 +526,99 @@ const FrameworkManagement: React.FC = () => {
           <Button onClick={handleSubmit} variant="contained">
             {editingFramework ? 'עדכן' : 'צור'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog לניהול חיילים */}
+      <Dialog open={openSoldiersDialog} onClose={handleCloseSoldiersDialog} maxWidth="md" fullWidth>
+        <DialogTitle>
+          ניהול חיילים - {selectedFramework?.name}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', gap: 3 }}>
+            {/* רשימת חיילים במסגרת */}
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="h6" gutterBottom>
+                חיילים במסגרת ({frameworkSoldiers.length})
+              </Typography>
+              {frameworkSoldiers.length > 0 ? (
+                <List dense>
+                  {frameworkSoldiers.map(soldier => (
+                    <ListItem
+                      key={soldier.id}
+                      secondaryAction={
+                        <IconButton
+                          edge="end"
+                          onClick={() => handleRemoveSoldierFromFramework(soldier.id)}
+                          color="error"
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      }
+                    >
+                      <ListItemText
+                        primary={soldier.name}
+                        secondary={`${soldier.role} - ${soldier.personalNumber}`}
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  אין חיילים במסגרת זו
+                </Typography>
+              )}
+            </Box>
+
+            {/* רשימת חיילים זמינים להוספה */}
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="h6" gutterBottom>
+                חיילים זמינים להוספה
+              </Typography>
+              <List dense>
+                {soldiers
+                  .filter(s => !s.frameworkId || s.frameworkId === '')
+                  .map(soldier => (
+                    <ListItem
+                      key={soldier.id}
+                      secondaryAction={
+                        <Button
+                          size="small"
+                          variant="contained"
+                          onClick={() => handleAddSoldierToFramework(soldier.id)}
+                        >
+                          הוסף
+                        </Button>
+                      }
+                    >
+                      <ListItemText
+                        primary={soldier.name}
+                        secondary={`${soldier.role} - ${soldier.personalNumber}`}
+                      />
+                    </ListItem>
+                  ))}
+              </List>
+              {soldiers.filter(s => !s.frameworkId || s.frameworkId === '').length === 0 && (
+                <Typography variant="body2" color="text.secondary">
+                  אין חיילים זמינים להוספה
+                </Typography>
+              )}
+            </Box>
+          </Box>
+
+          {error && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {error}
+            </Alert>
+          )}
+          {success && (
+            <Alert severity="success" sx={{ mt: 2 }}>
+              {success}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseSoldiersDialog}>סגור</Button>
         </DialogActions>
       </Dialog>
     </Container>

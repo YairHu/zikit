@@ -77,7 +77,7 @@ const Soldiers: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [filterTeam, setFilterTeam] = useState('');
+  const [filterFramework, setFilterFramework] = useState('');
   const [filterRole, setFilterRole] = useState('');
   const [filterQualification, setFilterQualification] = useState('');
   const [filterPresence, setFilterPresence] = useState('');
@@ -89,9 +89,8 @@ const Soldiers: React.FC = () => {
   const availableColumns = [
     { key: 'name', label: 'שם', visible: true },
     { key: 'personalNumber', label: 'מספר אישי', visible: true },
-    { key: 'team', label: 'צוות', visible: true },
+    { key: 'framework', label: 'מסגרת', visible: true },
     { key: 'role', label: 'תפקיד', visible: true },
-    { key: 'framework', label: 'מסגרת', visible: false },
     { key: 'commanders', label: 'מפקדים', visible: false },
     { key: 'profile', label: 'פרופיל', visible: true },
     { key: 'presence', label: 'נוכחות', visible: true },
@@ -876,7 +875,7 @@ const Soldiers: React.FC = () => {
   console.log('Using data:', data.length, 'items (soldiers from Firebase:', soldiers.length, ', demo:', demo.length, ')');
 
   const filteredData = data.filter(s =>
-          (!filterTeam || (s.frameworkId && s.frameworkId.includes(filterTeam))) &&
+          (!filterFramework || (s.frameworkId && s.frameworkId.includes(filterFramework))) &&
     (!filterRole || s.role.includes(filterRole)) &&
     (!filterQualification || (s.qualifications && s.qualifications.join(',').includes(filterQualification))) &&
     (!filterPresence || s.presence === filterPresence) &&
@@ -1109,9 +1108,9 @@ const Soldiers: React.FC = () => {
                 }}>
                   <TextField
                     fullWidth
-                    label="צוות"
-                    value={filterTeam}
-                    onChange={(e) => setFilterTeam(e.target.value)}
+                                          label="מסגרת"
+                                  value={filterFramework}
+              onChange={(e) => setFilterFramework(e.target.value)}
                     size="small"
                   />
                   <TextField
@@ -1201,28 +1200,7 @@ const Soldiers: React.FC = () => {
                       case 'personalNumber':
                         return <TableCell key={column.key}>{soldier.personalNumber}</TableCell>;
                       
-                      case 'team':
-                        return (
-                          <TableCell key={column.key}>
-                            <Chip 
-                              label={soldier.frameworkId} 
-                              size="small" 
-                              color="primary" 
-                              variant="outlined"
-                              sx={{ 
-                                cursor: 'pointer',
-                                '&:hover': { 
-                                  bgcolor: 'primary.main',
-                                  color: 'white'
-                                }
-                              }}
-                              onClick={() => {
-                                const teamId = soldier.frameworkId?.replace('צוות ', '') || '';
-                                navigate(`/teams/${teamId}`);
-                              }}
-                            />
-                          </TableCell>
-                        );
+
                       
                       case 'role':
                         return (
@@ -1234,9 +1212,24 @@ const Soldiers: React.FC = () => {
                       case 'framework':
                         return (
                           <TableCell key={column.key}>
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                                             {/* מסגרת - יוצג מידע על המסגרת בעתיד */}
-                            </Box>
+                            <Chip 
+                              label={soldier.frameworkId || 'לא מוגדר'} 
+                              size="small" 
+                              color="primary" 
+                              variant="outlined"
+                              sx={{ 
+                                cursor: 'pointer',
+                                '&:hover': { 
+                                  bgcolor: 'primary.main',
+                                  color: 'white'
+                                }
+                              }}
+                              onClick={() => {
+                                if (soldier.frameworkId) {
+                                  navigate(`/frameworks/${soldier.frameworkId}`);
+                                }
+                              }}
+                            />
                           </TableCell>
                         );
                       
@@ -1781,7 +1774,7 @@ const Soldiers: React.FC = () => {
                     <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
                       <Chip 
                         icon={<GroupIcon />}
-                        label={soldier.frameworkId} 
+                        label={soldier.frameworkId || 'לא מוגדר'} 
                         size="small" 
                         color="primary" 
                         variant="outlined"
@@ -1793,8 +1786,9 @@ const Soldiers: React.FC = () => {
                           }
                         }}
                         onClick={() => {
-                          const teamId = soldier.frameworkId?.replace('צוות ', '') || '';
-                          navigate(`/teams/${teamId}`);
+                          if (soldier.frameworkId) {
+                            navigate(`/frameworks/${soldier.frameworkId}`);
+                          }
                         }}
                       />
                       <Chip 

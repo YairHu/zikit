@@ -76,6 +76,12 @@ service cloud.firestore {
       allow write: if isAdmin() || isMefakedPluga();
     }
     
+    // מסגרות ארגוניות
+    match /frameworks/{frameworkId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isMefakedPluga();
+    }
+    
     // פונקציות עזר
     function isAdmin() {
       return request.auth != null && 
