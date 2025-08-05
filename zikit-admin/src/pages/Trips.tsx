@@ -64,7 +64,7 @@ import { Soldier } from '../models/Soldier';
 import { Activity } from '../models/Activity';
 import { getAllTrips, addTrip, updateTrip, deleteTrip, checkAvailability } from '../services/tripService';
 import { getAllVehicles, addVehicle, updateVehicle } from '../services/vehicleService';
-import { getAllSoldiers } from '../services/soldierService';
+import { getAllSoldiers, updateSoldier } from '../services/soldierService';
 import { getAllActivities } from '../services/activityService';
 
 const Trips: React.FC = () => {
@@ -73,6 +73,7 @@ const Trips: React.FC = () => {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [soldiers, setSoldiers] = useState<Soldier[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
@@ -82,6 +83,7 @@ const Trips: React.FC = () => {
   const [formData, setFormData] = useState({
     vehicleId: '',
     driverId: '',
+    commanderId: '',
     location: '',
     departureTime: '',
     returnTime: '',
@@ -113,6 +115,7 @@ const Trips: React.FC = () => {
       
       setTrips(tripsData);
       setVehicles(vehiclesData);
+      setSoldiers(soldiersData);
       setActivities(activitiesData);
       
       // סינון נהגים מתוך החיילים
@@ -140,6 +143,7 @@ const Trips: React.FC = () => {
     setFormData({
       vehicleId: '',
       driverId: '',
+      commanderId: '',
       location: '',
       departureTime: '',
       returnTime: '',
@@ -169,6 +173,7 @@ const Trips: React.FC = () => {
     setFormData({
       vehicleId: trip.vehicleId || '',
       driverId: trip.driverId || '',
+      commanderId: trip.commanderId || '',
       location: trip.location,
       departureTime: formatDateTimeForInput(trip.departureTime || ''),
       returnTime: formatDateTimeForInput(trip.returnTime || ''),
@@ -185,6 +190,7 @@ const Trips: React.FC = () => {
     setFormData({
       vehicleId: '',
       driverId: '',
+      commanderId: '',
       location: '',
       departureTime: '',
       returnTime: '',
@@ -234,6 +240,7 @@ const Trips: React.FC = () => {
 
       const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
       const selectedDriver = drivers.find(d => d.id === formData.driverId);
+      const selectedCommander = soldiers.find(s => s.id === formData.commanderId);
 
       // יצירת אובייקט נסיעה ללא ערכים ריקים/undefined (Firebase לא תומך)
       const tripData: any = {
@@ -257,6 +264,13 @@ const Trips: React.FC = () => {
         }
       }
 
+      if (formData.commanderId && formData.commanderId.trim()) {
+        tripData.commanderId = formData.commanderId;
+        if (selectedCommander?.name) {
+          tripData.commanderName = selectedCommander.name;
+        }
+      }
+
       if (formData.departureTime && formData.departureTime.trim()) {
         tripData.departureTime = formData.departureTime;
       }
@@ -267,12 +281,60 @@ const Trips: React.FC = () => {
 
 
 
+      let tripId: string;
+      
       if (editId) {
-        await updateTrip(editId, tripData);
+        // מציאת הנסיעה הקיימת לפני העדכון
+        const existingTrip = trips.find(t => t.id === editId);
         
-
+        // הסרת הנסיעה מעמוד האישי של הנהג הקודם
+        if (existingTrip?.driverId && existingTrip.driverId !== formData.driverId) {
+          const oldDriver = soldiers.find(s => s.id === existingTrip.driverId);
+          if (oldDriver) {
+            const currentTrips = oldDriver.trips || [];
+            const updatedTrips = currentTrips.filter(id => id !== editId);
+            await updateSoldier(existingTrip.driverId, {
+              trips: updatedTrips
+            });
+          }
+        }
+        
+        // הסרת הנסיעה מעמוד האישי של מפקד הנסיעה הקודם
+        if (existingTrip?.commanderId && existingTrip.commanderId !== formData.commanderId) {
+          const oldCommander = soldiers.find(s => s.id === existingTrip.commanderId);
+          if (oldCommander) {
+            const currentTrips = oldCommander.trips || [];
+            const updatedTrips = currentTrips.filter(id => id !== editId);
+            await updateSoldier(existingTrip.commanderId, {
+              trips: updatedTrips
+            });
+          }
+        }
+        
+        await updateTrip(editId, tripData);
+        tripId = editId;
       } else {
-        await addTrip(tripData);
+        tripId = await addTrip(tripData);
+      }
+
+      // עדכון עמוד האישי של הנהג החדש
+      if (formData.driverId && selectedDriver) {
+        const currentTrips = selectedDriver.trips || [];
+        if (!currentTrips.includes(tripId)) {
+          await updateSoldier(formData.driverId, {
+            trips: [...currentTrips, tripId]
+          });
+        }
+      }
+
+      // עדכון עמוד האישי של מפקד הנסיעה החדש
+      if (formData.commanderId && selectedCommander) {
+        const currentTrips = selectedCommander.trips || [];
+        if (!currentTrips.includes(tripId)) {
+          await updateSoldier(formData.commanderId, {
+            trips: [...currentTrips, tripId]
+          });
+        }
       }
 
       handleCloseForm();
@@ -286,6 +348,35 @@ const Trips: React.FC = () => {
   const handleDeleteTrip = async (tripId: string) => {
     if (window.confirm('האם אתה בטוח שברצונך למחוק נסיעה זו?')) {
       try {
+        // מציאת הנסיעה לפני המחיקה
+        const tripToDelete = trips.find(t => t.id === tripId);
+        
+        if (tripToDelete) {
+          // הסרת הנסיעה מעמוד האישי של הנהג
+          if (tripToDelete.driverId) {
+            const driver = soldiers.find(s => s.id === tripToDelete.driverId);
+            if (driver) {
+              const currentTrips = driver.trips || [];
+              const updatedTrips = currentTrips.filter(id => id !== tripId);
+              await updateSoldier(tripToDelete.driverId, {
+                trips: updatedTrips
+              });
+            }
+          }
+          
+          // הסרת הנסיעה מעמוד האישי של מפקד הנסיעה
+          if (tripToDelete.commanderId) {
+            const commander = soldiers.find(s => s.id === tripToDelete.commanderId);
+            if (commander) {
+              const currentTrips = commander.trips || [];
+              const updatedTrips = currentTrips.filter(id => id !== tripId);
+              await updateSoldier(tripToDelete.commanderId, {
+                trips: updatedTrips
+              });
+            }
+          }
+        }
+        
         await deleteTrip(tripId);
         loadData();
       } catch (error) {
@@ -393,8 +484,20 @@ const Trips: React.FC = () => {
   };
 
   const isTripComplete = (trip: Trip) => {
-    // בדיקה אם כל השדות מלאים
-    return trip.vehicleId && trip.driverId && trip.departureTime && trip.returnTime && trip.location && trip.purpose;
+    const missingFields: string[] = [];
+    
+    if (!trip.vehicleId) missingFields.push('רכב');
+    if (!trip.driverId) missingFields.push('נהג');
+    if (!trip.commanderId) missingFields.push('מפקד נסיעה');
+    if (!trip.departureTime) missingFields.push('זמן יציאה');
+    if (!trip.returnTime) missingFields.push('זמן חזרה');
+    if (!trip.location) missingFields.push('מיקום');
+    if (!trip.purpose) missingFields.push('מטרת הנסיעה');
+    
+    return {
+      isComplete: missingFields.length === 0,
+      missingFields
+    };
   };
 
   const renderTripCard = (trip: Trip) => (
@@ -402,8 +505,8 @@ const Trips: React.FC = () => {
       key={trip.id} 
       sx={{ 
         mb: 2, 
-        border: isTripComplete(trip) ? '1px solid #e0e0e0' : '2px solid #f44336',
-        backgroundColor: isTripComplete(trip) ? 'white' : '#ffebee'
+        border: isTripComplete(trip).isComplete ? '1px solid #e0e0e0' : '2px solid #f44336',
+        backgroundColor: isTripComplete(trip).isComplete ? 'white' : '#ffebee'
       }}
     >
       <CardContent>
@@ -423,6 +526,11 @@ const Trips: React.FC = () => {
             {trip.driverName && (
               <Typography variant="body2" color="textSecondary" gutterBottom>
                 נהג: {trip.driverName}
+              </Typography>
+            )}
+            {trip.commanderName && (
+              <Typography variant="body2" color="textSecondary" gutterBottom>
+                מפקד נסיעה: {trip.commanderName}
               </Typography>
             )}
             {trip.departureTime && trip.returnTime && (
@@ -448,9 +556,14 @@ const Trips: React.FC = () => {
             </Box>
           </Box>
         </Box>
-        {!isTripComplete(trip) && (
+        {!isTripComplete(trip).isComplete && (
           <Alert severity="warning" sx={{ mt: 1 }}>
-            נסיעה לא מלאה - יש למלא את כל השדות
+            <Typography variant="body2" fontWeight="bold" gutterBottom>
+              נסיעה לא מלאה - שדות חסרים:
+            </Typography>
+            <Typography variant="body2">
+              {isTripComplete(trip).missingFields.join(', ')}
+            </Typography>
           </Alert>
         )}
       </CardContent>
@@ -466,6 +579,7 @@ const Trips: React.FC = () => {
             <TableCell>מיקום</TableCell>
             <TableCell>רכב</TableCell>
             <TableCell>נהג</TableCell>
+            <TableCell>מפקד נסיעה</TableCell>
             <TableCell>זמן יציאה</TableCell>
             <TableCell>זמן חזרה</TableCell>
             <TableCell>סטטוס</TableCell>
@@ -477,14 +591,15 @@ const Trips: React.FC = () => {
                          <TableRow 
                key={trip.id}
                sx={{ 
-                 backgroundColor: isTripComplete(trip) ? 'white' : '#ffebee',
-                 border: isTripComplete(trip) ? '1px solid #e0e0e0' : '2px solid #f44336'
+                 backgroundColor: isTripComplete(trip).isComplete ? 'white' : '#ffebee',
+                 border: isTripComplete(trip).isComplete ? '1px solid #e0e0e0' : '2px solid #f44336'
                }}
              >
               <TableCell>{trip.purpose}</TableCell>
               <TableCell>{trip.location}</TableCell>
               <TableCell>{trip.vehicleNumber || '-'}</TableCell>
               <TableCell>{trip.driverName || '-'}</TableCell>
+              <TableCell>{trip.commanderName || '-'}</TableCell>
               <TableCell>
                 {trip.departureTime ? new Date(trip.departureTime).toLocaleString('he-IL') : '-'}
               </TableCell>
@@ -698,12 +813,30 @@ const Trips: React.FC = () => {
                     <MenuItem value="">ללא נהג</MenuItem>
                     {drivers.map(driver => (
                       <MenuItem key={driver.id} value={driver.id}>
-                                                 {driver.name} - {driver.role}
+                        {driver.name} - {driver.role}
                       </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
               </Box>
+              <FormControl fullWidth>
+                <InputLabel>מפקד נסיעה</InputLabel>
+                <Select
+                  name="commanderId"
+                  value={formData.commanderId}
+                  onChange={(e) => handleSelectChange('commanderId', e.target.value)}
+                  label="מפקד נסיעה"
+                >
+                  <MenuItem value="">בחר מפקד נסיעה</MenuItem>
+                  {soldiers
+                    .filter(soldier => soldier.id !== formData.driverId) // לא להציג את הנהג
+                    .map(soldier => (
+                      <MenuItem key={soldier.id} value={soldier.id}>
+                        {soldier.name} - {soldier.role}
+                      </MenuItem>
+                    ))}
+                </Select>
+              </FormControl>
               <TextField
                 fullWidth
                 label="מיקום"

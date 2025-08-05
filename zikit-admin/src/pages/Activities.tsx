@@ -476,7 +476,7 @@ const Activities: React.FC = () => {
       }
       
       // עדכון עמוד האישי של כל הנהגים
-      for (const driverId of driversToUpdate) {
+      const driverUpdatePromises = driversToUpdate.map(async (driverId) => {
         const driver = soldiers.find(s => s.id === driverId);
         if (driver) {
           const currentActivities = driver.activities || [];
@@ -486,12 +486,18 @@ const Activities: React.FC = () => {
             });
           }
         }
-      }
+      });
       
+      // המתנה לסיום כל העדכונים
+      await Promise.all(driverUpdatePromises);
+      
+      // רענון הנתונים ואז סגירת החלונית
+      await refresh();
       handleCloseForm();
-      refresh();
     } catch (error) {
       console.error('Error saving activity:', error);
+      // גם במקרה של שגיאה, נסגור את החלונית
+      handleCloseForm();
     }
   };
 
@@ -584,15 +590,22 @@ const Activities: React.FC = () => {
   };
 
   const isActivityComplete = (activity: Activity) => {
-    return activity.name && 
-           activity.team && 
-           activity.location && 
-           activity.plannedDate && 
-           activity.plannedTime && 
-           activity.commanderId && 
-           activity.taskLeaderId && 
-           activity.participants.length > 0 &&
-           activity.mobility; // בדיקה שיש ניוד משובץ
+    const missingFields: string[] = [];
+    
+    if (!activity.name) missingFields.push('שם הפעילות');
+    if (!activity.frameworkId) missingFields.push('מסגרת');
+    if (!activity.location) missingFields.push('מיקום');
+    if (!activity.plannedDate) missingFields.push('תאריך מתוכנן');
+    if (!activity.plannedTime) missingFields.push('שעת יציאה');
+    if (!activity.commanderId) missingFields.push('מפקד');
+    if (!activity.taskLeaderId) missingFields.push('מוביל משימה');
+    if (activity.participants.length === 0) missingFields.push('משתתפים');
+    if (!activity.mobility) missingFields.push('ניוד');
+    
+    return {
+      isComplete: missingFields.length === 0,
+      missingFields
+    };
   };
 
   const filteredActivities = activities.filter(activity => {
@@ -687,8 +700,8 @@ const Activities: React.FC = () => {
                 display: 'flex', 
                 flexDirection: 'column', 
                 cursor: 'pointer',
-                border: isActivityComplete(activity) ? '1px solid #e0e0e0' : '2px solid #f44336',
-                backgroundColor: isActivityComplete(activity) ? 'white' : '#ffebee'
+                border: isActivityComplete(activity).isComplete ? '1px solid #e0e0e0' : '2px solid #f44336',
+                backgroundColor: isActivityComplete(activity).isComplete ? 'white' : '#ffebee'
               }} 
               onClick={() => handleActivityClick(activity.id)}
             >
@@ -728,12 +741,14 @@ const Activities: React.FC = () => {
                     size="small"
                     sx={{ mb: 1 }}
                   />
-                  <Chip 
-                    label={activity.team} 
-                    variant="outlined"
-                    size="small"
-                    sx={{ ml: 1 }}
-                  />
+                  {activity.frameworkId && (
+                    <Chip 
+                      label={frameworks.find(f => f.id === activity.frameworkId)?.name || 'מסגרת לא ידועה'} 
+                      variant="outlined"
+                      size="small"
+                      sx={{ ml: 1 }}
+                    />
+                  )}
                 </Box>
 
                 <Box sx={{ mb: 2 }}>
@@ -777,9 +792,14 @@ const Activities: React.FC = () => {
                   )}
                 </Box>
 
-                {!isActivityComplete(activity) && (
+                {!isActivityComplete(activity).isComplete && (
                   <Alert severity="warning" sx={{ mt: 1 }}>
-                    פעילות לא מלאה - יש למלא את כל השדות
+                    <Typography variant="body2" fontWeight="bold" gutterBottom>
+                      פעילות לא מלאה - שדות חסרים:
+                    </Typography>
+                    <Typography variant="body2">
+                      {isActivityComplete(activity).missingFields.join(', ')}
+                    </Typography>
                   </Alert>
                 )}
 
@@ -817,7 +837,7 @@ const Activities: React.FC = () => {
             <TableHead>
               <TableRow>
                 <TableCell>שם פעילות</TableCell>
-                <TableCell>צוות</TableCell>
+                <TableCell>מסגרת</TableCell>
                 <TableCell>מיקום</TableCell>
                 <TableCell>סוג פעילות</TableCell>
                 <TableCell>תאריך</TableCell>
@@ -837,7 +857,7 @@ const Activities: React.FC = () => {
                   hover 
                   sx={{ 
                     cursor: 'pointer',
-                    backgroundColor: isActivityComplete(activity) ? 'white' : '#ffebee'
+                    backgroundColor: isActivityComplete(activity).isComplete ? 'white' : '#ffebee'
                   }}
                   onClick={() => handleActivityClick(activity.id)}
                 >
@@ -847,7 +867,11 @@ const Activities: React.FC = () => {
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Chip label={activity.team} size="small" variant="outlined" />
+                    <Chip 
+                      label={frameworks.find(f => f.id === activity.frameworkId)?.name || 'לא נבחרה'} 
+                      size="small" 
+                      variant="outlined" 
+                    />
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">

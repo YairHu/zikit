@@ -4,6 +4,8 @@ export interface Trip {
   vehicleNumber?: string;
   driverId?: string;
   driverName?: string;
+  commanderId?: string; // מפקד הנסיעה
+  commanderName?: string; // שם מפקד הנסיעה
   location: string;
   departureTime?: string;
   returnTime?: string;

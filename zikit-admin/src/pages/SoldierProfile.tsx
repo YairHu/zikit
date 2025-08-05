@@ -61,11 +61,13 @@ import { getFrameworkNameById } from '../services/frameworkService';
 import { getActivitiesBySoldier } from '../services/activityService';
 import { getDutiesBySoldier } from '../services/dutyService';
 import { getReferralsBySoldier } from '../services/referralService';
+import { getTripsBySoldier } from '../services/tripService';
 import { getPresenceColor, getProfileColor, getRoleColor, getStatusColor } from '../utils/colors';
 import { Soldier } from '../models/Soldier';
 import { Activity } from '../models/Activity';
 import { Duty } from '../models/Duty';
 import { Referral } from '../models/Referral';
+import { Trip } from '../models/Trip';
 import { useUser } from '../contexts/UserContext';
 import SoldierForm from '../components/SoldierForm';
 
@@ -78,6 +80,7 @@ const SoldierProfile: React.FC = () => {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [duties, setDuties] = useState<Duty[]>([]);
   const [referrals, setReferrals] = useState<Referral[]>([]);
+  const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [showEditForm, setShowEditForm] = useState(false);
@@ -88,12 +91,14 @@ const SoldierProfile: React.FC = () => {
         getSoldierById(id),
         getActivitiesBySoldier(id),
         getDutiesBySoldier(id),
-        getReferralsBySoldier(id)
-      ]).then(async ([soldierData, activitiesData, dutiesData, referralsData]) => {
+        getReferralsBySoldier(id),
+        getTripsBySoldier(id)
+      ]).then(async ([soldierData, activitiesData, dutiesData, referralsData, tripsData]) => {
         setSoldier(soldierData);
         setActivities(activitiesData);
         setDuties(dutiesData);
         setReferrals(referralsData);
+        setTrips(tripsData);
         
         // קבלת שם המסגרת
         if (soldierData?.frameworkId) {
@@ -680,6 +685,78 @@ const SoldierProfile: React.FC = () => {
                               {duty.notes && (
                                 <Typography variant="body2" color="text.secondary">
                                   <strong>הערות:</strong> {duty.notes}
+                                </Typography>
+                              )}
+                            </Box>
+                          }
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Trips */}
+            {trips.length > 0 && (
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
+                      <DirectionsCarIcon sx={{ mr: 1, fontSize: 20 }} />
+                      נסיעות ({trips.length})
+                    </Typography>
+                    <Badge badgeContent={trips.length} color="info">
+                      <DirectionsCarIcon />
+                    </Badge>
+                  </Box>
+
+                  <List>
+                    {trips.map((trip) => (
+                      <ListItem 
+                        key={trip.id} 
+                        sx={{ 
+                          border: '1px solid #e0e0e0', 
+                          borderRadius: 1, 
+                          mb: 1, 
+                          cursor: 'pointer',
+                          '&:hover': { bgcolor: 'action.hover' }
+                        }}
+                        onClick={() => navigate(`/trips/${trip.id}`)}
+                      >
+                        <ListItemText
+                          primary={
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Typography variant="h6" fontWeight="bold">
+                                {trip.purpose}
+                              </Typography>
+                              <Chip 
+                                label={trip.status} 
+                                color={getStatusColor(trip.status) as any}
+                                size="small"
+                              />
+                            </Box>
+                          }
+                          secondary={
+                            <Box sx={{ mt: 1 }}>
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>תפקיד:</strong> {
+                                  trip.driverId === soldier.id ? 'נהג' :
+                                  trip.commanderId === soldier.id ? 'מפקד נסיעה' :
+                                  'לא מוגדר'
+                                }
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>מיקום:</strong> {trip.location}
+                              </Typography>
+                              {trip.departureTime && trip.returnTime && (
+                                <Typography variant="body2" color="text.secondary">
+                                  <strong>זמן:</strong> {new Date(trip.departureTime).toLocaleString('he-IL')} - {new Date(trip.returnTime).toLocaleString('he-IL')}
+                                </Typography>
+                              )}
+                              {trip.vehicleNumber && (
+                                <Typography variant="body2" color="text.secondary">
+                                  <strong>רכב:</strong> {trip.vehicleNumber}
                                 </Typography>
                               )}
                             </Box>

@@ -477,6 +477,11 @@ export const getFrameworkWithDetails = async (id: string): Promise<FrameworkWith
         return true;
       }
       
+      // אם מפקד הנסיעה הוא מהמסגרת בהיררכיה
+      if (trip.commanderId && soldierIdsInHierarchy.includes(trip.commanderId)) {
+        return true;
+      }
+      
       return false;
     });
     
@@ -505,11 +510,27 @@ export const getFrameworkWithDetails = async (id: string): Promise<FrameworkWith
         }
       }
       
+      // מציאת מפקד הנסיעה מהמסגרת הנוכחית
+      let commanderFromCurrentFramework = null;
+      if (trip.commanderId) {
+        const commander = allSoldiersInHierarchy.find(s => s.id === trip.commanderId);
+        if (commander) {
+          commanderFromCurrentFramework = {
+            soldierId: commander.id,
+            soldierName: commander.name,
+            role: commander.role,
+            frameworkId: commander.frameworkId,
+            frameworkName: allFrameworks.find(f => f.id === commander.frameworkId)?.name || commander.frameworkId
+          };
+        }
+      }
+      
       return { 
         ...trip, 
         frameworkId: trip.frameworkId || trip.team,
         sourceFrameworkName: sourceFrameworkName || '',
-        driverFromCurrentFramework
+        driverFromCurrentFramework,
+        commanderFromCurrentFramework
       };
     });
   };

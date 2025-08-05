@@ -366,7 +366,11 @@ const Teams: React.FC = () => {
                      {framework.trips?.slice(0, 3).map((trip: any) => {
                        // יצירת תיאור של מי הביא את הנסיעה
                        let broughtBy = '';
-                       if (trip.participantsFromCurrentFramework?.length > 0) {
+                       if (trip.driverFromCurrentFramework) {
+                         broughtBy = `נהג: ${trip.driverFromCurrentFramework.soldierName}`;
+                       } else if (trip.commanderFromCurrentFramework) {
+                         broughtBy = `מפקד נסיעה: ${trip.commanderFromCurrentFramework.soldierName}`;
+                       } else if (trip.participantsFromCurrentFramework?.length > 0) {
                          const participants = trip.participantsFromCurrentFramework.map((p: any) => p.soldierName).join(', ');
                          broughtBy = `משתתפים: ${participants}`;
                        } else {

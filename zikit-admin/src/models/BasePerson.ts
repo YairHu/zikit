@@ -26,4 +26,6 @@ export interface BasePerson {
   };
   // קישור לפעילויות
   activities?: string[]; // מזהי פעילויות שהאדם משתתף בהן
+  // קישור לנסיעות
+  trips?: string[]; // מזהי נסיעות שהאדם משתתף בהן
 } 

@@ -5,4 +5,6 @@ export interface Soldier extends BasePerson {
   drivingLicenses?: string[]; // היתרים לנהיגה (רק לנהגים)
   dates?: Record<string, string>; // לדוג' תאריכים חשובים
   documents?: string[]; // קישורים לקבצים
+  trips?: string[]; // מזהי נסיעות שהחייל משתתף בהן
+  activities?: string[]; // מזהי פעילויות שהחייל משתתף בהן
 } 
