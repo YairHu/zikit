@@ -273,6 +273,128 @@ const Teams: React.FC = () => {
                   </Box>
                 </Box>
               )}
+
+              {/* פעילויות, תורנויות ונסיעות של המסגרת ומסגרות בנות */}
+              {(framework.totalActivities || 0) > 0 && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    פעילויות מבצעיות:
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                     {framework.activities?.slice(0, 3).map((activity: any) => {
+                       // יצירת תיאור של מי הביא את הפעילות
+                       let broughtBy = '';
+                       if (activity.participantsFromCurrentFramework?.length > 0) {
+                         const participants = activity.participantsFromCurrentFramework.map((p: any) => p.soldierName).join(', ');
+                         broughtBy = `משתתפים: ${participants}`;
+                       } else if (activity.commanderFromCurrentFramework) {
+                         broughtBy = `מפקד: ${activity.commanderFromCurrentFramework.soldierName}`;
+                                               } else if (activity.taskLeaderFromCurrentFramework) {
+                          broughtBy = `מוביל משימה: ${activity.taskLeaderFromCurrentFramework.soldierName}`;
+                       } else {
+                         broughtBy = activity.sourceFrameworkName || activity.frameworkId || activity.team || '';
+                       }
+                       
+                       return (
+                         <Chip 
+                           key={activity.id} 
+                           label={`${activity.name} (${broughtBy})`} 
+                           size="small" 
+                           color="primary"
+                           variant="outlined"
+                           sx={{ cursor: 'pointer' }}
+                         />
+                       );
+                     })}
+                    {(framework.totalActivities || 0) > 3 && (
+                      <Chip 
+                        label={`+${(framework.totalActivities || 0) - 3} נוספות`} 
+                        size="small" 
+                        color="primary"
+                        variant="outlined"
+                      />
+                    )}
+                  </Box>
+                </Box>
+              )}
+
+              {(framework.totalDuties || 0) > 0 && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    תורנויות:
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                     {framework.duties?.slice(0, 3).map((duty: any) => {
+                       // יצירת תיאור של מי הביא את התורנות
+                       let broughtBy = '';
+                       if (duty.participantsFromCurrentFramework?.length > 0) {
+                         const participants = duty.participantsFromCurrentFramework.map((p: any) => p.soldierName).join(', ');
+                         broughtBy = `משתתפים: ${participants}`;
+                       } else {
+                         broughtBy = duty.sourceFrameworkName || duty.frameworkId || duty.team || '';
+                       }
+                       
+                       return (
+                         <Chip 
+                           key={duty.id} 
+                           label={`${duty.type} (${broughtBy})`} 
+                           size="small" 
+                           color="secondary"
+                           variant="outlined"
+                           sx={{ cursor: 'pointer' }}
+                         />
+                       );
+                     })}
+                    {(framework.totalDuties || 0) > 3 && (
+                      <Chip 
+                        label={`+${(framework.totalDuties || 0) - 3} נוספות`} 
+                        size="small" 
+                        color="secondary"
+                        variant="outlined"
+                      />
+                    )}
+                  </Box>
+                </Box>
+              )}
+
+              {(framework.totalTrips || 0) > 0 && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    נסיעות:
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                     {framework.trips?.slice(0, 3).map((trip: any) => {
+                       // יצירת תיאור של מי הביא את הנסיעה
+                       let broughtBy = '';
+                       if (trip.participantsFromCurrentFramework?.length > 0) {
+                         const participants = trip.participantsFromCurrentFramework.map((p: any) => p.soldierName).join(', ');
+                         broughtBy = `משתתפים: ${participants}`;
+                       } else {
+                         broughtBy = trip.sourceFrameworkName || trip.frameworkId || trip.team || '';
+                       }
+                       
+                       return (
+                         <Chip 
+                           key={trip.id} 
+                           label={`${trip.purpose} (${broughtBy})`} 
+                           size="small" 
+                           color="info"
+                           variant="outlined"
+                           sx={{ cursor: 'pointer' }}
+                         />
+                       );
+                     })}
+                    {(framework.totalTrips || 0) > 3 && (
+                      <Chip 
+                        label={`+${(framework.totalTrips || 0) - 3} נוספות`} 
+                        size="small" 
+                        color="info"
+                        variant="outlined"
+                      />
+                    )}
+                  </Box>
+                </Box>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -289,6 +411,9 @@ const Teams: React.FC = () => {
                 <TableCell>חיילים ישירים</TableCell>
                 <TableCell>סה"כ חיילים</TableCell>
                 <TableCell>מסגרות בנות</TableCell>
+                <TableCell>פעילויות</TableCell>
+                <TableCell>תורנויות</TableCell>
+                <TableCell>נסיעות</TableCell>
                 <TableCell>פעולות</TableCell>
               </TableRow>
             </TableHead>
@@ -332,6 +457,21 @@ const Teams: React.FC = () => {
                   <TableCell>
                     <Typography variant="body2">
                       {framework.childFrameworks.length}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {framework.totalActivities || 0}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {framework.totalDuties || 0}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {framework.totalTrips || 0}
                     </Typography>
                   </TableCell>
                   <TableCell>

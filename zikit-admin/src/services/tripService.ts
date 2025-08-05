@@ -40,6 +40,22 @@ export const getTripsByActivity = async (activityId: string): Promise<Trip[]> =>
   }
 };
 
+export const getTripsByTeam = async (teamName: string): Promise<Trip[]> => {
+  try {
+    // קבל את כל הנסיעות וסנן בצד הלקוח
+    const querySnapshot = await getDocs(collection(db, TRIPS_COLLECTION));
+    const allTrips = querySnapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() } as Trip))
+      .filter(trip => trip.team === teamName)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    
+    return allTrips;
+  } catch (error) {
+    console.error('שגיאה בטעינת נסיעות לצוות:', error);
+    return [];
+  }
+};
+
 export const addTrip = async (trip: Omit<Trip, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
   try {
     const now = Timestamp.now().toDate().toISOString();

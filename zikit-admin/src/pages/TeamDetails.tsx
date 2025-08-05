@@ -27,17 +27,23 @@ import {
   Person as PersonIcon,
   Star as StarIcon,
   ArrowBack as ArrowBackIcon,
-  Edit as EditIcon
+  Edit as EditIcon,
+  DirectionsCar as CarIcon,
+  Assignment as AssignmentIcon,
+  Schedule as ScheduleIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
 import { Soldier } from '../models/Soldier';
 import { Activity } from '../models/Activity';
 import { Duty } from '../models/Duty';
 import { Referral } from '../models/Referral';
+import { Trip } from '../models/Trip';
 import { getAllSoldiers } from '../services/soldierService';
 import { getActivitiesByTeam } from '../services/activityService';
 import { getDutiesByTeam } from '../services/dutyService';
 import { getReferralsByTeam } from '../services/referralService';
+import { getTripsByTeam } from '../services/tripService';
+import { getFrameworkWithDetails } from '../services/frameworkService';
 import { getPresenceColor, getProfileColor } from '../utils/colors';
 
 interface Team {
@@ -49,9 +55,13 @@ interface Team {
   totalSoldiers: number;
   commanders: Soldier[];
   fighters: Soldier[];
-  activities: Activity[];
-  duties: Duty[];
+  activities: any[]; // נשתמש ב-any כדי לתמוך במודלים המקוריים
+  duties: any[]; // נשתמש ב-any כדי לתמוך במודלים המקוריים
   referrals: Referral[];
+  trips: any[]; // נשתמש ב-any כדי לתמוך במודלים המקוריים
+  totalActivities: number;
+  totalDuties: number;
+  totalTrips: number;
 }
 
 const TeamDetails: React.FC = () => {
@@ -67,61 +77,39 @@ const TeamDetails: React.FC = () => {
     try {
       setLoading(true);
       
-      // טעינת כל החיילים, הפעילויות, התורנויות וההפניות
-      const [allSoldiers, activities, duties, referrals] = await Promise.all([
-        getAllSoldiers(),
-        getActivitiesByTeam(`צוות ${frameworkId}`),
-        getDutiesByTeam(`צוות ${frameworkId}`),
-        getReferralsByTeam(`צוות ${frameworkId}`)
-      ]);
+      // טעינת פרטי המסגרת עם כל המידע
+      const frameworkDetails = await getFrameworkWithDetails(frameworkId!);
+      
+      if (!frameworkDetails) {
+        setTeam(null);
+        return;
+      }
+
+      // טעינת כל החיילים
+      const allSoldiers = await getAllSoldiers();
       setSoldiers(allSoldiers);
       
       // יצירת צוות לפי frameworkId
       const teamSoldiers = allSoldiers.filter(s => s.frameworkId === frameworkId);
       
-      // סינון פעילויות שמכילות חיילים מהצוות (גם אם הצוות לא מוגדר בפעילות)
-      const teamActivities = activities.filter(activity => {
-        // אם הפעילות מוגדרת לצוות זה
-        if (activity.team === `צוות ${frameworkId}`) return true;
-        
-        // אם יש חיילים מהצוות שמשתתפים בפעילות
-        const hasTeamParticipants = activity.participants.some(p => 
-          teamSoldiers.some(s => s.id === p.soldierId)
-        );
-        const hasTeamCommander = teamSoldiers.some(s => s.id === activity.commanderId);
-        const hasTeamTaskLeader = teamSoldiers.some(s => s.id === activity.taskLeaderId);
-        const hasTeamDriver = false; // נהגים לא נשמרים יותר ישירות בפעילות
-        
-        return hasTeamParticipants || hasTeamCommander || hasTeamTaskLeader || hasTeamDriver;
-      });
-      
-      // סינון תורנויות שמכילות חיילים מהצוות (גם אם הצוות לא מוגדר בתורנות)
-      const teamDuties = duties.filter(duty => {
-        // אם התורנות מוגדרת לצוות זה
-        if (duty.team === `צוות ${frameworkId}`) return true;
-        
-        // אם יש חיילים מהצוות שמשתתפים בתורנות
-        const hasTeamParticipants = duty.participants.some(p => 
-          teamSoldiers.some(s => s.id === p.soldierId)
-        );
-        
-        return hasTeamParticipants;
-      });
-
       const teamData: Team = {
         id: frameworkId!,
-        name: `צוות ${frameworkId}`,
+        name: frameworkDetails.name,
         plagaId: frameworkId === '10' || frameworkId === '20' || frameworkId === '30' ? 'A' : 'B',
         plagaName: frameworkId === '10' || frameworkId === '20' || frameworkId === '30' ? 'פלגה א' : 'פלגה ב',
         soldiers: teamSoldiers,
-        totalSoldiers: teamSoldiers.length,
+        totalSoldiers: frameworkDetails.totalSoldiers,
         commanders: teamSoldiers.filter(s => 
           s.role === 'מפקד צוות' || s.role === 'סמל' || s.role === 'מפקד'
         ),
         fighters: teamSoldiers.filter(s => s.role === 'חייל'),
-        activities: teamActivities,
-        duties: teamDuties,
-        referrals: referrals
+        activities: frameworkDetails.activities || [],
+        duties: frameworkDetails.duties || [],
+        referrals: [], // נטען בנפרד אם צריך
+        trips: frameworkDetails.trips || [],
+        totalActivities: frameworkDetails.totalActivities || 0,
+        totalDuties: frameworkDetails.totalDuties || 0,
+        totalTrips: frameworkDetails.totalTrips || 0
       };
       
       setTeam(teamData);
@@ -130,21 +118,15 @@ const TeamDetails: React.FC = () => {
     } finally {
       setLoading(false);
     }
-      }, [frameworkId]);
+  }, [frameworkId]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-
-
   const handleSoldierClick = (soldier: Soldier) => {
     navigate(`/soldiers/${soldier.id}`);
   };
-
-
-
-
 
   if (loading) {
     return (
@@ -174,7 +156,7 @@ const TeamDetails: React.FC = () => {
             {team.name}
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            {team.plagaName} • {team.totalSoldiers} חיילים
+            {team.plagaName} • {team.totalSoldiers} חיילים • {team.totalActivities} פעילויות • {team.totalDuties} תורנויות • {team.totalTrips} נסיעות
           </Typography>
         </Box>
         <Badge badgeContent={team.totalSoldiers} color="primary">
@@ -775,26 +757,43 @@ const TeamDetails: React.FC = () => {
       {/* פעילויות מבצעיות */}
       {team.activities.length > 0 && (
         <Box sx={{ mt: 4 }}>
-          <Typography variant="h5" sx={{ mb: 2 }}>
-            פעילויות מבצעיות ({team.activities.length})
+          <Typography variant="h5" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+            <AssignmentIcon sx={{ mr: 1, color: 'primary.main' }} />
+            פעילויות מבצעיות ({team.totalActivities})
           </Typography>
           <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
-            {team.activities.map((activity) => (
+            {team.activities.map((activity: any) => (
               <Card key={activity.id} sx={{ cursor: 'pointer' }} onClick={() => navigate(`/activities/${activity.id}`)}>
                 <CardContent>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
                     <Typography variant="h6" fontWeight="bold">
                       {activity.name}
                     </Typography>
-                    <Chip 
-                      label={activity.status} 
-                      color={activity.status === 'מתוכננת' ? 'primary' : activity.status === 'בביצוע' ? 'warning' : 'success'}
-                      size="small"
-                    />
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Chip 
+                        label={activity.status} 
+                        color={activity.status === 'מתוכננת' ? 'primary' : activity.status === 'בביצוע' ? 'warning' : 'success'}
+                        size="small"
+                      />
+                      <Chip 
+                        label={
+                          activity.participantsFromCurrentFramework?.length > 0 
+                            ? `משתתפים: ${activity.participantsFromCurrentFramework.map((p: any) => p.soldierName).join(', ')}`
+                            : activity.commanderFromCurrentFramework 
+                              ? `מפקד: ${activity.commanderFromCurrentFramework.soldierName}`
+                              : activity.taskLeaderFromCurrentFramework
+                                ? `מוביל משימה: ${activity.taskLeaderFromCurrentFramework.soldierName}`
+                                : activity.sourceFrameworkName || activity.frameworkId || activity.team || ''
+                        } 
+                        color="info"
+                        variant="outlined"
+                        size="small"
+                      />
+                    </Box>
                   </Box>
                   
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    {activity.plannedDate} - {activity.location}
+                    {activity.plannedDate} {activity.plannedTime} - {activity.location}
                   </Typography>
 
                   {/* משתתפים מהצוות */}
@@ -808,7 +807,7 @@ const TeamDetails: React.FC = () => {
                           activity.commanderId === soldier.id ||
                           activity.taskLeaderId === soldier.id ||
                           // נהגים לא נשמרים יותר ישירות בפעילות
-                          activity.participants.some(p => p.soldierId === soldier.id)
+                          activity.participants?.some((p: any) => p.soldierId === soldier.id)
                         )
                         .map((soldier) => (
                           <Chip
@@ -835,22 +834,35 @@ const TeamDetails: React.FC = () => {
       {/* תורנויות */}
       {team.duties.length > 0 && (
         <Box sx={{ mt: 4 }}>
-          <Typography variant="h5" sx={{ mb: 2 }}>
-            תורנויות ({team.duties.length})
+          <Typography variant="h5" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+            <ScheduleIcon sx={{ mr: 1, color: 'secondary.main' }} />
+            תורנויות ({team.totalDuties})
           </Typography>
           <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
-            {team.duties.map((duty) => (
+            {team.duties.map((duty: any) => (
               <Card key={duty.id} sx={{ cursor: 'pointer' }} onClick={() => navigate(`/duties/${duty.id}`)}>
                 <CardContent>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
                     <Typography variant="h6" fontWeight="bold">
                       {duty.type}
                     </Typography>
-                    <Chip 
-                      label={duty.status} 
-                      color={duty.status === 'פעילה' ? 'primary' : duty.status === 'הסתיימה' ? 'success' : 'error'}
-                      size="small"
-                    />
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Chip 
+                        label={duty.status} 
+                        color={duty.status === 'פעילה' ? 'primary' : duty.status === 'הסתיימה' ? 'success' : 'error'}
+                        size="small"
+                      />
+                      <Chip 
+                        label={
+                          duty.participantsFromCurrentFramework?.length > 0 
+                            ? `משתתפים: ${duty.participantsFromCurrentFramework.map((p: any) => p.soldierName).join(', ')}`
+                            : duty.sourceFrameworkName || duty.frameworkId || duty.team || ''
+                        } 
+                        color="info"
+                        variant="outlined"
+                        size="small"
+                      />
+                    </Box>
                   </Box>
                   
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -864,10 +876,10 @@ const TeamDetails: React.FC = () => {
                     </Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                       {duty.participants
-                        .filter(participant => 
+                        ?.filter((participant: any) => 
                           team.soldiers.some(s => s.id === participant.soldierId)
                         )
-                        .map((participant) => (
+                        .map((participant: any) => (
                           <Chip
                             key={participant.soldierId}
                             label={participant.soldierName}
@@ -882,6 +894,67 @@ const TeamDetails: React.FC = () => {
                         ))}
                     </Box>
                   </Box>
+                </CardContent>
+              </Card>
+            ))}
+          </Box>
+        </Box>
+      )}
+
+      {/* נסיעות */}
+      {team.trips.length > 0 && (
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h5" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+            <CarIcon sx={{ mr: 1, color: 'info.main' }} />
+            נסיעות ({team.totalTrips})
+          </Typography>
+          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+            {team.trips.map((trip: any) => (
+              <Card key={trip.id} sx={{ cursor: 'pointer' }} onClick={() => navigate(`/trips/${trip.id}`)}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                                      <Typography variant="h6" fontWeight="bold">
+                    {trip.purpose}
+                  </Typography>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Chip 
+                        label={trip.status} 
+                        color={trip.status === 'מתוכננת' ? 'primary' : trip.status === 'בביצוע' ? 'warning' : 'success'}
+                        size="small"
+                      />
+                      <Chip 
+                        label={
+                          trip.driverFromCurrentFramework 
+                            ? `נהג: ${trip.driverFromCurrentFramework.soldierName}`
+                            : trip.sourceFrameworkName || trip.frameworkId || trip.team || ''
+                        } 
+                        color="info"
+                        variant="outlined"
+                        size="small"
+                      />
+                    </Box>
+                  </Box>
+                  
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    {trip.departureTime} - {trip.returnTime} • {trip.location}
+                  </Typography>
+
+                  {/* נהג מהצוות */}
+                  {trip.driverName && (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                        נהג:
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        <Chip
+                          label={trip.driverName}
+                          size="small"
+                          variant="outlined"
+                          sx={{ cursor: 'pointer' }}
+                        />
+                      </Box>
+                    </Box>
+                  )}
                 </CardContent>
               </Card>
             ))}

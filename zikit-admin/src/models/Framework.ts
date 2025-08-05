@@ -34,6 +34,13 @@ export interface FrameworkWithDetails extends Framework {
     frameworkId: string;
   }>;
   totalSoldiers: number; // כולל חיילים במסגרות בנות
+  // פעילויות, תורנויות ונסיעות של המסגרת ומסגרות בנות
+  activities?: any[]; // נשתמש ב-any כדי לתמוך במודלים המקוריים
+  duties?: any[]; // נשתמש ב-any כדי לתמוך במודלים המקוריים
+  trips?: any[]; // נשתמש ב-any כדי לתמוך במודלים המקוריים
+  totalActivities?: number; // סה"כ פעילויות כולל מסגרות בנות
+  totalDuties?: number; // סה"כ תורנויות כולל מסגרות בנות
+  totalTrips?: number; // סה"כ נסיעות כולל מסגרות בנות
 }
 
 // ממשק לעץ המסגרות

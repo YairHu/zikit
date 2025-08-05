@@ -10,6 +10,8 @@ export interface Trip {
   purpose: string;
   status: 'מתוכננת' | 'בביצוע' | 'הסתיימה' | 'בוטלה';
   linkedActivityId?: string; // קישור לפעילות מבצעית
+  team?: string; // צוות שמבצע את הנסיעה
+  frameworkId?: string; // מזהה המסגרת שמבצעת את הנסיעה
   createdAt: string;
   updatedAt: string;
 } 

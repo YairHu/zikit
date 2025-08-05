@@ -1,5 +1,8 @@
 import { Framework, FrameworkWithDetails, FrameworkTree } from '../models/Framework';
 import { getAllSoldiers } from './soldierService';
+import { getAllActivities, getActivitiesByTeam } from './activityService';
+import { getAllDuties, getDutiesByTeam } from './dutyService';
+import { getAllTrips, getTripsByTeam } from './tripService';
 import { db } from '../firebase';
 import { 
   collection, 
@@ -214,9 +217,310 @@ export const getFrameworkWithDetails = async (id: string): Promise<FrameworkWith
     );
     return [...directSoldiers, ...childrenSoldiers.flat()];
   };
+
+  // קבלת כל הפעילויות בהיררכיה כולל מסגרות בנות
+  const getAllActivitiesInHierarchy = async (frameworkId: string): Promise<any[]> => {
+    // קבלת כל הפעילויות
+    const allActivities = await getAllActivities();
+    
+    // קבלת כל המסגרות בהיררכיה (כולל המסגרת הנוכחית ומסגרות בנות)
+    const getAllFrameworkIdsInHierarchy = async (currentFrameworkId: string): Promise<string[]> => {
+      const currentFramework = await getFrameworkById(currentFrameworkId);
+      if (!currentFramework) return [currentFrameworkId];
+      
+      const children = await getFrameworksByParent(currentFrameworkId);
+      const childrenIds = await Promise.all(
+        children.map(child => getAllFrameworkIdsInHierarchy(child.id))
+      );
+      
+      return [currentFrameworkId, ...childrenIds.flat()];
+    };
+    
+    const frameworkIdsInHierarchy = await getAllFrameworkIdsInHierarchy(frameworkId);
+    
+    // קבלת שמות המסגרות בהיררכיה
+    const allFrameworks = await getAllFrameworks();
+    const frameworkNamesInHierarchy = frameworkIdsInHierarchy.map(id => {
+      const framework = allFrameworks.find(f => f.id === id);
+      return framework ? framework.name : id;
+    });
+    
+    // קבלת כל החיילים בהיררכיה
+    const allSoldiersInHierarchy = allSoldiers.filter(s => s.frameworkId && frameworkIdsInHierarchy.includes(s.frameworkId));
+    const soldierIdsInHierarchy = allSoldiersInHierarchy.map(s => s.id);
+    
+    // סינון פעילויות שמתאימות למסגרות בהיררכיה
+    const activitiesInHierarchy = allActivities.filter((activity: any) => {
+      // אם הפעילות מוגדרת למסגרת בהיררכיה
+      if (activity.frameworkId && frameworkIdsInHierarchy.includes(activity.frameworkId)) {
+        return true;
+      }
+      
+      // אם הפעילות מוגדרת לפי שם צוות שמתאים למסגרת בהיררכיה
+      if (activity.team && frameworkNamesInHierarchy.includes(activity.team)) {
+        return true;
+      }
+      
+      // אם יש משתתפים מהמסגרת בהיררכיה
+      if (activity.participants && activity.participants.some((p: any) => soldierIdsInHierarchy.includes(p.soldierId))) {
+        return true;
+      }
+      
+      // אם המפקד או מוביל המשימה הם מהמסגרת בהיררכיה
+      if ((activity.commanderId && soldierIdsInHierarchy.includes(activity.commanderId)) ||
+          (activity.taskLeaderId && soldierIdsInHierarchy.includes(activity.taskLeaderId))) {
+        return true;
+      }
+      
+      return false;
+    });
+    
+    return activitiesInHierarchy.map((activity: any) => {
+      // מציאת שם המסגרת המקורית
+      let sourceFrameworkName = '';
+      if (activity.frameworkId) {
+        const framework = allFrameworks.find(f => f.id === activity.frameworkId);
+        sourceFrameworkName = framework ? framework.name : activity.frameworkId;
+      } else if (activity.team) {
+        sourceFrameworkName = activity.team;
+      }
+      
+      // מציאת המשתתפים מהמסגרת הנוכחית
+      const participantsFromCurrentFramework: any[] = [];
+      if (activity.participants) {
+        activity.participants.forEach((participant: any) => {
+          const soldier = allSoldiersInHierarchy.find(s => s.id === participant.soldierId);
+          if (soldier) {
+            participantsFromCurrentFramework.push({
+              soldierId: soldier.id,
+              soldierName: soldier.name,
+              role: soldier.role,
+              frameworkId: soldier.frameworkId,
+              frameworkName: allFrameworks.find(f => f.id === soldier.frameworkId)?.name || soldier.frameworkId
+            });
+          }
+        });
+      }
+      
+      // מציאת מפקד/מוביל משימה מהמסגרת הנוכחית
+      let commanderFromCurrentFramework = null;
+      if (activity.commanderId) {
+        const commander = allSoldiersInHierarchy.find(s => s.id === activity.commanderId);
+        if (commander) {
+          commanderFromCurrentFramework = {
+            soldierId: commander.id,
+            soldierName: commander.name,
+            role: commander.role,
+            frameworkId: commander.frameworkId,
+            frameworkName: allFrameworks.find(f => f.id === commander.frameworkId)?.name || commander.frameworkId
+          };
+        }
+      }
+      
+      let taskLeaderFromCurrentFramework = null;
+      if (activity.taskLeaderId) {
+        const taskLeader = allSoldiersInHierarchy.find(s => s.id === activity.taskLeaderId);
+        if (taskLeader) {
+          taskLeaderFromCurrentFramework = {
+            soldierId: taskLeader.id,
+            soldierName: taskLeader.name,
+            role: taskLeader.role,
+            frameworkId: taskLeader.frameworkId,
+            frameworkName: allFrameworks.find(f => f.id === taskLeader.frameworkId)?.name || taskLeader.frameworkId
+          };
+        }
+      }
+      
+      return { 
+        ...activity, 
+        frameworkId: activity.frameworkId || activity.team,
+        sourceFrameworkName: sourceFrameworkName || '',
+        participantsFromCurrentFramework,
+        commanderFromCurrentFramework,
+        taskLeaderFromCurrentFramework
+      };
+    });
+  };
+
+  // קבלת כל התורנויות בהיררכיה כולל מסגרות בנות
+  const getAllDutiesInHierarchy = async (frameworkId: string): Promise<any[]> => {
+    // קבלת כל התורנויות
+    const allDuties = await getAllDuties();
+    
+    // קבלת כל המסגרות בהיררכיה (כולל המסגרת הנוכחית ומסגרות בנות)
+    const getAllFrameworkIdsInHierarchy = async (currentFrameworkId: string): Promise<string[]> => {
+      const currentFramework = await getFrameworkById(currentFrameworkId);
+      if (!currentFramework) return [currentFrameworkId];
+      
+      const children = await getFrameworksByParent(currentFrameworkId);
+      const childrenIds = await Promise.all(
+        children.map(child => getAllFrameworkIdsInHierarchy(child.id))
+      );
+      
+      return [currentFrameworkId, ...childrenIds.flat()];
+    };
+    
+    const frameworkIdsInHierarchy = await getAllFrameworkIdsInHierarchy(frameworkId);
+    
+    // קבלת שמות המסגרות בהיררכיה
+    const allFrameworks = await getAllFrameworks();
+    const frameworkNamesInHierarchy = frameworkIdsInHierarchy.map(id => {
+      const framework = allFrameworks.find(f => f.id === id);
+      return framework ? framework.name : id;
+    });
+    
+    // קבלת כל החיילים בהיררכיה
+    const allSoldiersInHierarchy = allSoldiers.filter(s => s.frameworkId && frameworkIdsInHierarchy.includes(s.frameworkId));
+    const soldierIdsInHierarchy = allSoldiersInHierarchy.map(s => s.id);
+    
+    // סינון תורנויות שמתאימות למסגרות בהיררכיה
+    const dutiesInHierarchy = allDuties.filter((duty: any) => {
+      // אם התורנות מוגדרת למסגרת בהיררכיה
+      if (duty.frameworkId && frameworkIdsInHierarchy.includes(duty.frameworkId)) {
+        return true;
+      }
+      
+      // אם התורנות מוגדרת לפי שם צוות שמתאים למסגרת בהיררכיה
+      if (duty.team && frameworkNamesInHierarchy.includes(duty.team)) {
+        return true;
+      }
+      
+      // אם יש משתתפים מהמסגרת בהיררכיה
+      if (duty.participants && duty.participants.some((p: any) => soldierIdsInHierarchy.includes(p.soldierId))) {
+        return true;
+      }
+      
+      return false;
+    });
+    
+    return dutiesInHierarchy.map((duty: any) => {
+      // מציאת שם המסגרת המקורית
+      let sourceFrameworkName = '';
+      if (duty.frameworkId) {
+        const framework = allFrameworks.find(f => f.id === duty.frameworkId);
+        sourceFrameworkName = framework ? framework.name : duty.frameworkId;
+      } else if (duty.team) {
+        sourceFrameworkName = duty.team;
+      }
+      
+      // מציאת המשתתפים מהמסגרת הנוכחית
+      const participantsFromCurrentFramework: any[] = [];
+      if (duty.participants) {
+        duty.participants.forEach((participant: any) => {
+          const soldier = allSoldiersInHierarchy.find(s => s.id === participant.soldierId);
+          if (soldier) {
+            participantsFromCurrentFramework.push({
+              soldierId: soldier.id,
+              soldierName: soldier.name,
+              role: soldier.role,
+              frameworkId: soldier.frameworkId,
+              frameworkName: allFrameworks.find(f => f.id === soldier.frameworkId)?.name || soldier.frameworkId
+            });
+          }
+        });
+      }
+      
+      return { 
+        ...duty, 
+        frameworkId: duty.frameworkId || duty.team,
+        sourceFrameworkName: sourceFrameworkName || '',
+        participantsFromCurrentFramework
+      };
+    });
+  };
+
+  // קבלת כל הנסיעות בהיררכיה כולל מסגרות בנות
+  const getAllTripsInHierarchy = async (frameworkId: string): Promise<any[]> => {
+    // קבלת כל הנסיעות
+    const allTrips = await getAllTrips();
+    
+    // קבלת כל המסגרות בהיררכיה (כולל המסגרת הנוכחית ומסגרות בנות)
+    const getAllFrameworkIdsInHierarchy = async (currentFrameworkId: string): Promise<string[]> => {
+      const currentFramework = await getFrameworkById(currentFrameworkId);
+      if (!currentFramework) return [currentFrameworkId];
+      
+      const children = await getFrameworksByParent(currentFrameworkId);
+      const childrenIds = await Promise.all(
+        children.map(child => getAllFrameworkIdsInHierarchy(child.id))
+      );
+      
+      return [currentFrameworkId, ...childrenIds.flat()];
+    };
+    
+    const frameworkIdsInHierarchy = await getAllFrameworkIdsInHierarchy(frameworkId);
+    
+    // קבלת שמות המסגרות בהיררכיה
+    const allFrameworks = await getAllFrameworks();
+    const frameworkNamesInHierarchy = frameworkIdsInHierarchy.map(id => {
+      const framework = allFrameworks.find(f => f.id === id);
+      return framework ? framework.name : id;
+    });
+    
+    // קבלת כל החיילים בהיררכיה
+    const allSoldiersInHierarchy = allSoldiers.filter(s => s.frameworkId && frameworkIdsInHierarchy.includes(s.frameworkId));
+    const soldierIdsInHierarchy = allSoldiersInHierarchy.map(s => s.id);
+    
+    // סינון נסיעות שמתאימות למסגרות בהיררכיה
+    const tripsInHierarchy = allTrips.filter((trip: any) => {
+      // אם הנסיעה מוגדרת למסגרת בהיררכיה
+      if (trip.frameworkId && frameworkIdsInHierarchy.includes(trip.frameworkId)) {
+        return true;
+      }
+      
+      // אם הנסיעה מוגדרת לפי שם צוות שמתאים למסגרת בהיררכיה
+      if (trip.team && frameworkNamesInHierarchy.includes(trip.team)) {
+        return true;
+      }
+      
+      // אם הנהג הוא מהמסגרת בהיררכיה
+      if (trip.driverId && soldierIdsInHierarchy.includes(trip.driverId)) {
+        return true;
+      }
+      
+      return false;
+    });
+    
+    return tripsInHierarchy.map((trip: any) => {
+      // מציאת שם המסגרת המקורית
+      let sourceFrameworkName = '';
+      if (trip.frameworkId) {
+        const framework = allFrameworks.find(f => f.id === trip.frameworkId);
+        sourceFrameworkName = framework ? framework.name : trip.frameworkId;
+      } else if (trip.team) {
+        sourceFrameworkName = trip.team;
+      }
+      
+      // מציאת הנהג מהמסגרת הנוכחית
+      let driverFromCurrentFramework = null;
+      if (trip.driverId) {
+        const driver = allSoldiersInHierarchy.find(s => s.id === trip.driverId);
+        if (driver) {
+          driverFromCurrentFramework = {
+            soldierId: driver.id,
+            soldierName: driver.name,
+            role: driver.role,
+            frameworkId: driver.frameworkId,
+            frameworkName: allFrameworks.find(f => f.id === driver.frameworkId)?.name || driver.frameworkId
+          };
+        }
+      }
+      
+      return { 
+        ...trip, 
+        frameworkId: trip.frameworkId || trip.team,
+        sourceFrameworkName: sourceFrameworkName || '',
+        driverFromCurrentFramework
+      };
+    });
+  };
   
-  const totalSoldiers = await getAllSoldiersInHierarchy(id);
-  const allSoldiersInHierarchy = await getAllSoldiersInHierarchyList(id);
+  const [totalSoldiers, allSoldiersInHierarchy, activities, duties, trips] = await Promise.all([
+    getAllSoldiersInHierarchy(id),
+    getAllSoldiersInHierarchyList(id),
+    getAllActivitiesInHierarchy(id),
+    getAllDutiesInHierarchy(id),
+    getAllTripsInHierarchy(id)
+  ]);
   
   return {
     ...framework,
@@ -244,7 +548,13 @@ export const getFrameworkWithDetails = async (id: string): Promise<FrameworkWith
       personalNumber: s.personalNumber,
       frameworkId: s.frameworkId
     })),
-    totalSoldiers
+    totalSoldiers,
+    activities,
+    duties,
+    trips,
+    totalActivities: activities.length,
+    totalDuties: duties.length,
+    totalTrips: trips.length
   };
 };
 

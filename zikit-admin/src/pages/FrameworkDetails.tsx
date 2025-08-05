@@ -40,23 +40,18 @@ import {
   ExpandMore as ExpandMoreIcon,
   AccountTree as AccountTreeIcon,
   Assignment as AssignmentIcon,
-  CalendarMonth as CalendarMonthIcon
+  CalendarMonth as CalendarMonthIcon,
+  DirectionsCar as CarIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
 import { FrameworkWithDetails } from '../models/Framework';
-import { Activity } from '../models/Activity';
-import { Duty } from '../models/Duty';
 import { getFrameworkWithDetails, getFrameworkNamesByIds } from '../services/frameworkService';
-import { getActivitiesByFramework } from '../services/activityService';
-import { getDutiesByFramework } from '../services/dutyService';
 import { getPresenceColor, getProfileColor } from '../utils/colors';
 
 const FrameworkDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [framework, setFramework] = useState<FrameworkWithDetails | null>(null);
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [duties, setDuties] = useState<Duty[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [activeTab, setActiveTab] = useState(0);
@@ -69,22 +64,13 @@ const FrameworkDetails: React.FC = () => {
       setLoading(true);
       setError('');
       
-      // טעינת פרטי המסגרת
+      // טעינת פרטי המסגרת עם כל המידע
       const frameworkData = await getFrameworkWithDetails(id);
       if (!frameworkData) {
         setError('מסגרת לא נמצאה');
         return;
       }
       setFramework(frameworkData);
-      
-      // טעינת פעילויות ותורנויות
-      const [activitiesData, dutiesData] = await Promise.all([
-        getActivitiesByFramework(id),
-        getDutiesByFramework(id)
-      ]);
-      
-      setActivities(activitiesData);
-      setDuties(dutiesData);
       
       // קבלת שמות המסגרות עבור החיילים בהיררכיה
       if (frameworkData.allSoldiersInHierarchy) {
@@ -225,8 +211,9 @@ const FrameworkDetails: React.FC = () => {
           <Tab label={`חיילים ישירים (${framework.soldiers.length})`} />
           <Tab label={`כל החיילים בהיררכיה (${framework.totalSoldiers})`} />
           <Tab label={`מסגרות בנות (${framework.childFrameworks.length})`} />
-          <Tab label={`פעילויות (${activities.length})`} />
-          <Tab label={`תורנויות (${duties.length})`} />
+          <Tab label={`פעילויות (${framework.activities?.length || 0})`} />
+          <Tab label={`תורנויות (${framework.duties?.length || 0})`} />
+          <Tab label={`נסיעות (${framework.trips?.length || 0})`} />
         </Tabs>
       </Box>
 
@@ -353,9 +340,9 @@ const FrameworkDetails: React.FC = () => {
             <Typography variant="h6" gutterBottom>
               פעילויות
             </Typography>
-            {activities.length > 0 ? (
+            {framework.activities && framework.activities.length > 0 ? (
               <List>
-                {activities.map((activity) => (
+                {framework.activities.map((activity) => (
                   <ListItem key={activity.id} disablePadding>
                     <ListItemButton onClick={() => navigate(`/activities/${activity.id}`)}>
                       <ListItemAvatar>
@@ -365,7 +352,15 @@ const FrameworkDetails: React.FC = () => {
                       </ListItemAvatar>
                       <ListItemText
                         primary={activity.name}
-                        secondary={`${activity.status} • ${new Date(activity.plannedDate).toLocaleDateString('he-IL')}`}
+                        secondary={`${activity.status} • ${new Date(activity.plannedDate).toLocaleDateString('he-IL')} • ${
+                          activity.participantsFromCurrentFramework?.length > 0 
+                            ? `משתתפים: ${activity.participantsFromCurrentFramework.map((p: any) => p.soldierName).join(', ')}`
+                            : activity.commanderFromCurrentFramework 
+                              ? `מפקד: ${activity.commanderFromCurrentFramework.soldierName}`
+                                                             : activity.taskLeaderFromCurrentFramework
+                                 ? `מוביל משימה: ${activity.taskLeaderFromCurrentFramework.soldierName}`
+                                : activity.sourceFrameworkName || activity.frameworkId || activity.team || ''
+                        }`}
                       />
                       <ArrowBackIcon color="action" />
                     </ListItemButton>
@@ -387,9 +382,9 @@ const FrameworkDetails: React.FC = () => {
             <Typography variant="h6" gutterBottom>
               תורנויות
             </Typography>
-            {duties.length > 0 ? (
+            {framework.duties && framework.duties.length > 0 ? (
               <List>
-                {duties.map((duty) => (
+                {framework.duties.map((duty) => (
                   <ListItem key={duty.id} disablePadding>
                     <ListItemButton onClick={() => navigate(`/duties/${duty.id}`)}>
                       <ListItemAvatar>
@@ -397,9 +392,13 @@ const FrameworkDetails: React.FC = () => {
                           <CalendarMonthIcon />
                         </Avatar>
                       </ListItemAvatar>
-                                             <ListItemText
+                       <ListItemText
                          primary={`תורנות ${duty.type}`}
-                         secondary={`${duty.status} • ${new Date(duty.startDate).toLocaleDateString('he-IL')} • ${duty.location}`}
+                         secondary={`${duty.status} • ${new Date(duty.startDate).toLocaleDateString('he-IL')} • ${duty.location} • ${
+                           duty.participantsFromCurrentFramework?.length > 0 
+                             ? `משתתפים: ${duty.participantsFromCurrentFramework.map((p: any) => p.soldierName).join(', ')}`
+                             : duty.sourceFrameworkName || duty.frameworkId || duty.team || ''
+                         }`}
                        />
                       <ArrowBackIcon color="action" />
                     </ListItemButton>
@@ -409,6 +408,44 @@ const FrameworkDetails: React.FC = () => {
             ) : (
               <Typography color="text.secondary" align="center">
                 אין תורנויות למסגרת זו
+              </Typography>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === 5 && (
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              נסיעות
+            </Typography>
+            {framework.trips && framework.trips.length > 0 ? (
+              <List>
+                {framework.trips.map((trip) => (
+                  <ListItem key={trip.id} disablePadding>
+                    <ListItemButton onClick={() => navigate(`/trips/${trip.id}`)}>
+                      <ListItemAvatar>
+                        <Avatar sx={{ bgcolor: 'primary.main' }}>
+                          <CarIcon />
+                        </Avatar>
+                      </ListItemAvatar>
+                      <ListItemText
+                        primary={`נסיעה ${trip.purpose}`}
+                        secondary={`${trip.status} • ${trip.departureTime} • ${trip.location} • ${
+                          trip.driverFromCurrentFramework 
+                            ? `נהג: ${trip.driverFromCurrentFramework.soldierName}`
+                            : trip.sourceFrameworkName || trip.frameworkId || trip.team || ''
+                        }`}
+                      />
+                      <ArrowBackIcon color="action" />
+                    </ListItemButton>
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Typography color="text.secondary" align="center">
+                אין נסיעות למסגרת זו
               </Typography>
             )}
           </CardContent>
