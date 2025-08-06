@@ -3,6 +3,7 @@ export interface ActivityParticipant {
   soldierName: string;
   personalNumber: string;
   role: string; // תפקיד בפעילות
+  vehicleId?: string; // מזהה הרכב שבו ייסע המשתתף
 }
 
 export interface Activity {

@@ -214,7 +214,8 @@ const Activities: React.FC = () => {
           soldierId: soldier.id,
           soldierName: soldier.name,
           personalNumber: soldier.personalNumber,
-          role: 'מפקד'
+          role: 'מפקד',
+          vehicleId: ''
         };
         return {
           ...prev,
@@ -272,7 +273,8 @@ const Activities: React.FC = () => {
           soldierId: soldier.id,
           soldierName: soldier.name,
           personalNumber: soldier.personalNumber,
-          role: 'מוביל משימה'
+          role: 'מוביל משימה',
+          vehicleId: 'no_mobility' // מוביל משימה לא דורש ניוד כברירת מחדל
         };
         return {
           ...prev,
@@ -347,7 +349,8 @@ const Activities: React.FC = () => {
         soldierId: soldier.id,
         soldierName: soldier.name,
         personalNumber: soldier.personalNumber,
-        role: ''
+        role: '',
+        vehicleId: ''
       };
       setFormData(prev => ({
         ...prev,
@@ -391,6 +394,58 @@ const Activities: React.FC = () => {
     }));
   };
 
+  const handleUpdateParticipantVehicle = (soldierId: string, vehicleId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      participants: prev.participants.map(p => 
+        p.soldierId === soldierId ? { ...p, vehicleId } : p
+      )
+    }));
+  };
+
+  // פונקציה לקבלת רשימת הרכבים הזמינים לפעילות
+  const getAvailableVehicles = () => {
+    if (!formData.mobility) return [];
+    
+    const tripIds = formData.mobility
+      .split(';')
+      .map(mobilityItem => mobilityItem.trim())
+      .filter(mobilityItem => mobilityItem.includes('TRIP_ID:'))
+      .map(mobilityItem => mobilityItem.replace('TRIP_ID:', '').trim());
+    
+    return tripIds
+      .map(tripId => {
+        const trip = trips.find(t => t.id === tripId);
+        if (trip && trip.vehicleId) {
+          const vehicle = vehicles.find(v => v.id === trip.vehicleId);
+          return vehicle ? { id: trip.vehicleId, type: vehicle.type, number: vehicle.number } : null;
+        }
+        return null;
+      })
+      .filter(Boolean);
+  };
+
+  // פונקציה לבדיקת זמינות רכב
+  const getVehicleAvailability = (vehicleId: string) => {
+    const vehicle = vehicles.find(v => v.id === vehicleId);
+    if (!vehicle) return { available: 0, total: 0 };
+    
+    // סופר רק משתתפים שדורשים ניוד (לא "no_mobility")
+    const participantsInVehicle = formData.participants.filter(p => 
+      p.vehicleId === vehicleId && p.vehicleId !== 'no_mobility'
+    ).length;
+    
+    return {
+      available: vehicle.seats - participantsInVehicle,
+      total: vehicle.seats
+    };
+  };
+
+  // פונקציה לבדיקת משתתפים שדורשים ניוד
+  const getParticipantsRequiringMobility = () => {
+    return formData.participants.filter(p => p.vehicleId !== 'no_mobility');
+  };
+
   const handleRemoveParticipant = async (soldierId: string) => {
     // בדיקה אם זה המפקד - לא ניתן למחוק אותו
     if (soldierId === formData.commanderId) {
@@ -402,9 +457,9 @@ const Activities: React.FC = () => {
       return;
     }
     
-    // בדיקה אם זה נהג - לא ניתן למחוק אותו דרך הממשק
+    // בדיקה אם זה נהג או מפקד נסיעה - לא ניתן למחוק אותם דרך הממשק
     const participant = formData.participants.find(p => p.soldierId === soldierId);
-    if (participant && participant.role.includes('נהג')) {
+    if (participant && (participant.role.includes('נהג') || participant.role.includes('מפקד נסיעה'))) {
       return;
     }
     
@@ -462,7 +517,8 @@ const Activities: React.FC = () => {
                 soldierId: trip.driverId,
                 soldierName: trip.driverName,
                 personalNumber: driver.personalNumber,
-                role: roleText
+                role: roleText,
+                vehicleId: trip.vehicleId || ''
               });
               driversToUpdate.push(trip.driverId);
             }
@@ -601,6 +657,31 @@ const Activities: React.FC = () => {
     if (!activity.taskLeaderId) missingFields.push('מוביל משימה');
     if (activity.participants.length === 0) missingFields.push('משתתפים');
     if (!activity.mobility) missingFields.push('ניוד');
+    
+    // בדיקה אם יש מספיק מקומות נסיעה
+    if (activity.mobility && activity.participants.length > 0) {
+      const tripIds = activity.mobility
+        .split(';')
+        .map(mobilityItem => mobilityItem.trim())
+        .filter(mobilityItem => mobilityItem.includes('TRIP_ID:'))
+        .map(mobilityItem => mobilityItem.replace('TRIP_ID:', '').trim());
+      
+      let totalSeats = 0;
+      for (const tripId of tripIds) {
+        const trip = trips.find(t => t.id === tripId);
+        if (trip && trip.vehicleId) {
+          const vehicle = vehicles.find(v => v.id === trip.vehicleId);
+          if (vehicle && vehicle.seats) {
+            totalSeats += vehicle.seats;
+          }
+        }
+      }
+      
+      // אם יש פחות מקומות נסיעה ממשתתפים
+      if (totalSeats > 0 && activity.participants.length > totalSeats) {
+        missingFields.push(`מקומות נסיעה (${totalSeats} מקומות ל-${activity.participants.length} משתתפים)`);
+      }
+    }
     
     return {
       isComplete: missingFields.length === 0,
@@ -802,6 +883,32 @@ const Activities: React.FC = () => {
                     </Typography>
                   </Alert>
                 )}
+                
+                {/* התראה מיוחדת על בעיות בניוד */}
+                {activity.mobility && (() => {
+                  const tripIds = activity.mobility
+                    .split(';')
+                    .map(mobilityItem => mobilityItem.trim())
+                    .filter(mobilityItem => mobilityItem.includes('TRIP_ID:'))
+                    .map(mobilityItem => mobilityItem.replace('TRIP_ID:', '').trim());
+                  
+                  const missingTrips = tripIds.filter(tripId => !trips.find(t => t.id === tripId));
+                  
+                  if (missingTrips.length > 0) {
+                    return (
+                      <Alert severity="error" sx={{ mt: 1 }}>
+                        <Typography variant="body2" fontWeight="bold" gutterBottom>
+                          אזהרה: נסיעות חסרות
+                        </Typography>
+                        <Typography variant="body2">
+                          {missingTrips.length} נסיעות שהיו מקושרות לפעילות זו נמחקו או השתנו. יש לבדוק את שדה הניוד.
+                        </Typography>
+                      </Alert>
+                    );
+                  }
+                  
+                  return null;
+                })()}
 
                 <Accordion sx={{ mt: 2 }}>
                   <AccordionSummary 
@@ -1146,8 +1253,38 @@ const Activities: React.FC = () => {
                               soldierId: trip.driverId,
                               soldierName: trip.driverName,
                               personalNumber: driver.personalNumber,
-                              role: roleText
+                              role: roleText,
+                              vehicleId: trip.vehicleId || ''
                             });
+                          }
+                        } else {
+                          // עדכון הנהג הקיים עם הרכב
+                          const existingDriver = updatedParticipants.find(p => p.soldierId === trip.driverId);
+                          if (existingDriver) {
+                            existingDriver.vehicleId = trip.vehicleId || '';
+                          }
+                        }
+                        
+                        // הוספת מפקד נסיעה
+                        if (trip.commanderId && trip.commanderName) {
+                          const commanderExists = updatedParticipants.some(p => p.soldierId === trip.commanderId);
+                          if (!commanderExists) {
+                            const commander = soldiers.find(s => s.id === trip.commanderId);
+                            if (commander) {
+                              updatedParticipants.push({
+                                soldierId: trip.commanderId,
+                                soldierName: trip.commanderName,
+                                personalNumber: commander.personalNumber,
+                                role: 'מפקד נסיעה',
+                                vehicleId: trip.vehicleId || ''
+                              });
+                            }
+                          } else {
+                            // עדכון מפקד הנסיעה הקיים עם הרכב
+                            const existingCommander = updatedParticipants.find(p => p.soldierId === trip.commanderId);
+                            if (existingCommander) {
+                              existingCommander.vehicleId = trip.vehicleId || '';
+                            }
                           }
                         }
                       }
@@ -1232,29 +1369,43 @@ const Activities: React.FC = () => {
                             // הסרת הקישור מהנסיעה (Firebase לא תומך ב-undefined)
                             await updateTrip(trip.id, { linkedActivityId: '' });
                             
-                            // הסרת הנהג מהמשתתפים אם הוא קיים
-                            const driverParticipant = formData.participants.find(p => 
-                              p.soldierId === trip.driverId && p.role.includes('נהג')
+                            // הסרת הנהג ומפקד הנסיעה מהמשתתפים אם הם קיימים
+                            const participantsToRemove = formData.participants.filter(p => 
+                              (p.soldierId === trip.driverId && p.role.includes('נהג')) ||
+                              (p.soldierId === trip.commanderId && p.role.includes('מפקד נסיעה'))
                             );
                             
-                            if (driverParticipant) {
+                            if (participantsToRemove.length > 0) {
                               const updatedParticipants = formData.participants.filter(p => 
-                                !(p.soldierId === trip.driverId && p.role.includes('נהג'))
+                                !(p.soldierId === trip.driverId && p.role.includes('נהג')) &&
+                                !(p.soldierId === trip.commanderId && p.role.includes('מפקד נסיעה'))
                               );
+                              
+                              // ביטול שיבוץ רכב לכל המשתתפים ששובצו לרכב זה
+                              const vehicle = vehicles.find(v => v.id === trip.vehicleId);
+                              if (vehicle) {
+                                updatedParticipants.forEach(participant => {
+                                  if (participant.vehicleId === trip.vehicleId) {
+                                    participant.vehicleId = '';
+                                  }
+                                });
+                              }
                               
                               setFormData(prev => ({
                                 ...prev,
                                 participants: updatedParticipants
                               }));
                               
-                              // הסרת הפעילות מעמוד האישי של הנהג
-                              const driver = soldiers.find(s => s.id === trip.driverId);
-                              if (driver && editId && trip.driverId) {
-                                const currentActivities = driver.activities || [];
-                                const updatedActivities = currentActivities.filter(activityId => activityId !== editId);
-                                await updateSoldier(trip.driverId, {
-                                  activities: updatedActivities
-                                });
+                              // הסרת הפעילות מעמוד האישי של הנהג ומפקד הנסיעה
+                              for (const participant of participantsToRemove) {
+                                const soldier = soldiers.find(s => s.id === participant.soldierId);
+                                if (soldier && editId) {
+                                  const currentActivities = soldier.activities || [];
+                                  const updatedActivities = currentActivities.filter(activityId => activityId !== editId);
+                                  await updateSoldier(participant.soldierId, {
+                                    activities: updatedActivities
+                                  });
+                                }
                               }
                             }
                           }}
@@ -1292,11 +1443,12 @@ const Activities: React.FC = () => {
               </Box>
               <List dense>
                 {formData.participants.map((participant) => {
-                  // בדיקה אם זה המפקד, מוביל משימה או נהג
+                  // בדיקה אם זה המפקד, מוביל משימה, נהג או מפקד נסיעה
                   const isCommander = participant.soldierId === formData.commanderId;
                   const isTaskLeader = participant.soldierId === formData.taskLeaderId;
                   const isDriver = participant.role.includes('נהג');
-                  const isReadOnly = isCommander || isTaskLeader || isDriver;
+                  const isTripCommander = participant.role.includes('מפקד נסיעה');
+                  const isReadOnly = isCommander || isTaskLeader || isDriver || isTripCommander;
                   
                   return (
                     <ListItem key={participant.soldierId}>
@@ -1330,6 +1482,14 @@ const Activities: React.FC = () => {
                                 variant="outlined"
                               />
                             )}
+                            {isTripCommander && (
+                              <Chip 
+                                label="מפקד נסיעה" 
+                                size="small" 
+                                color="warning" 
+                                variant="outlined"
+                              />
+                            )}
                           </Box>
                         }
                         secondary={`${participant.personalNumber} - ${participant.role}`}
@@ -1337,19 +1497,46 @@ const Activities: React.FC = () => {
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         {isReadOnly ? (
                           // קריאה בלבד למפקד, מוביל משימה ונהג
-                          <TextField
-                            size="small"
-                            placeholder="תפקיד בפעילות"
-                            value={participant.role}
-                            disabled
-                            sx={{ 
-                              minWidth: 150,
-                              '& .MuiInputBase-input.Mui-disabled': {
-                                color: 'text.primary',
-                                WebkitTextFillColor: 'text.primary'
-                              }
-                            }}
-                          />
+                          <Box sx={{ display: 'flex', gap: 1 }}>
+                            <TextField
+                              size="small"
+                              placeholder="תפקיד בפעילות"
+                              value={participant.role}
+                              disabled
+                              sx={{ 
+                                minWidth: 150,
+                                '& .MuiInputBase-input.Mui-disabled': {
+                                  color: 'text.primary',
+                                  WebkitTextFillColor: 'text.primary'
+                                }
+                              }}
+                            />
+                            <FormControl size="small" sx={{ minWidth: 120 }}>
+                              <InputLabel>רכב</InputLabel>
+                              <Select
+                                value={participant.vehicleId || ''}
+                                onChange={(e) => handleUpdateParticipantVehicle(participant.soldierId, e.target.value)}
+                                label="רכב"
+                              >
+                                <MenuItem value="">ללא רכב</MenuItem>
+                                <MenuItem value="no_mobility">לא דורש ניוד</MenuItem>
+                                {getAvailableVehicles().map(vehicle => {
+                                  if (!vehicle) return null;
+                                  const availability = getVehicleAvailability(vehicle.id);
+                                  const isFull = availability.available <= 0;
+                                  return (
+                                    <MenuItem 
+                                      key={vehicle.id} 
+                                      value={vehicle.id}
+                                      disabled={isFull && participant.vehicleId !== vehicle.id}
+                                    >
+                                      {vehicle.type} ({vehicle.number}) - {availability.available}/{availability.total} מקומות
+                                    </MenuItem>
+                                  );
+                                })}
+                              </Select>
+                            </FormControl>
+                          </Box>
                         ) : (
                           // עריכה רגילה למשתתפים אחרים
                           <>
@@ -1360,6 +1547,31 @@ const Activities: React.FC = () => {
                               onChange={(e) => handleUpdateParticipantRole(participant.soldierId, e.target.value)}
                               sx={{ minWidth: 150 }}
                             />
+                                                          <FormControl size="small" sx={{ minWidth: 120 }}>
+                                <InputLabel>רכב</InputLabel>
+                                <Select
+                                  value={participant.vehicleId || ''}
+                                  onChange={(e) => handleUpdateParticipantVehicle(participant.soldierId, e.target.value)}
+                                  label="רכב"
+                                >
+                                  <MenuItem value="">ללא רכב</MenuItem>
+                                  <MenuItem value="no_mobility">לא דורש ניוד</MenuItem>
+                                  {getAvailableVehicles().map(vehicle => {
+                                    if (!vehicle) return null;
+                                    const availability = getVehicleAvailability(vehicle.id);
+                                    const isFull = availability.available <= 0;
+                                    return (
+                                      <MenuItem 
+                                        key={vehicle.id} 
+                                        value={vehicle.id}
+                                        disabled={isFull && participant.vehicleId !== vehicle.id}
+                                      >
+                                        {vehicle.type} ({vehicle.number}) - {availability.available}/{availability.total} מקומות
+                                      </MenuItem>
+                                    );
+                                  })}
+                                </Select>
+                              </FormControl>
                             <IconButton
                               size="small"
                               onClick={() => handleRemoveParticipant(participant.soldierId)}

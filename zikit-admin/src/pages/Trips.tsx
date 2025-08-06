@@ -65,7 +65,7 @@ import { Activity } from '../models/Activity';
 import { getAllTrips, addTrip, updateTrip, deleteTrip, checkAvailability } from '../services/tripService';
 import { getAllVehicles, addVehicle, updateVehicle } from '../services/vehicleService';
 import { getAllSoldiers, updateSoldier } from '../services/soldierService';
-import { getAllActivities } from '../services/activityService';
+import { getAllActivities, updateActivity } from '../services/activityService';
 
 const Trips: React.FC = () => {
   const navigate = useNavigate();
@@ -337,6 +337,14 @@ const Trips: React.FC = () => {
         }
       }
 
+      // עדכון פעילויות מקושרות
+      if (editId) {
+        const existingTrip = trips.find(t => t.id === editId);
+        if (existingTrip) {
+          await updateLinkedActivities(editId, existingTrip, tripData);
+        }
+      }
+
       handleCloseForm();
       loadData();
     } catch (error) {
@@ -376,6 +384,9 @@ const Trips: React.FC = () => {
             }
           }
         }
+        
+        // עדכון פעילויות מקושרות לפני המחיקה
+        await updateLinkedActivities(tripId, tripToDelete);
         
         await deleteTrip(tripId);
         loadData();
@@ -441,6 +452,175 @@ const Trips: React.FC = () => {
       ...prev,
       [name]: value
     }));
+  };
+
+  // פונקציה לעדכון פעילויות שמקושרות לנסיעה
+  const updateLinkedActivities = async (tripId: string, oldTrip?: Trip, newTrip?: Trip) => {
+    try {
+      // מציאת כל הפעילויות שמקושרות לנסיעה זו
+      const linkedActivities = activities.filter(activity => 
+        activity.mobility && activity.mobility.includes(`TRIP_ID:${tripId}`)
+      );
+
+      for (const activity of linkedActivities) {
+        let updatedParticipants = [...activity.participants];
+        let updatedMobility = activity.mobility;
+
+        // אם הנסיעה נמחקה
+        if (!newTrip && oldTrip) {
+          // הסרת הנסיעה מהניוד
+          updatedMobility = (activity.mobility || '')
+            .split(';')
+            .map(mobilityItem => mobilityItem.trim())
+            .filter(mobilityItem => !mobilityItem.includes(`TRIP_ID:${tripId}`))
+            .join('; ');
+
+          // הסרת הנהג ומפקד הנסיעה מהמשתתפים
+          if (oldTrip.driverId) {
+            updatedParticipants = updatedParticipants.filter(p => p.soldierId !== oldTrip.driverId);
+          }
+          if (oldTrip.commanderId) {
+            updatedParticipants = updatedParticipants.filter(p => p.soldierId !== oldTrip.commanderId);
+          }
+        }
+        // אם הנסיעה עודכנה
+        else if (newTrip && oldTrip) {
+          // עדכון הנהג
+          if (oldTrip.driverId !== newTrip.driverId) {
+            // טיפול בנהג הישן
+            if (oldTrip.driverId) {
+              const oldDriverParticipant = updatedParticipants.find(p => p.soldierId === oldTrip.driverId);
+              if (oldDriverParticipant) {
+                // בדיקה אם יש לו תפקיד נוסף (נהג נוסף)
+                if (oldDriverParticipant.role.includes('נהג') && oldDriverParticipant.role !== 'נהג') {
+                  // החזרת התפקיד המקורי
+                  const originalRole = oldDriverParticipant.role.replace(/נהג [^,]+/, '').trim();
+                  oldDriverParticipant.role = originalRole || 'משתתף';
+                  // הסרת השיבוץ לרכב
+                  oldDriverParticipant.vehicleId = '';
+                } else if (oldDriverParticipant.role === 'נהג' || oldDriverParticipant.role.startsWith('נהג ')) {
+                  // אם הוא רק נהג, להסיר אותו לגמרי
+                  updatedParticipants = updatedParticipants.filter(p => p.soldierId !== oldTrip.driverId);
+                }
+              }
+            }
+            
+            // הוספת הנהג החדש
+            if (newTrip.driverId && newTrip.driverName) {
+              const driver = soldiers.find(s => s.id === newTrip.driverId);
+              if (driver) {
+                const vehicle = vehicles.find(v => v.id === newTrip.vehicleId);
+                const vehicleType = vehicle ? vehicle.type : '';
+                const roleText = vehicleType ? `נהג ${vehicleType}` : 'נהג';
+                
+                // בדיקה אם הנהג כבר משתתף
+                const existingParticipant = updatedParticipants.find(p => p.soldierId === newTrip.driverId);
+                if (existingParticipant) {
+                  // עדכון התפקיד הקיים
+                  existingParticipant.role = roleText;
+                  // שיבוץ אוטומטי לרכב
+                  existingParticipant.vehicleId = newTrip.vehicleId || '';
+                } else {
+                  // הוספת נהג חדש
+                  updatedParticipants.push({
+                    soldierId: newTrip.driverId,
+                    soldierName: newTrip.driverName,
+                    personalNumber: driver.personalNumber,
+                    role: roleText,
+                    vehicleId: newTrip.vehicleId || ''
+                  });
+                }
+              }
+            }
+          }
+
+          // עדכון מפקד הנסיעה
+          if (oldTrip.commanderId !== newTrip.commanderId) {
+            // טיפול במפקד הנסיעה הישן
+            if (oldTrip.commanderId) {
+              const oldCommanderParticipant = updatedParticipants.find(p => p.soldierId === oldTrip.commanderId);
+              if (oldCommanderParticipant) {
+                // בדיקה אם יש לו תפקיד נוסף (מפקד נסיעה נוסף)
+                if (oldCommanderParticipant.role.includes(' - מפקד נסיעה')) {
+                  // החזרת התפקיד המקורי
+                  const originalRole = oldCommanderParticipant.role.split(' - מפקד נסיעה')[0];
+                  oldCommanderParticipant.role = originalRole;
+                  // הסרת השיבוץ לרכב
+                  oldCommanderParticipant.vehicleId = '';
+                } else if (oldCommanderParticipant.role === 'מפקד נסיעה') {
+                  // אם הוא רק מפקד נסיעה, להסיר אותו לגמרי
+                  updatedParticipants = updatedParticipants.filter(p => p.soldierId !== oldTrip.commanderId);
+                }
+              }
+            }
+            
+            // הוספת מפקד הנסיעה החדש
+            if (newTrip.commanderId && newTrip.commanderName) {
+              const commander = soldiers.find(s => s.id === newTrip.commanderId);
+              if (commander) {
+                // בדיקה אם מפקד הנסיעה כבר משתתף
+                const existingParticipant = updatedParticipants.find(p => p.soldierId === newTrip.commanderId);
+                if (existingParticipant) {
+                  // עדכון התפקיד הקיים עם תגית מפקד נסיעה
+                  const vehicle = vehicles.find(v => v.id === newTrip.vehicleId);
+                  const vehicleType = vehicle ? vehicle.type : '';
+                  existingParticipant.role = `${existingParticipant.role} - מפקד נסיעה ${vehicleType}`.trim();
+                  // שיבוץ אוטומטי לרכב
+                  existingParticipant.vehicleId = newTrip.vehicleId || '';
+                } else {
+                  // הוספת מפקד נסיעה חדש
+                  updatedParticipants.push({
+                    soldierId: newTrip.commanderId,
+                    soldierName: newTrip.commanderName,
+                    personalNumber: commander.personalNumber,
+                    role: 'מפקד נסיעה',
+                    vehicleId: newTrip.vehicleId || ''
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        // עדכון הפעילות
+        await updateActivity(activity.id, {
+          participants: updatedParticipants,
+          mobility: updatedMobility
+        });
+
+        // עדכון עמוד האישי של המשתתפים
+        const allParticipantIds = Array.from(new Set([
+          ...updatedParticipants.map(p => p.soldierId),
+          ...activity.participants.map(p => p.soldierId)
+        ]));
+
+        for (const participantId of allParticipantIds) {
+          const soldier = soldiers.find(s => s.id === participantId);
+          if (soldier) {
+            const currentActivities = soldier.activities || [];
+            const isStillParticipant = updatedParticipants.some(p => p.soldierId === participantId);
+            const wasParticipant = activity.participants.some(p => p.soldierId === participantId);
+
+            if (isStillParticipant && !wasParticipant) {
+              // הוספת הפעילות לעמוד האישי
+              if (!currentActivities.includes(activity.id)) {
+                await updateSoldier(participantId, {
+                  activities: [...currentActivities, activity.id]
+                });
+              }
+            } else if (!isStillParticipant && wasParticipant) {
+              // הסרת הפעילות מעמוד האישי
+              const updatedActivities = currentActivities.filter(id => id !== activity.id);
+              await updateSoldier(participantId, {
+                activities: updatedActivities
+              });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('שגיאה בעדכון פעילויות מקושרות:', error);
+    }
   };
 
   const handleVehicleSubmit = async (e: React.FormEvent) => {

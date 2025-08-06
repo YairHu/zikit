@@ -407,20 +407,18 @@ const Teams: React.FC = () => {
         // Table View
         <TableContainer component={Paper} sx={{ mt: 2 }}>
           <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>שם מסגרת</TableCell>
-                <TableCell>רמה</TableCell>
-                <TableCell>מפקד</TableCell>
-                <TableCell>חיילים ישירים</TableCell>
-                <TableCell>סה"כ חיילים</TableCell>
-                <TableCell>מסגרות בנות</TableCell>
-                <TableCell>פעילויות</TableCell>
-                <TableCell>תורנויות</TableCell>
-                <TableCell>נסיעות</TableCell>
-                <TableCell>פעולות</TableCell>
-              </TableRow>
-            </TableHead>
+                    <TableHead>
+          <TableRow>
+            <TableCell>שם מסגרת</TableCell>
+            <TableCell>מפקד</TableCell>
+            <TableCell>חיילים ישירים</TableCell>
+            <TableCell>סה"כ חיילים</TableCell>
+            <TableCell>מסגרות בנות</TableCell>
+            <TableCell>פעילויות</TableCell>
+            <TableCell>תורנויות</TableCell>
+            <TableCell>נסיעות</TableCell>
+          </TableRow>
+        </TableHead>
             <TableBody>
               {frameworks.map((framework) => (
                 <TableRow key={framework.id} hover>
@@ -439,9 +437,6 @@ const Teams: React.FC = () => {
                     >
                       {framework.name}
                     </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip label={framework.level} size="small" variant="outlined" />
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">
@@ -477,15 +472,6 @@ const Teams: React.FC = () => {
                     <Typography variant="body2">
                       {framework.totalTrips || 0}
                     </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={() => handleFrameworkClick(framework.id)}
-                    >
-                      צפה בפרטים
-                    </Button>
                   </TableCell>
                 </TableRow>
               ))}

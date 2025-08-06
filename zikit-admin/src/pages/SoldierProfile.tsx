@@ -70,6 +70,8 @@ import { Referral } from '../models/Referral';
 import { Trip } from '../models/Trip';
 import { useUser } from '../contexts/UserContext';
 import SoldierForm from '../components/SoldierForm';
+import { getAllTrips } from '../services/tripService';
+import { getAllVehicles } from '../services/vehicleService';
 
 const SoldierProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -81,6 +83,8 @@ const SoldierProfile: React.FC = () => {
   const [duties, setDuties] = useState<Duty[]>([]);
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
+  const [allTrips, setAllTrips] = useState<Trip[]>([]);
+  const [allVehicles, setAllVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [showEditForm, setShowEditForm] = useState(false);
@@ -92,13 +96,17 @@ const SoldierProfile: React.FC = () => {
         getActivitiesBySoldier(id),
         getDutiesBySoldier(id),
         getReferralsBySoldier(id),
-        getTripsBySoldier(id)
-      ]).then(async ([soldierData, activitiesData, dutiesData, referralsData, tripsData]) => {
+        getTripsBySoldier(id),
+        getAllTrips(),
+        getAllVehicles()
+      ]).then(async ([soldierData, activitiesData, dutiesData, referralsData, tripsData, allTripsData, allVehiclesData]) => {
         setSoldier(soldierData);
         setActivities(activitiesData);
         setDuties(dutiesData);
         setReferrals(referralsData);
         setTrips(tripsData);
+        setAllTrips(allTripsData);
+        setAllVehicles(allVehiclesData);
         
         // קבלת שם המסגרת
         if (soldierData?.frameworkId) {
@@ -129,6 +137,37 @@ const SoldierProfile: React.FC = () => {
 
   const handleCloseEditForm = () => {
     setShowEditForm(false);
+  };
+
+  const formatMobilityDisplay = (mobility: string) => {
+    if (!mobility) return '';
+    
+    // אם זה מכיל TRIP_ID, נמיר לתצוגת נסיעות
+    if (mobility.includes('TRIP_ID:')) {
+      const tripIds = mobility.split(';').map(id => id.replace('TRIP_ID:', '').trim());
+      const tripDetails = tripIds
+        .map(tripId => {
+          const trip = allTrips.find(t => t.id === tripId);
+          if (!trip) return null;
+          
+          if (trip.vehicleNumber && trip.driverName) {
+            return `רכב ${trip.vehicleNumber}, נהג: ${trip.driverName}`;
+          } else if (trip.vehicleNumber) {
+            return `רכב ${trip.vehicleNumber}`;
+          } else if (trip.driverName) {
+            return `נהג: ${trip.driverName}`;
+          } else {
+            return trip.purpose || 'נסיעה ללא פרטים';
+          }
+        })
+        .filter(Boolean)
+        .join(' | ');
+      
+      return tripDetails || 'נסיעות';
+    }
+    
+    // אחרת, החזר כמו שזה
+    return mobility;
   };
 
   const handleEditSuccess = async (updatedSoldier: Soldier) => {
@@ -571,7 +610,7 @@ const SoldierProfile: React.FC = () => {
                               </Typography>
                               {activity.mobility && (
                                 <Typography variant="body2" color="text.secondary">
-                                  <strong>ניוד:</strong> {activity.mobility}
+                                  <strong>ניוד:</strong> {formatMobilityDisplay(activity.mobility)}
                                 </Typography>
                               )}
                             </Box>
