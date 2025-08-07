@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, Link } from 'react-router-dom';
 import { useUser } from './contexts/UserContext';
+import { hasPermission, getUserPermissions, UserRole } from './models/UserRole';
 import Home from './pages/Home';
 import Soldiers from './pages/Soldiers';
 import Teams from './pages/Teams';
@@ -26,7 +27,11 @@ import DutyDetails from './pages/DutyDetails';
 import FrameworkManagement from './pages/FrameworkManagement';
 import FrameworkDetails from './pages/FrameworkDetails';
 import { signOutUser } from './services/authService';
-import { Drawer, List, ListItem, ListItemIcon, ListItemText, IconButton, AppBar, Toolbar, Typography, Box, Divider, Avatar, Collapse } from '@mui/material';
+import { Drawer, List, ListItem, ListItemIcon, ListItemText, IconButton, AppBar, Toolbar, Typography, Box, Divider, Avatar, Collapse, Menu, MenuItem, Select, FormControl, InputLabel } from '@mui/material';
+import AccessDenied from './components/AccessDenied';
+import { getAllSoldiers } from './services/soldierService';
+import { useViewMode } from './contexts/ViewModeContext';
+import ViewModeIndicator from './components/ViewModeIndicator';
 import MenuIcon from '@mui/icons-material/Menu';
 import HomeIcon from '@mui/icons-material/Home';
 import GroupsIcon from '@mui/icons-material/Groups';
@@ -48,31 +53,68 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 
 const drawerWidth = 260;
 
-const getMenuItems = (user: any) => {
+// רכיב הגנה על נתיבים
+const ProtectedRoute: React.FC<{ 
+  children: React.ReactNode; 
+  requiredPermission?: keyof import('./models/UserRole').RolePermissions['navigation'];
+  userRole?: UserRole;
+}> = ({ children, requiredPermission, userRole }) => {
+  const { user } = useUser();
+  
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+  
+  if (requiredPermission && userRole) {
+    if (!hasPermission(userRole, requiredPermission)) {
+      return <AccessDenied message="אין לך הרשאה לגשת לעמוד זה" />;
+    }
+  }
+  
+  return <>{children}</>;
+};
+
+const getMenuItems = (user: any, selectedSoldierId?: string) => {
+  if (!user) return { baseItems: [], managementItems: [], adminItems: [] };
+  
+  // אם יש נקודת מבט פעילה, נשתמש בנתוני החייל הנבחר
+  const effectiveUser = selectedSoldierId ? {
+    ...user,
+    role: 'chayal', // חייל רגיל
+    team: selectedSoldierId, // נשתמש ב-ID החייל כצוות
+    uid: selectedSoldierId // נשתמש ב-ID החייל כ-UID
+  } : user;
+  
+  const userPermissions = getUserPermissions(effectiveUser.role as UserRole);
+  
   const baseItems = [
     { text: 'דף ראשי', icon: <HomeIcon />, path: '/' },
     { text: 'התיק האישי', icon: <PersonIcon />, path: '/profile' }
   ];
 
   const managementItems = [
-    { text: 'כוח אדם', icon: <GroupsIcon />, path: '/soldiers' },
-    { text: 'צוותים', icon: <GroupsIcon />, path: '/teams' },
-    { text: 'נסיעות ורכבים', icon: <DirectionsCarIcon />, path: '/trips' },
-    { text: 'משימות', icon: <AssignmentIcon />, path: '/missions' },
-    { text: 'פעילויות מבצעיות', icon: <AssignmentIcon />, path: '/activities' },
-    { text: 'סטטיסטיקות פעילויות', icon: <BarChartIcon />, path: '/activity-statistics' },
-    { text: 'תורנויות', icon: <CalendarMonthIcon />, path: '/duties' },
-    { text: 'הפניות', icon: <LocalHospitalIcon />, path: '/referrals' },
-    { text: 'טפסים', icon: <DescriptionIcon />, path: '/forms' },
-    { text: 'מסך חמ"ל', icon: <MonitorIcon />, path: '/hamal' }
+    ...(userPermissions.navigation.soldiers ? [{ text: 'כוח אדם', icon: <GroupsIcon />, path: '/soldiers' }] : []),
+    ...(userPermissions.navigation.teams ? [{ 
+      text: effectiveUser.role === 'chayal' ? 'צוות' : 'צוותים', 
+      icon: <GroupsIcon />, 
+      path: effectiveUser.role === 'chayal' ? `/teams/${effectiveUser.team}` : '/teams' 
+    }] : []),
+    ...(userPermissions.navigation.trips ? [{ text: 'נסיעות ורכבים', icon: <DirectionsCarIcon />, path: '/trips' }] : []),
+    ...(userPermissions.navigation.missions ? [{ text: 'משימות', icon: <AssignmentIcon />, path: '/missions' }] : []),
+    ...(userPermissions.navigation.activities ? [{ text: 'פעילויות מבצעיות', icon: <AssignmentIcon />, path: '/activities' }] : []),
+    ...(userPermissions.navigation.activityStatistics ? [{ text: 'סטטיסטיקות פעילויות', icon: <BarChartIcon />, path: '/activity-statistics' }] : []),
+    ...(userPermissions.navigation.duties ? [{ text: 'תורנויות', icon: <CalendarMonthIcon />, path: '/duties' }] : []),
+    ...(userPermissions.navigation.referrals ? [{ text: 'הפניות', icon: <LocalHospitalIcon />, path: '/referrals' }] : []),
+    ...(userPermissions.navigation.forms ? [{ text: 'טפסים', icon: <DescriptionIcon />, path: '/forms' }] : []),
+    ...(userPermissions.navigation.hamal ? [{ text: 'מסך חמ"ל', icon: <MonitorIcon />, path: '/hamal' }] : []),
   ];
 
   const adminItems = [
-    { text: 'ניהול מבנה פלוגה', icon: <GroupsIcon />, path: '/framework-management' },
-    { text: 'חיילים ממתינים', icon: <PersonIcon />, path: '/pending-soldiers' },
-    { text: 'קישור חיילים', icon: <LinkIcon />, path: '/soldier-linking' },
-    { text: 'ניהול משתמשים', icon: <SettingsIcon />, path: '/users' },
-    { text: 'הכנסת נתונים', icon: <SettingsIcon />, path: '/data-seeder' }
+    ...(userPermissions.navigation.frameworkManagement ? [{ text: 'ניהול מבנה פלוגה', icon: <GroupsIcon />, path: '/framework-management' }] : []),
+    ...(userPermissions.navigation.pendingSoldiers ? [{ text: 'חיילים ממתינים', icon: <PersonIcon />, path: '/pending-soldiers' }] : []),
+    ...(userPermissions.navigation.soldierLinking ? [{ text: 'קישור חיילים', icon: <LinkIcon />, path: '/soldier-linking' }] : []),
+    ...(userPermissions.navigation.userManagement ? [{ text: 'ניהול משתמשים', icon: <SettingsIcon />, path: '/users' }] : []),
+    ...(userPermissions.navigation.dataSeeder ? [{ text: 'הכנסת נתונים', icon: <SettingsIcon />, path: '/data-seeder' }] : []),
   ];
 
   return { baseItems, managementItems, adminItems };
@@ -80,7 +122,46 @@ const getMenuItems = (user: any) => {
 
 const SideDrawer: React.FC<{ onLogout: () => void, open: boolean, onClose: () => void, user: any }> = ({ onLogout, open, onClose, user }) => {
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
-  const { baseItems, managementItems, adminItems } = getMenuItems(user);
+  const [soldiers, setSoldiers] = useState<any[]>([]);
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const { selectedSoldierId, setSelectedSoldierId, isViewModeActive, resetViewMode } = useViewMode();
+  const { baseItems, managementItems, adminItems } = getMenuItems(user, selectedSoldierId);
+  
+  // טעינת חיילים לשינוי נקודת מבט
+  useEffect(() => {
+    const loadSoldiers = async () => {
+      try {
+        const allSoldiers = await getAllSoldiers();
+        setSoldiers(allSoldiers);
+      } catch (error) {
+        console.error('שגיאה בטעינת חיילים:', error);
+      }
+    };
+    
+    if (user && hasPermission(user.role as UserRole, 'canChangeViewMode')) {
+      loadSoldiers();
+    }
+  }, [user]);
+
+  // פונקציה לשינוי נקודת מבט
+  const handleViewModeChange = (soldierId: string) => {
+    setSelectedSoldierId(soldierId);
+    setAnchorEl(null);
+    console.log('שינוי נקודת מבט לחייל:', soldierId);
+  };
+
+  // פונקציה לפתיחת תפריט שינוי נקודת מבט
+  const handleViewModeClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  // פונקציה לסגירת תפריט שינוי נקודת מבט
+  const handleViewModeClose = () => {
+    setAnchorEl(null);
+  };
+
+  // בדיקה אם המשתמש יכול לשנות נקודת מבט - רק אדמין
+  const canChangeViewMode = user && hasPermission(user.role as UserRole, 'canChangeViewMode');
   
   return (
     <Drawer anchor="right" open={open} onClose={onClose} sx={{ '& .MuiDrawer-paper': { width: drawerWidth, direction: 'rtl' } }}>
@@ -100,7 +181,7 @@ const SideDrawer: React.FC<{ onLogout: () => void, open: boolean, onClose: () =>
         ))}
         
         {/* פריטי ניהול */}
-        {user && (user.canAssignRoles || user.role !== 'chayal') && (
+        {managementItems.length > 0 && (
           <>
             <Divider sx={{ my: 1 }} />
             {managementItems.map((item) => (
@@ -113,7 +194,7 @@ const SideDrawer: React.FC<{ onLogout: () => void, open: boolean, onClose: () =>
         )}
         
         {/* תפריט ניהול מתקפל */}
-        {user && user.canAssignRoles && (
+        {adminItems.length > 0 && (
           <>
             <Divider sx={{ my: 1 }} />
             <ListItem component="button" onClick={() => setAdminMenuOpen(!adminMenuOpen)}>
@@ -134,6 +215,53 @@ const SideDrawer: React.FC<{ onLogout: () => void, open: boolean, onClose: () =>
           </>
         )}
         
+        {/* תפריט שינוי נקודת מבט - רק למנהלים */}
+        {canChangeViewMode && (
+          <>
+            <Divider sx={{ my: 1 }} />
+            <ListItem component="button" onClick={handleViewModeClick}>
+              <ListItemIcon sx={{ minWidth: 36 }}><PersonIcon /></ListItemIcon>
+              <ListItemText primary="שנה נקודת מבט" />
+            </ListItem>
+            
+            <Menu
+              anchorEl={anchorEl}
+              open={Boolean(anchorEl)}
+              onClose={handleViewModeClose}
+              PaperProps={{
+                sx: {
+                  maxHeight: 300,
+                  width: 250,
+                  direction: 'rtl'
+                }
+              }}
+            >
+              <MenuItem onClick={() => handleViewModeChange('')}>
+                <Typography variant="body2" color={!isViewModeActive ? "primary.main" : "text.secondary"}>
+                  נקודת מבט אישית
+                </Typography>
+              </MenuItem>
+              <Divider />
+              {soldiers.map((soldier) => (
+                <MenuItem 
+                  key={soldier.id} 
+                  onClick={() => handleViewModeChange(soldier.id)}
+                  selected={selectedSoldierId === soldier.id}
+                >
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <Typography variant="body2" fontWeight={600}>
+                      {soldier.name}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {soldier.role} • {soldier.personalNumber}
+                    </Typography>
+                  </Box>
+                </MenuItem>
+              ))}
+            </Menu>
+          </>
+        )}
+        
         <ListItem component="button" onClick={onLogout} sx={{ mt: 2 }}>
           <ListItemIcon sx={{ minWidth: 36 }}><LogoutIcon /></ListItemIcon>
           <ListItemText primary="התנתק" />
@@ -150,6 +278,15 @@ const SideDrawer: React.FC<{ onLogout: () => void, open: boolean, onClose: () =>
            user.role === 'mefaked_pluga' ? 'מפקד פלוגה' :
            user.role === 'mefaked_tzevet' ? 'מפקד צוות' :
            user.role === 'chayal' ? 'חייל' : 'משתמש'}
+          
+          {/* הצגת נקודת מבט נוכחית */}
+          {selectedSoldierId && (
+            <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+              <Typography variant="caption" color="primary.main">
+                צפייה כחייל: {soldiers.find(s => s.id === selectedSoldierId)?.name || 'לא ידוע'}
+              </Typography>
+            </Box>
+          )}
         </Box>
       )}
     </Drawer>
@@ -175,6 +312,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </Toolbar>
       </AppBar>
       <SideDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} onLogout={handleLogout} user={user} />
+      <ViewModeIndicator />
       <Box component="main" sx={{ flexGrow: 1, pt: 9, px: 1, width: '100%' }}>
         {children}
       </Box>
@@ -206,28 +344,112 @@ const AppRoutes: React.FC = () => {
       <Layout>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/soldiers" element={<Soldiers />} />
-          <Route path="/soldiers/:id" element={<SoldierProfile />} />
-          <Route path="/teams" element={<Teams />} />
-          <Route path="/teams/:teamId" element={<TeamDetails />} />
-          <Route path="/frameworks/:id" element={<FrameworkDetails />} />
-          <Route path="/trips" element={<Trips />} />
-          <Route path="/missions" element={<Missions />} />
-          <Route path="/activities" element={<Activities />} />
-          <Route path="/activities/:id" element={<ActivityDetails />} />
-          <Route path="/activity-statistics" element={<ActivityStatistics />} />
-          <Route path="/duties" element={<Duties />} />
-          <Route path="/duties/:id" element={<DutyDetails />} />
-          <Route path="/weekly-duties" element={<WeeklyDuties />} />
-          <Route path="/referrals" element={<Referrals />} />
-          <Route path="/hamal" element={<Hamal />} />
-          <Route path="/forms" element={<Forms />} />
-          <Route path="/users" element={<UserManagement />} />
+          <Route path="/soldiers" element={
+            <ProtectedRoute requiredPermission="soldiers" userRole={user.role as UserRole}>
+              <Soldiers />
+            </ProtectedRoute>
+          } />
+          <Route path="/soldiers/:id" element={
+            <ProtectedRoute requiredPermission="soldiers" userRole={user.role as UserRole}>
+              <SoldierProfile />
+            </ProtectedRoute>
+          } />
+          <Route path="/teams" element={
+            <ProtectedRoute requiredPermission="teams" userRole={user.role as UserRole}>
+              <Teams />
+            </ProtectedRoute>
+          } />
+          <Route path="/teams/:teamId" element={
+            <ProtectedRoute requiredPermission="teams" userRole={user.role as UserRole}>
+              <TeamDetails />
+            </ProtectedRoute>
+          } />
+          <Route path="/frameworks/:id" element={
+            <ProtectedRoute requiredPermission="teams" userRole={user.role as UserRole}>
+              <FrameworkDetails />
+            </ProtectedRoute>
+          } />
+          <Route path="/trips" element={
+            <ProtectedRoute requiredPermission="trips" userRole={user.role as UserRole}>
+              <Trips />
+            </ProtectedRoute>
+          } />
+          <Route path="/missions" element={
+            <ProtectedRoute requiredPermission="missions" userRole={user.role as UserRole}>
+              <Missions />
+            </ProtectedRoute>
+          } />
+          <Route path="/activities" element={
+            <ProtectedRoute requiredPermission="activities" userRole={user.role as UserRole}>
+              <Activities />
+            </ProtectedRoute>
+          } />
+          <Route path="/activities/:id" element={
+            <ProtectedRoute requiredPermission="activities" userRole={user.role as UserRole}>
+              <ActivityDetails />
+            </ProtectedRoute>
+          } />
+          <Route path="/activity-statistics" element={
+            <ProtectedRoute requiredPermission="activityStatistics" userRole={user.role as UserRole}>
+              <ActivityStatistics />
+            </ProtectedRoute>
+          } />
+          <Route path="/duties" element={
+            <ProtectedRoute requiredPermission="duties" userRole={user.role as UserRole}>
+              <Duties />
+            </ProtectedRoute>
+          } />
+          <Route path="/duties/:id" element={
+            <ProtectedRoute requiredPermission="duties" userRole={user.role as UserRole}>
+              <DutyDetails />
+            </ProtectedRoute>
+          } />
+          <Route path="/weekly-duties" element={
+            <ProtectedRoute requiredPermission="duties" userRole={user.role as UserRole}>
+              <WeeklyDuties />
+            </ProtectedRoute>
+          } />
+          <Route path="/referrals" element={
+            <ProtectedRoute requiredPermission="referrals" userRole={user.role as UserRole}>
+              <Referrals />
+            </ProtectedRoute>
+          } />
+          <Route path="/hamal" element={
+            <ProtectedRoute requiredPermission="hamal" userRole={user.role as UserRole}>
+              <Hamal />
+            </ProtectedRoute>
+          } />
+          <Route path="/forms" element={
+            <ProtectedRoute requiredPermission="forms" userRole={user.role as UserRole}>
+              <Forms />
+            </ProtectedRoute>
+          } />
+          <Route path="/users" element={
+            <ProtectedRoute requiredPermission="userManagement" userRole={user.role as UserRole}>
+              <UserManagement />
+            </ProtectedRoute>
+          } />
           <Route path="/profile" element={<PersonalProfile />} />
-          <Route path="/framework-management" element={<FrameworkManagement />} />
-          <Route path="/pending-soldiers" element={<PendingSoldiers />} />
-          <Route path="/soldier-linking" element={<SoldierLinking />} />
-          <Route path="/data-seeder" element={<DataSeeder />} />
+          <Route path="/framework-management" element={
+            <ProtectedRoute requiredPermission="frameworkManagement" userRole={user.role as UserRole}>
+              <FrameworkManagement />
+            </ProtectedRoute>
+          } />
+          <Route path="/pending-soldiers" element={
+            <ProtectedRoute requiredPermission="pendingSoldiers" userRole={user.role as UserRole}>
+              <PendingSoldiers />
+            </ProtectedRoute>
+          } />
+          <Route path="/soldier-linking" element={
+            <ProtectedRoute requiredPermission="soldierLinking" userRole={user.role as UserRole}>
+              <SoldierLinking />
+            </ProtectedRoute>
+          } />
+          <Route path="/data-seeder" element={
+            <ProtectedRoute requiredPermission="dataSeeder" userRole={user.role as UserRole}>
+              <DataSeeder />
+            </ProtectedRoute>
+          } />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Layout>
