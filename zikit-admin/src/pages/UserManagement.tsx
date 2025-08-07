@@ -26,7 +26,8 @@ import {
   Person as PersonIcon,
   Security as SecurityIcon,
   Group as GroupIcon,
-  AdminPanelSettings as AdminIcon
+  AdminPanelSettings as AdminIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
 import { User } from '../models/User';
@@ -35,7 +36,9 @@ import {
   getAllUsers, 
   assignRole, 
   assignToTeam,
-  canUserAssignRoles
+  canUserAssignRoles,
+  canUserRemoveUsers,
+  removeUserFromSystem
 } from '../services/userService';
 
 interface TabPanelProps {
@@ -59,6 +62,7 @@ const UserManagement: React.FC = () => {
   // Dialogs state
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedRole, setSelectedRole] = useState<UserRole>(UserRole.CHAYAL);
   const [selectedTeam, setSelectedTeam] = useState('');
@@ -104,6 +108,18 @@ const UserManagement: React.FC = () => {
     }
   };
 
+  const handleDeleteUser = async () => {
+    if (!selectedUser || !currentUser) return;
+    
+    try {
+      await removeUserFromSystem(selectedUser.uid, currentUser.uid);
+      setDeleteDialogOpen(false);
+      loadUsers();
+    } catch (error) {
+      alert('שגיאה בהסרת משתמש: ' + error);
+    }
+  };
+
   const openRoleDialog = (user: User) => {
     setSelectedUser(user);
     setSelectedRole(user.role);
@@ -115,6 +131,11 @@ const UserManagement: React.FC = () => {
     setSelectedTeam(user.team || '');
     setSelectedPelaga(user.pelaga || '');
     setTeamDialogOpen(true);
+  };
+
+  const openDeleteDialog = (user: User) => {
+    setSelectedUser(user);
+    setDeleteDialogOpen(true);
   };
 
   const getRoleColor = (role: UserRole): string => {
@@ -140,6 +161,7 @@ const UserManagement: React.FC = () => {
 
   // בדיקת הרשאות
   const canAssignRoles = currentUser ? canUserAssignRoles(currentUser) : false;
+  const canRemoveUsers = currentUser ? canUserRemoveUsers(currentUser) : false;
 
   if (loading) {
     return (
@@ -175,6 +197,16 @@ const UserManagement: React.FC = () => {
           </Typography>
         </Box>
       </Box>
+
+      {/* Permissions Info */}
+      <Alert severity="info" sx={{ mb: 3 }}>
+        <Typography variant="body2">
+          <strong>הרשאות נוכחיות:</strong> 
+          {canAssignRoles && ' שיבוץ תפקידים'} 
+          {canRemoveUsers && ' הסרת משתמשים'}
+          {!canAssignRoles && !canRemoveUsers && ' צפייה בלבד'}
+        </Typography>
+      </Alert>
 
       {/* Tabs */}
       <Card sx={{ mb: 3 }}>
@@ -248,7 +280,7 @@ const UserManagement: React.FC = () => {
 
                 <Divider sx={{ my: 2 }} />
 
-                <Box sx={{ display: 'flex', gap: 1 }}>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <Button
                     size="small"
                     startIcon={<SecurityIcon />}
@@ -265,6 +297,17 @@ const UserManagement: React.FC = () => {
                   >
                     שבץ לצוות
                   </Button>
+                  {canRemoveUsers && userData.uid !== currentUser?.uid && (
+                    <Button
+                      size="small"
+                      startIcon={<DeleteIcon />}
+                      onClick={() => openDeleteDialog(userData)}
+                      variant="outlined"
+                      color="error"
+                    >
+                      הסר מהמערכת
+                    </Button>
+                  )}
                 </Box>
               </CardContent>
             </Card>
@@ -303,6 +346,29 @@ const UserManagement: React.FC = () => {
                     />
                   ))}
                 </Box>
+                {canRemoveUsers && (
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
+                      פעולות ניהול:
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      {roleUsers
+                        .filter(userData => userData.uid !== currentUser?.uid)
+                        .map((userData) => (
+                          <Button
+                            key={userData.uid}
+                            size="small"
+                            startIcon={<DeleteIcon />}
+                            onClick={() => openDeleteDialog(userData)}
+                            variant="outlined"
+                            color="error"
+                          >
+                            הסר {userData.displayName}
+                          </Button>
+                        ))}
+                    </Box>
+                  </Box>
+                )}
               </CardContent>
             </Card>
           );
@@ -386,6 +452,38 @@ const UserManagement: React.FC = () => {
           <Button onClick={() => setTeamDialogOpen(false)}>ביטול</Button>
           <Button onClick={handleAssignTeam} variant="contained">
             שבץ לצוות
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog for User Deletion */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ color: 'error.main' }}>
+          הסרת משתמש מהמערכת
+        </DialogTitle>
+        <DialogContent>
+          {selectedUser && (
+            <>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                האם אתה בטוח שברצונך להסיר את המשתמש <strong>{selectedUser.displayName}</strong> מהמערכת?
+              </Typography>
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                פעולה זו תמחק את המשתמש לחלוטין מהמערכת ולא ניתן יהיה לשחזר את הנתונים.
+              </Alert>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                תפקיד: {getRoleDisplayName(selectedUser.role)}
+                {selectedUser.team && ` | צוות: ${selectedUser.team}`}
+                {selectedUser.pelaga && ` | פלגה: ${selectedUser.pelaga}`}
+              </Typography>
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>
+            ביטול
+          </Button>
+          <Button onClick={handleDeleteUser} variant="contained" color="error">
+            הסר מהמערכת
           </Button>
         </DialogActions>
       </Dialog>

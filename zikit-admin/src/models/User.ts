@@ -22,6 +22,7 @@ export interface User {
   // הרשאות מיוחדות
   canAssignRoles?: boolean; // האם יכול לשבץ תפקידים (מ"פ, סמ"פ, אדמין)
   canViewSensitiveData?: boolean; // האם יכול לראות מידע רגיש (מ"פ, סמ"פ)
+  canRemoveUsers?: boolean; // האם יכול להסיר משתמשים מהמערכת (אדמין, מ"פ)
   
   // קישור לרשומת החייל
   soldierDocId?: string;

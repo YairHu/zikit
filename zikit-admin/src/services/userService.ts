@@ -52,6 +52,35 @@ export const deleteUser = async (uid: string): Promise<void> => {
   await deleteDoc(userRef);
 };
 
+// פונקציה להסרת משתמש מהמערכת (רק לאדמין ומ"פ)
+export const removeUserFromSystem = async (uid: string, removerUid: string): Promise<void> => {
+  // בדיקת הרשאות - רק אדמין ומ"פ יכולים להסיר משתמשים
+  const remover = await getUserById(removerUid);
+  if (!remover) {
+    throw new Error('משתמש לא נמצא');
+  }
+
+  if (!canUserRemoveUsers(remover)) {
+    throw new Error('אין הרשאה להסרת משתמשים מהמערכת');
+  }
+
+  // בדיקה שהמשתמש לא מנסה להסיר את עצמו
+  if (uid === removerUid) {
+    throw new Error('לא ניתן להסיר את עצמך מהמערכת');
+  }
+
+  // בדיקה שהמשתמש לא מנסה להסיר אדמין אחר (אם הוא לא אדמין בעצמו)
+  const userToRemove = await getUserById(uid);
+  if (userToRemove && userToRemove.role === 'admin' && remover.role !== 'admin') {
+    throw new Error('רק אדמין יכול להסיר אדמין אחר');
+  }
+
+  // הסרת המשתמש דרך Cloud Function (שתטפל בכל המחיקות)
+  const functions = getFunctions();
+  const deleteUserAccount = httpsCallable(functions, 'deleteUserAccount');
+  await deleteUserAccount({ uid });
+};
+
 // שירותי תפקידים והרשאות
 export const assignRole = async (uid: string, role: UserRole, assignerUid: string): Promise<void> => {
   // בדיקת הרשאות - רק מ"פ, סמ"פ ואדמין יכולים לשבץ תפקידים
@@ -176,6 +205,12 @@ export const canUserViewSensitiveData = (user: User): boolean => {
          user.role === UserRole.ADMIN || 
          user.role === UserRole.MEFAKED_PLUGA || 
          user.role === UserRole.SAMAL_PLUGA;
+};
+
+export const canUserRemoveUsers = (user: User): boolean => {
+  return user.canRemoveUsers || 
+         user.role === UserRole.ADMIN || 
+         user.role === UserRole.MEFAKED_PLUGA;
 };
 
 export const getVisibleUsers = async (viewerUid: string): Promise<User[]> => {

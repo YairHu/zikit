@@ -162,26 +162,56 @@ export const createUserFromSoldier = functions.firestore
         updatedAt: admin.firestore.Timestamp.now()
       });
 
-      // יצירת רשומה ב-collection users
-      await admin.firestore().collection("users").doc(userRecord.uid).set({
-        uid: userRecord.uid,
-        displayName: soldierData.fullName,
-        email: soldierData.email,
-        role: "chayal", // ברירת מחדל
-        personalNumber: soldierData.personalNumber,
-        
-        // קישור לרשומת החייל
-        soldierDocId: soldierId,
-        
-        // הרשאות
-        canAssignRoles: false,
-        canViewSensitiveData: false,
-        
-        // מטאדטה
-        createdAt: admin.firestore.Timestamp.now(),
-        updatedAt: admin.firestore.Timestamp.now(),
-        isActive: true
-      });
+      // בדיקה אם רשומת המשתמש כבר קיימת
+      const existingUserDoc = await admin.firestore().collection("users").doc(userRecord.uid).get();
+      
+      if (existingUserDoc.exists) {
+        // משתמש קיים - עדכן רק את הנתונים החסרים
+        const existingData = existingUserDoc.data();
+        if (existingData) {
+          const updateData: any = {
+            personalNumber: soldierData.personalNumber,
+            soldierDocId: soldierId,
+            updatedAt: admin.firestore.Timestamp.now()
+          };
+          
+          // אל תעדכן תפקיד והרשאות אם המשתמש כבר קיים
+          if (!existingData.role) {
+            updateData.role = "chayal";
+          }
+          if (!existingData.canAssignRoles) {
+            updateData.canAssignRoles = false;
+          }
+          if (!existingData.canViewSensitiveData) {
+            updateData.canViewSensitiveData = false;
+          }
+          
+          await admin.firestore().collection("users").doc(userRecord.uid).update(updateData);
+          functions.logger.info(`Updated existing user document for soldier: ${soldierId}`);
+        }
+      } else {
+        // משתמש חדש - צור רשומה חדשה
+        await admin.firestore().collection("users").doc(userRecord.uid).set({
+          uid: userRecord.uid,
+          displayName: soldierData.fullName,
+          email: soldierData.email,
+          role: "chayal", // ברירת מחדל
+          personalNumber: soldierData.personalNumber,
+          
+          // קישור לרשומת החייל
+          soldierDocId: soldierId,
+          
+          // הרשאות
+          canAssignRoles: false,
+          canViewSensitiveData: false,
+          
+          // מטאדטה
+          createdAt: admin.firestore.Timestamp.now(),
+          updatedAt: admin.firestore.Timestamp.now(),
+          isActive: true
+        });
+        functions.logger.info(`Created new user document for soldier: ${soldierId}`);
+      }
 
       functions.logger.info(`User document created for soldier: ${soldierId}`);
       
@@ -242,4 +272,108 @@ export const updateSoldierAssignment = functions.firestore
         functions.logger.error("Error updating soldier assignment:", error);
       }
     }
-  }); 
+  });
+
+// Function to delete user account (for admin use)
+export const deleteUserAccount = functions.https.onCall(async (data, context) => {
+  // בדיקת אימות
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "The function must be called while authenticated."
+    );
+  }
+
+  const { uid } = data;
+
+  try {
+    // בדיקה שהמשתמש המבקש יכול להסיר משתמשים
+    const requesterRecord = await admin.auth().getUser(context.auth.uid);
+    const requesterClaims = requesterRecord.customClaims || {};
+    
+    // רק אדמין ומ"פ יכולים להסיר משתמשים
+    if (requesterClaims.role !== "admin" && 
+        requesterClaims.role !== "mefaked_pluga") {
+      throw new functions.https.HttpsError(
+        "permission-denied", 
+        "אין הרשאה להסרת משתמשים מהמערכת"
+      );
+    }
+
+    // בדיקה שהמשתמש לא מנסה להסיר את עצמו
+    if (uid === context.auth.uid) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "לא ניתן להסיר את עצמך מהמערכת"
+      );
+    }
+
+    // בדיקה שהמשתמש לא מנסה להסיר אדמין אחר (אם הוא לא אדמין בעצמו)
+    const userToDelete = await admin.auth().getUser(uid);
+    const userToDeleteClaims = userToDelete.customClaims || {};
+    
+    if (userToDeleteClaims.role === "admin" && requesterClaims.role !== "admin") {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "רק אדמין יכול להסיר אדמין אחר"
+      );
+    }
+
+    // מחיקת רשומת החייל אם קיימת (לפני מחיקת המשתמש)
+    let soldierDocId: string | null = null;
+    try {
+      const userDoc = await admin.firestore().collection("users").doc(uid).get();
+      if (userDoc.exists) {
+        const userData = userDoc.data();
+        soldierDocId = userData?.soldierDocId || null;
+      }
+    } catch (error) {
+      functions.logger.warn("Error reading user document:", error);
+    }
+    
+    // מחיקת רשומת החייל אם קיימת
+    if (soldierDocId) {
+      try {
+        await admin.firestore().collection("soldiers").doc(soldierDocId).delete();
+        functions.logger.info(`Deleted soldier document: ${soldierDocId}`);
+      } catch (error) {
+        functions.logger.warn("Error deleting soldier document:", error);
+        // נמשיך גם אם יש שגיאה במחיקת רשומת החייל
+      }
+    }
+    
+    // מחיקת רשומת המשתמש מ-Firestore
+    try {
+      await admin.firestore().collection("users").doc(uid).delete();
+      functions.logger.info(`Deleted user document: ${uid}`);
+    } catch (error) {
+      functions.logger.warn("Error deleting user document:", error);
+      // נמשיך גם אם יש שגיאה במחיקת רשומת המשתמש
+    }
+
+    // מחיקת המשתמש מ-Firebase Auth
+    try {
+      await admin.auth().deleteUser(uid);
+      functions.logger.info(`Deleted user from Auth: ${uid}`);
+    } catch (error) {
+      functions.logger.error("Error deleting user from Auth:", error);
+      throw new functions.https.HttpsError(
+        "internal", 
+        "שגיאה במחיקת המשתמש מ-Firebase Auth"
+      );
+    }
+    
+    functions.logger.info(`User account deleted: ${uid}`);
+    return { 
+      success: true, 
+      message: "המשתמש הוסר מהמערכת בהצלחה" 
+    };
+    
+  } catch (error) {
+    functions.logger.error("Error deleting user account:", error);
+    throw new functions.https.HttpsError(
+      "internal", 
+      "שגיאה בהסרת המשתמש מהמערכת"
+    );
+  }
+}); 

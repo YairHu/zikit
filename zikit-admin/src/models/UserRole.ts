@@ -90,6 +90,7 @@ export interface RolePermissions {
     canAssignRoles: boolean; // יכול לשבץ תפקידים
     canViewSensitiveData: boolean; // יכול לראות מידע רגיש
     canChangeViewMode: boolean; // יכול לשנות נקודת מבט
+    canRemoveUsers: boolean; // יכול להסיר משתמשים מהמערכת
   };
 }
 
@@ -126,6 +127,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canAssignRoles: true,
       canViewSensitiveData: true,
       canChangeViewMode: true,
+      canRemoveUsers: true,
     },
   },
   
@@ -160,6 +162,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canAssignRoles: true,
       canViewSensitiveData: true,
       canChangeViewMode: false,
+      canRemoveUsers: true,
     },
   },
   
@@ -194,6 +197,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canAssignRoles: false,
       canViewSensitiveData: true,
       canChangeViewMode: false,
+      canRemoveUsers: false,
     },
   },
   
@@ -228,6 +232,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canAssignRoles: false,
       canViewSensitiveData: false,
       canChangeViewMode: false,
+      canRemoveUsers: false,
     },
   },
   
@@ -262,6 +267,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canAssignRoles: false,
       canViewSensitiveData: false,
       canChangeViewMode: false,
+      canRemoveUsers: false,
     },
   },
   
@@ -296,6 +302,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canAssignRoles: false,
       canViewSensitiveData: false,
       canChangeViewMode: false,
+      canRemoveUsers: false,
     },
   },
   
@@ -330,6 +337,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canAssignRoles: false,
       canViewSensitiveData: false,
       canChangeViewMode: false,
+      canRemoveUsers: false,
     },
   },
   
@@ -364,6 +372,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canAssignRoles: false,
       canViewSensitiveData: false,
       canChangeViewMode: false,
+      canRemoveUsers: false,
     },
   },
   
@@ -398,6 +407,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canAssignRoles: false,
       canViewSensitiveData: false,
       canChangeViewMode: false,
+      canRemoveUsers: false,
     },
   },
   
@@ -432,6 +442,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canAssignRoles: false,
       canViewSensitiveData: false,
       canChangeViewMode: false,
+      canRemoveUsers: false,
     },
   },
   
@@ -466,6 +477,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canAssignRoles: false,
       canViewSensitiveData: false,
       canChangeViewMode: false,
+      canRemoveUsers: false,
     },
   },
   
@@ -500,6 +512,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canAssignRoles: false,
       canViewSensitiveData: false,
       canChangeViewMode: false,
+      canRemoveUsers: false,
     },
   },
   
@@ -534,6 +547,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canAssignRoles: false,
       canViewSensitiveData: false,
       canChangeViewMode: false,
+      canRemoveUsers: false,
     },
   },
   
@@ -568,6 +582,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canAssignRoles: false,
       canViewSensitiveData: false,
       canChangeViewMode: false,
+      canRemoveUsers: false,
     },
   },
   
@@ -601,7 +616,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canCreate: false,
       canAssignRoles: false,
       canViewSensitiveData: true,
-      canChangeViewMode: false,
+      canChangeViewMode: false, 
+      canRemoveUsers: false,
     },
   },
 };

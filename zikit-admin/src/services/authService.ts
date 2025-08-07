@@ -77,6 +77,7 @@ const createNewUser = async (firebaseUser: FirebaseUser): Promise<User> => {
     // הרשאות מיוחדות למנהלים
     canAssignRoles: isAdmin,
     canViewSensitiveData: isAdmin,
+    canRemoveUsers: isAdmin, // הוספת הרשאה להסרת משתמשים
     
     // מטאדטה
     createdAt: new Date(),
@@ -88,6 +89,27 @@ const createNewUser = async (firebaseUser: FirebaseUser): Promise<User> => {
   // שמור במסד הנתונים
   const userRef = doc(db, 'users', firebaseUser.uid);
   await setDoc(userRef, userData);
+  
+  // עדכון Custom Claims (רק אם זה אדמין או אם יש הרשאות מיוחדות)
+  if (isAdmin) {
+    try {
+      const { getFunctions, httpsCallable } = await import('firebase/functions');
+      const functions = getFunctions();
+      const setCustomClaims = httpsCallable(functions, 'setCustomClaims');
+      await setCustomClaims({ 
+        uid: firebaseUser.uid, 
+        claims: { 
+          role: userData.role,
+          canAssignRoles: userData.canAssignRoles,
+          canViewSensitiveData: userData.canViewSensitiveData,
+          canRemoveUsers: userData.canRemoveUsers
+        } 
+      });
+      console.log(`Custom Claims עודכנו עבור: ${userData.displayName}`);
+    } catch (error) {
+      console.warn('שגיאה בעדכון Custom Claims:', error);
+    }
+  }
   
   console.log(`משתמש חדש נוצר: ${userData.displayName} (${userData.role})`);
   
