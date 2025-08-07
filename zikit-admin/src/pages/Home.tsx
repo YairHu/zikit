@@ -113,109 +113,34 @@ const Home: React.FC = () => {
     return null;
   }
 
-  // סטטיסטיקות עבור מפקדים
-  const statsCards = [
+  // מערכות עם סטטיסטיקות
+  const systemItems = [
     {
       title: 'חיילים',
-      subtitle: 'כוח האדם הפעיל',
-      icon: <GroupsIcon sx={{ fontSize: 32 }} />,
-      color: '#3f51b5',
-      count: stats.soldiers.toString(),
-      path: '/soldiers'
-    },
-    {
-      title: 'צוותים',
-      subtitle: 'מבנה ארגוני',
-      icon: <PeopleIcon sx={{ fontSize: 32 }} />,
-      color: '#4caf50',
-      count: stats.teams.toString(),
-      path: '/teams'
-    },
-    {
-      title: 'רכבים',
-      subtitle: 'זמינים ובשימוש',
-      icon: <DirectionsCarIcon sx={{ fontSize: 32 }} />,
-      color: '#ff9800',
-      count: stats.vehicles.toString(),
-      path: '/trips'
-    },
-    {
-      title: 'נהגים',
-      subtitle: 'נהגים זמינים',
-      icon: <DriveEtaIcon sx={{ fontSize: 32 }} />,
-      color: '#2196f3',
-      count: stats.drivers.toString(),
-      path: '/trips'
-    },
-    {
-      title: 'פעילויות',
-      subtitle: 'מספר פעילויות מתוכננות',
-      icon: <AssignmentIcon sx={{ fontSize: 32 }} />,
-      color: '#f44336',
-      count: stats.activities.toString(),
-      path: '/activities'
-    },
-    {
-      title: 'תורנויות',
-      subtitle: 'תורנויות פעילות',
-      icon: <EventNoteIcon sx={{ fontSize: 32 }} />,
-      color: '#607d8b',
-      count: stats.duties.toString(),
-      path: '/duties'
-    },
-    {
-      title: 'משימות',
-      subtitle: 'משימות פעילות',
-      icon: <AssignmentIcon sx={{ fontSize: 32 }} />,
-      color: '#9c27b0',
-      count: stats.missions.toString(),
-      path: '/missions'
-    },
-    {
-      title: 'הפניות',
-      subtitle: 'הפניות פעילות',
-      icon: <LocalHospitalIcon sx={{ fontSize: 32 }} />,
-      color: '#795548',
-      count: stats.referrals.toString(),
-      path: '/referrals'
-    }
-  ];
-
-  // תפריט ניהול עבור מפקדים
-  const managementMenuItems = [
-    {
-      title: 'חיילים',
-      subtitle: 'ניהול כוח אדם',
+      subtitle: `${stats.soldiers} חיילים פעילים`,
       icon: <GroupsIcon sx={{ fontSize: 32 }} />,
       color: '#3f51b5',
       path: '/soldiers'
     },
     {
       title: 'צוותים',
-      subtitle: 'מבנה ארגוני',
+      subtitle: `${stats.teams} צוותים פעילים`,
       icon: <PeopleIcon sx={{ fontSize: 32 }} />,
       color: '#4caf50',
       path: '/teams'
-    },
-    {
-      title: 'נהגים',
-      subtitle: 'ניהול נהגים',
-      icon: <DriveEtaIcon sx={{ fontSize: 32 }} />,
-      color: '#9c27b0',
-      path: '/trips'
     },
     {
       title: 'נסיעות ורכבים',
-      subtitle: 'ניהול נסיעות ורכבים',
+      subtitle: `${stats.vehicles} רכבים, ${stats.drivers} נהגים`,
       icon: <DirectionsCarIcon sx={{ fontSize: 32 }} />,
       color: '#ff9800',
       path: '/trips'
     },
     {
       title: 'פעילויות',
-      subtitle: `${stats.activities} פעילויות פעילות`,
+      subtitle: `${stats.activities} פעילויות מתוכננות`,
       icon: <AssignmentIcon sx={{ fontSize: 32 }} />,
-      color: '#2196f3',
+      color: '#f44336',
       path: '/activities'
     },
     {
@@ -226,18 +151,18 @@ const Home: React.FC = () => {
       path: '/duties'
     },
     {
-      title: 'הפניות',
-      subtitle: `${stats.referrals} הפניות פעילות`,
-      icon: <LocalHospitalIcon sx={{ fontSize: 32 }} />,
-      color: '#ff9800',
-      path: '/referrals'
-    },
-    {
       title: 'משימות',
       subtitle: `${stats.missions} משימות פעילות`,
       icon: <AssignmentIcon sx={{ fontSize: 32 }} />,
       color: '#9c27b0',
       path: '/missions'
+    },
+    {
+      title: 'הפניות',
+      subtitle: `${stats.referrals} הפניות פעילות`,
+      icon: <LocalHospitalIcon sx={{ fontSize: 32 }} />,
+      color: '#795548',
+      path: '/referrals'
     },
     {
       title: 'טפסים',
@@ -257,7 +182,7 @@ const Home: React.FC = () => {
 
   // הוסף ניהול משתמשים למפקדים עליונים
   if (user.canAssignRoles) {
-    managementMenuItems.push({
+    systemItems.push({
       title: 'ניהול משתמשים',
       subtitle: 'ניהול תפקידים והרשאות',
       icon: <SettingsIcon sx={{ fontSize: 32 }} />,
@@ -286,65 +211,10 @@ const Home: React.FC = () => {
         </Typography>
       </Box>
 
-      {/* סטטיסטיקות מהירות */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
-          סטטיסטיקות
-        </Typography>
-        <Box sx={{
-          display: 'grid',
-          gridTemplateColumns: {
-            xs: 'repeat(2, 1fr)',
-            sm: 'repeat(3, 1fr)',
-            md: 'repeat(4, 1fr)',
-            lg: 'repeat(4, 1fr)'
-          },
-          gap: 2
-        }}>
-          {statsCards.map((card, index) => (
-            <Card
-              key={index}
-              sx={{
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                  boxShadow: 4
-                }
-              }}
-              onClick={() => navigate(card.path)}
-            >
-              <CardContent sx={{ textAlign: 'center', p: 3 }}>
-                <Avatar
-                  sx={{
-                    bgcolor: alpha(card.color, 0.1),
-                    color: card.color,
-                    width: 64,
-                    height: 64,
-                    margin: '0 auto 16px auto'
-                  }}
-                >
-                  {card.icon}
-                </Avatar>
-                <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-                  {card.count}
-                </Typography>
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>
-                  {card.title}
-                </Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  {card.subtitle}
-                </Typography>
-              </CardContent>
-            </Card>
-          ))}
-        </Box>
-      </Box>
-
-      {/* תפריט ניהול */}
+      {/* מערכות */}
       <Box>
         <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
-          מערכות ניהול
+          מערכות
         </Typography>
         <Box sx={{
           display: 'grid',
@@ -356,7 +226,7 @@ const Home: React.FC = () => {
           },
           gap: 2
         }}>
-          {managementMenuItems.map((item, index) => (
+          {systemItems.map((item, index) => (
             <Card
               key={index}
               sx={{

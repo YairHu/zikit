@@ -7,6 +7,7 @@ import Teams from './pages/Teams';
 import Trips from './pages/Trips';
 import Missions from './pages/Missions';
 import Duties from './pages/Duties';
+import WeeklyDuties from './pages/WeeklyDuties';
 import Hamal from './pages/Hamal';
 import Forms from './pages/Forms';
 import Activities from './pages/Activities';
@@ -217,6 +218,7 @@ const AppRoutes: React.FC = () => {
           <Route path="/activity-statistics" element={<ActivityStatistics />} />
           <Route path="/duties" element={<Duties />} />
           <Route path="/duties/:id" element={<DutyDetails />} />
+          <Route path="/weekly-duties" element={<WeeklyDuties />} />
           <Route path="/referrals" element={<Referrals />} />
           <Route path="/hamal" element={<Hamal />} />
           <Route path="/forms" element={<Forms />} />

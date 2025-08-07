@@ -27,14 +27,15 @@ import {
   AccordionDetails,
   Grid,
   Paper,
-  Divider
+  Divider,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   ExpandMore as ExpandMoreIcon,
-  AccountTree as AccountTreeIcon,
   Person as PersonIcon,
   Group as GroupIcon
 } from '@mui/icons-material';
@@ -56,7 +57,6 @@ interface FrameworkFormData {
   parentFrameworkId: string;
   commanderId: string;
   description: string;
-  level: 'company' | 'platoon' | 'squad' | 'team' | 'other';
 }
 
 const FrameworkManagement: React.FC = () => {
@@ -70,14 +70,17 @@ const FrameworkManagement: React.FC = () => {
     name: '',
     parentFrameworkId: '',
     commanderId: '',
-    description: '',
-    level: 'team'
+    description: ''
   });
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
   const [openSoldiersDialog, setOpenSoldiersDialog] = useState(false);
   const [selectedFramework, setSelectedFramework] = useState<Framework | null>(null);
   const [frameworkSoldiers, setFrameworkSoldiers] = useState<Soldier[]>([]);
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const loadData = useCallback(async () => {
     try {
@@ -110,8 +113,7 @@ const FrameworkManagement: React.FC = () => {
         name: framework.name,
         parentFrameworkId: framework.parentFrameworkId || '',
         commanderId: framework.commanderId,
-        description: framework.description || '',
-        level: framework.level
+        description: framework.description || ''
       });
     } else {
       setEditingFramework(null);
@@ -119,8 +121,7 @@ const FrameworkManagement: React.FC = () => {
         name: '',
         parentFrameworkId: '',
         commanderId: '',
-        description: '',
-        level: 'team'
+        description: ''
       });
     }
     setOpenDialog(true);
@@ -143,8 +144,7 @@ const FrameworkManagement: React.FC = () => {
         const updateData: any = {
           name: formData.name,
           commanderId: formData.commanderId,
-          description: formData.description,
-          level: formData.level
+          description: formData.description
         };
         
         if (formData.parentFrameworkId && formData.parentFrameworkId.trim()) {
@@ -158,7 +158,6 @@ const FrameworkManagement: React.FC = () => {
           name: formData.name,
           commanderId: formData.commanderId,
           description: formData.description,
-          level: formData.level,
           isActive: true
         };
         
@@ -270,12 +269,6 @@ const FrameworkManagement: React.FC = () => {
     setFrameworkSoldiers([]);
   };
 
-  const generateOrgChart = () => {
-    // הפונקציה תקרא לכלי create_diagram בהתאם
-    console.log('יצירת תרשים ארגוני...');
-    // הקוד ליצירת התרשים יתבצע בנפרד
-  };
-
   const renderFrameworkTree = (trees: FrameworkTree[], level = 0) => {
     return trees.map(tree => {
       const commander = soldiers.find(s => s.id === tree.framework.commanderId);
@@ -294,60 +287,97 @@ const FrameworkManagement: React.FC = () => {
       return (
         <Accordion key={tree.framework.id} defaultExpanded={level === 0}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 2 }}>
-              <AccountTreeIcon color="primary" />
-              <Typography variant="h6" sx={{ flex: 1 }}>
-                {tree.framework.name}
-              </Typography>
-              <Chip 
-                label={tree.framework.level} 
-                size="small" 
-                color="secondary" 
-                sx={{ mr: 1 }}
-              />
-              <Chip 
-                label={`${frameworkSoldiers.length} חיילים ישירים`} 
-                size="small" 
-                color="primary"
-              />
-              {totalSoldiers > frameworkSoldiers.length && (
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: isSmallMobile ? 'column' : 'row',
+              alignItems: isSmallMobile ? 'flex-start' : 'center', 
+              width: '100%', 
+              gap: isSmallMobile ? 1 : 2 
+            }}>
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 1,
+                flex: 1,
+                minWidth: 0
+              }}>
+                <GroupIcon color="primary" sx={{ fontSize: isSmallMobile ? 20 : 24 }} />
+                <Typography 
+                  variant={isSmallMobile ? "body1" : "h6"} 
+                  sx={{ 
+                    flex: 1,
+                    fontWeight: 600,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {tree.framework.name}
+                </Typography>
+              </Box>
+              
+              <Box sx={{ 
+                display: 'flex', 
+                flexWrap: 'wrap', 
+                gap: 0.5,
+                alignItems: 'center'
+              }}>
                 <Chip 
-                  label={`${totalSoldiers} סה"כ`} 
+                  label={`${frameworkSoldiers.length} ישירים`} 
                   size="small" 
-                  color="success"
+                  color="primary"
+                  sx={{ fontSize: isSmallMobile ? '0.7rem' : '0.75rem' }}
                 />
-              )}
-              <IconButton 
-                size="small" 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleOpenDialog(tree.framework);
-                }}
-              >
-                <EditIcon />
-              </IconButton>
-              <IconButton 
-                size="small" 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete(tree.framework);
-                }}
-              >
-                <DeleteIcon />
-              </IconButton>
-              <IconButton 
-                size="small" 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleManageSoldiers(tree.framework);
-                }}
-                title="ניהול חיילים"
-              >
-                <GroupIcon />
-              </IconButton>
+                {totalSoldiers > frameworkSoldiers.length && (
+                  <Chip 
+                    label={`${totalSoldiers} סה"כ`} 
+                    size="small" 
+                    color="success"
+                    sx={{ fontSize: isSmallMobile ? '0.7rem' : '0.75rem' }}
+                  />
+                )}
+              </Box>
+              
+              <Box sx={{ 
+                display: 'flex', 
+                gap: 0.5,
+                flexShrink: 0
+              }}>
+                <IconButton 
+                  size="small" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenDialog(tree.framework);
+                  }}
+                  sx={{ p: isSmallMobile ? 0.5 : 1 }}
+                >
+                  <EditIcon fontSize={isSmallMobile ? "small" : "medium"} />
+                </IconButton>
+                <IconButton 
+                  size="small" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(tree.framework);
+                  }}
+                  sx={{ p: isSmallMobile ? 0.5 : 1 }}
+                >
+                  <DeleteIcon fontSize={isSmallMobile ? "small" : "medium"} />
+                </IconButton>
+                <IconButton 
+                  size="small" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleManageSoldiers(tree.framework);
+                  }}
+                  title="ניהול חיילים"
+                  sx={{ p: isSmallMobile ? 0.5 : 1 }}
+                >
+                  <GroupIcon fontSize={isSmallMobile ? "small" : "medium"} />
+                </IconButton>
+              </Box>
             </Box>
           </AccordionSummary>
-          <AccordionDetails>
+          <AccordionDetails sx={{ p: isSmallMobile ? 1 : 2 }}>
             <Box sx={{ mb: 2 }}>
               <Typography variant="body2" color="text.secondary">
                 <strong>מפקד:</strong> {commander ? commander.name : 'לא מוגדר'}
@@ -360,7 +390,14 @@ const FrameworkManagement: React.FC = () => {
             </Box>
             
             <Box sx={{ mb: 2 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: isSmallMobile ? 'column' : 'row',
+                justifyContent: 'space-between', 
+                alignItems: isSmallMobile ? 'flex-start' : 'center', 
+                gap: isSmallMobile ? 1 : 0,
+                mb: 1 
+              }}>
                 <Typography variant="subtitle2">
                   חיילים במסגרת:
                 </Typography>
@@ -369,12 +406,16 @@ const FrameworkManagement: React.FC = () => {
                   variant="outlined"
                   startIcon={<GroupIcon />}
                   onClick={() => handleManageSoldiers(tree.framework)}
+                  sx={{ 
+                    fontSize: isSmallMobile ? '0.75rem' : '0.875rem',
+                    px: isSmallMobile ? 1 : 2
+                  }}
                 >
                   ניהול חיילים
                 </Button>
               </Box>
               {frameworkSoldiers.length > 0 ? (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                   {frameworkSoldiers.map(soldier => (
                     <Chip
                       key={soldier.id}
@@ -382,6 +423,10 @@ const FrameworkManagement: React.FC = () => {
                       label={`${soldier.name} (${soldier.role})`}
                       size="small"
                       variant="outlined"
+                      sx={{ 
+                        fontSize: isSmallMobile ? '0.7rem' : '0.75rem',
+                        maxWidth: isSmallMobile ? '100%' : 'auto'
+                      }}
                     />
                   ))}
                 </Box>
@@ -415,27 +460,29 @@ const FrameworkManagement: React.FC = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" component="h1">
+    <Container maxWidth="lg" sx={{ py: isSmallMobile ? 2 : 4 }}>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: isSmallMobile ? 'column' : 'row',
+        justifyContent: 'space-between', 
+        alignItems: isSmallMobile ? 'flex-start' : 'center', 
+        gap: isSmallMobile ? 2 : 0,
+        mb: 3 
+      }}>
+        <Typography variant={isSmallMobile ? "h5" : "h4"} component="h1">
           ניהול מבנה פלוגה
         </Typography>
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button
-            variant="outlined"
-            startIcon={<AccountTreeIcon />}
-            onClick={generateOrgChart}
-          >
-            הצג תרשים ארגוני
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => handleOpenDialog()}
-          >
-            הוסף מסגרת
-          </Button>
-        </Box>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => handleOpenDialog()}
+          sx={{ 
+            fontSize: isSmallMobile ? '0.875rem' : '1rem',
+            px: isSmallMobile ? 2 : 3
+          }}
+        >
+          הוסף מסגרת
+        </Button>
       </Box>
 
       {error && (
@@ -452,8 +499,8 @@ const FrameworkManagement: React.FC = () => {
 
       {/* עץ המסגרות */}
       <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
+        <CardContent sx={{ p: isSmallMobile ? 2 : 3 }}>
+          <Typography variant={isSmallMobile ? "h6" : "h6"} gutterBottom>
             מבנה המסגרות
           </Typography>
           {frameworkTree.length === 0 ? (
@@ -515,21 +562,6 @@ const FrameworkManagement: React.FC = () => {
               </Select>
             </FormControl>
             
-            <FormControl fullWidth sx={{ mt: 2 }}>
-              <InputLabel>רמת המסגרת</InputLabel>
-              <Select
-                value={formData.level}
-                onChange={(e) => setFormData({ ...formData, level: e.target.value as any })}
-                label="רמת המסגרת"
-              >
-                <MenuItem value="company">פלוגה</MenuItem>
-                <MenuItem value="platoon">פלגה</MenuItem>
-                <MenuItem value="squad">מפלג</MenuItem>
-                <MenuItem value="team">צוות</MenuItem>
-                <MenuItem value="other">אחר</MenuItem>
-              </Select>
-            </FormControl>
-            
             <TextField
               fullWidth
               multiline
@@ -561,7 +593,11 @@ const FrameworkManagement: React.FC = () => {
           ניהול חיילים - {selectedFramework?.name} (כולל מסגרות בנות)
         </DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'flex', gap: 3 }}>
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: isSmallMobile ? 'column' : 'row',
+            gap: 3 
+          }}>
             {/* רשימת חיילים במסגרת */}
             <Box sx={{ flex: 1 }}>
               <Typography variant="h6" gutterBottom>
@@ -577,6 +613,7 @@ const FrameworkManagement: React.FC = () => {
                           edge="end"
                           onClick={() => handleRemoveSoldierFromFramework(soldier.id)}
                           color="error"
+                          size="small"
                         >
                           <DeleteIcon />
                         </IconButton>

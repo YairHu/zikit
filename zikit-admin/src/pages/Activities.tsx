@@ -703,7 +703,7 @@ const Activities: React.FC = () => {
 
   if (loading) {
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 4 } }}>
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
           <CircularProgress />
         </Box>
@@ -712,23 +712,41 @@ const Activities: React.FC = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Typography variant="h4" component="h1" fontWeight="bold">
+    <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 4 } }}>
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        mb: { xs: 2, sm: 4 },
+        flexDirection: { xs: 'column', sm: 'row' },
+        gap: { xs: 1, sm: 0 }
+      }}>
+        <Typography variant="h4" component="h1" fontWeight="bold" sx={{ 
+          fontSize: { xs: '1.5rem', sm: '2.125rem' }
+        }}>
           פעילויות מבצעיות
         </Typography>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
           onClick={() => handleOpenForm()}
-          sx={{ borderRadius: 2 }}
+          sx={{ 
+            borderRadius: 2,
+            fontSize: { xs: '0.875rem', sm: '1rem' }
+          }}
         >
           הוסף פעילות
         </Button>
       </Box>
 
       {/* Filters and View Mode */}
-      <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+      <Box sx={{ 
+        mb: { xs: 2, sm: 3 }, 
+        display: 'flex', 
+        gap: { xs: 1, sm: 2 }, 
+        flexWrap: 'wrap', 
+        alignItems: 'center' 
+      }}>
         <TextField
           placeholder="חיפוש פעילויות..."
           value={searchTerm}
@@ -736,35 +754,53 @@ const Activities: React.FC = () => {
           InputProps={{
             startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
           }}
-          sx={{ minWidth: 250 }}
+          sx={{ 
+            minWidth: { xs: '100%', sm: 250 },
+            fontSize: { xs: '0.875rem', sm: '1rem' }
+          }}
         />
-        <FormControl sx={{ minWidth: 150 }}>
-          <InputLabel>סטטוס</InputLabel>
+        <FormControl sx={{ minWidth: { xs: '100%', sm: 150 } }}>
+          <InputLabel sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>סטטוס</InputLabel>
           <Select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
             label="סטטוס"
+            sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
           >
-            <MenuItem value="">כל הסטטוסים</MenuItem>
+            <MenuItem value="" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>כל הסטטוסים</MenuItem>
             {statuses.map(status => (
-              <MenuItem key={status} value={status}>{status}</MenuItem>
+              <MenuItem key={status} value={status} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                {status}
+              </MenuItem>
             ))}
           </Select>
         </FormControl>
-        <FormControl sx={{ minWidth: 150 }}>
-          <InputLabel>סוג פעילות</InputLabel>
+        <FormControl sx={{ minWidth: { xs: '100%', sm: 150 } }}>
+          <InputLabel sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>סוג פעילות</InputLabel>
           <Select
             value={filterActivityType}
             onChange={(e) => setFilterActivityType(e.target.value)}
             label="סוג פעילות"
+            sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
           >
-            <MenuItem value="">כל הסוגים</MenuItem>
+            <MenuItem value="" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>כל הסוגים</MenuItem>
             {activityTypes.map(type => (
-              <MenuItem key={type} value={type}>{type}</MenuItem>
+              <MenuItem key={type} value={type} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                {type}
+              </MenuItem>
             ))}
           </Select>
         </FormControl>
-        <Tabs value={viewMode === 'cards' ? 0 : 1} onChange={(_, newValue) => setViewMode(newValue === 0 ? 'cards' : 'table')}>
+        <Tabs 
+          value={viewMode === 'cards' ? 0 : 1} 
+          onChange={(_, newValue) => setViewMode(newValue === 0 ? 'cards' : 'table')}
+          sx={{ 
+            '& .MuiTab-root': {
+              fontSize: { xs: '0.8rem', sm: '0.875rem' },
+              minHeight: { xs: 40, sm: 48 }
+            }
+          }}
+        >
           <Tab icon={<ViewModuleIcon />} label="כרטיסים" />
           <Tab icon={<ViewListIcon />} label="טבלה" />
         </Tabs>
@@ -772,7 +808,11 @@ const Activities: React.FC = () => {
 
       {/* Activities List */}
       {viewMode === 'cards' ? (
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 3 }}>
+        <Box sx={{ 
+          display: 'grid', 
+          gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, 
+          gap: { xs: 2, sm: 3 } 
+        }}>
           {filteredActivities.map((activity) => (
           <Box key={activity.id}>
             <Card 
@@ -786,12 +826,15 @@ const Activities: React.FC = () => {
               }} 
               onClick={() => handleActivityClick(activity.id)}
             >
-              <CardContent sx={{ flex: 1 }}>
+              <CardContent sx={{ flex: 1, p: { xs: 1.5, sm: 2 } }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                  <Typography variant="h6" fontWeight="bold" sx={{ flex: 1 }}>
+                  <Typography variant="h6" fontWeight="bold" sx={{ 
+                    flex: 1,
+                    fontSize: { xs: '1rem', sm: '1.25rem' }
+                  }}>
                     {activity.name}
                   </Typography>
-                  <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 1 } }}>
                     <IconButton
                       size="small"
                       color="primary"
@@ -799,8 +842,9 @@ const Activities: React.FC = () => {
                         e.stopPropagation();
                         handleOpenForm(activity);
                       }}
+                      sx={{ padding: { xs: 0.5, sm: 1 } }}
                     >
-                      <EditIcon />
+                      <EditIcon fontSize="small" />
                     </IconButton>
                     <IconButton
                       size="small"
@@ -809,8 +853,9 @@ const Activities: React.FC = () => {
                         e.stopPropagation();
                         setDeleteId(activity.id);
                       }}
+                      sx={{ padding: { xs: 0.5, sm: 1 } }}
                     >
-                      <DeleteIcon />
+                      <DeleteIcon fontSize="small" />
                     </IconButton>
                   </Box>
                 </Box>
@@ -820,36 +865,48 @@ const Activities: React.FC = () => {
                     label={activity.status} 
                     color={getStatusColor(activity.status) as any}
                     size="small"
-                    sx={{ mb: 1 }}
+                    sx={{ 
+                      mb: 1,
+                      fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                      height: { xs: 20, sm: 24 }
+                    }}
                   />
                   {activity.frameworkId && (
                     <Chip 
                       label={frameworks.find(f => f.id === activity.frameworkId)?.name || 'מסגרת לא ידועה'} 
                       variant="outlined"
                       size="small"
-                      sx={{ ml: 1 }}
+                      sx={{ 
+                        ml: 1,
+                        fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                        height: { xs: 20, sm: 24 }
+                      }}
                     />
                   )}
                 </Box>
 
                 <Box sx={{ mb: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <LocationIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                    <Typography variant="body2">{activity.location}</Typography>
+                    <LocationIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
+                    <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+                      {activity.location}
+                    </Typography>
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <ScheduleIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                    <Typography variant="body2">
+                    <ScheduleIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
+                    <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
                       {activity.plannedDate} - {activity.plannedTime} ({activity.duration} שעות)
                     </Typography>
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <PersonIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                    <Typography variant="body2">מפקד: {activity.commanderName}</Typography>
+                    <PersonIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
+                    <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+                      מפקד: {activity.commanderName}
+                    </Typography>
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <AssignmentIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                    <Typography variant="body2">
+                    <AssignmentIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
+                    <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
                       סוג: {activity.activityType === 'אחר' && activity.activityTypeOther 
                         ? activity.activityTypeOther 
                         : activity.activityType}
@@ -857,28 +914,38 @@ const Activities: React.FC = () => {
                   </Box>
                   {activity.taskLeaderName && (
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                      <PersonIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                      <Typography variant="body2">מוביל משימה: {activity.taskLeaderName}</Typography>
+                      <PersonIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
+                      <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+                        מוביל משימה: {activity.taskLeaderName}
+                      </Typography>
                     </Box>
                   )}
                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <GroupIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                    <Typography variant="body2">{activity.participants.length} משתתפים</Typography>
+                    <GroupIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
+                    <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+                      {activity.participants.length} משתתפים
+                    </Typography>
                   </Box>
                   {activity.mobility && (
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                      <DirectionsCarIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                      <Typography variant="body2">ניוד: {formatMobilityDisplay(activity.mobility)}</Typography>
+                      <DirectionsCarIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
+                      <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+                        ניוד: {formatMobilityDisplay(activity.mobility)}
+                      </Typography>
                     </Box>
                   )}
                 </Box>
 
                 {!isActivityComplete(activity).isComplete && (
                   <Alert severity="warning" sx={{ mt: 1 }}>
-                    <Typography variant="body2" fontWeight="bold" gutterBottom>
+                    <Typography variant="body2" fontWeight="bold" gutterBottom sx={{ 
+                      fontSize: { xs: '0.8rem', sm: '0.875rem' }
+                    }}>
                       פעילות לא מלאה - שדות חסרים:
                     </Typography>
-                    <Typography variant="body2">
+                    <Typography variant="body2" sx={{ 
+                      fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                    }}>
                       {isActivityComplete(activity).missingFields.join(', ')}
                     </Typography>
                   </Alert>
@@ -897,10 +964,14 @@ const Activities: React.FC = () => {
                   if (missingTrips.length > 0) {
                     return (
                       <Alert severity="error" sx={{ mt: 1 }}>
-                        <Typography variant="body2" fontWeight="bold" gutterBottom>
+                        <Typography variant="body2" fontWeight="bold" gutterBottom sx={{ 
+                          fontSize: { xs: '0.8rem', sm: '0.875rem' }
+                        }}>
                           אזהרה: נסיעות חסרות
                         </Typography>
-                        <Typography variant="body2">
+                        <Typography variant="body2" sx={{ 
+                          fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                        }}>
                           {missingTrips.length} נסיעות שהיו מקושרות לפעילות זו נמחקו או השתנו. יש לבדוק את שדה הניוד.
                         </Typography>
                       </Alert>
@@ -914,6 +985,11 @@ const Activities: React.FC = () => {
                   <AccordionSummary 
                     expandIcon={<ExpandMoreIcon />}
                     onClick={(e) => e.stopPropagation()}
+                    sx={{ 
+                      '& .MuiAccordionSummary-content': {
+                        fontSize: { xs: '0.8rem', sm: '0.875rem' }
+                      }
+                    }}
                   >
                     <Typography variant="body2" fontWeight="bold">
                       משתתפים ({activity.participants.length})
@@ -940,21 +1016,26 @@ const Activities: React.FC = () => {
       ) : (
         // Table View
         <TableContainer component={Paper} sx={{ mt: 2 }}>
-          <Table>
+          <Table sx={{ 
+            '& .MuiTableCell-root': {
+              fontSize: { xs: '0.75rem', sm: '0.875rem' },
+              padding: { xs: 1, sm: 1.5 }
+            }
+          }}>
             <TableHead>
               <TableRow>
-                <TableCell>שם פעילות</TableCell>
-                <TableCell>מסגרת</TableCell>
-                <TableCell>מיקום</TableCell>
-                <TableCell>סוג פעילות</TableCell>
-                <TableCell>תאריך</TableCell>
-                <TableCell>שעה</TableCell>
-                <TableCell>מפקד</TableCell>
-                <TableCell>מוביל משימה</TableCell>
-                <TableCell>ניוד</TableCell>
-                <TableCell>משתתפים</TableCell>
-                <TableCell>סטטוס</TableCell>
-                <TableCell>פעולות</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>שם פעילות</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>מסגרת</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>מיקום</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>סוג פעילות</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>תאריך</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>שעה</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>מפקד</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>מוביל משימה</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>ניוד</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>משתתפים</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>סטטוס</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>פעולות</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -969,7 +1050,9 @@ const Activities: React.FC = () => {
                   onClick={() => handleActivityClick(activity.id)}
                 >
                   <TableCell>
-                    <Typography variant="body2" fontWeight="bold">
+                    <Typography variant="body2" fontWeight="bold" sx={{ 
+                      fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                    }}>
                       {activity.name}
                     </Typography>
                   </TableCell>
@@ -977,48 +1060,68 @@ const Activities: React.FC = () => {
                     <Chip 
                       label={frameworks.find(f => f.id === activity.frameworkId)?.name || 'לא נבחרה'} 
                       size="small" 
-                      variant="outlined" 
+                      variant="outlined"
+                      sx={{ 
+                        fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                        height: { xs: 20, sm: 24 }
+                      }}
                     />
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">
+                    <Typography variant="body2" sx={{ 
+                      fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                    }}>
                       {activity.location}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">
+                    <Typography variant="body2" sx={{ 
+                      fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                    }}>
                       {activity.activityType === 'אחר' && activity.activityTypeOther 
                         ? activity.activityTypeOther 
                         : activity.activityType}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">
+                    <Typography variant="body2" sx={{ 
+                      fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                    }}>
                       {activity.plannedDate}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">
+                    <Typography variant="body2" sx={{ 
+                      fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                    }}>
                       {activity.plannedTime}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">
+                    <Typography variant="body2" sx={{ 
+                      fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                    }}>
                       {activity.commanderName}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">
+                    <Typography variant="body2" sx={{ 
+                      fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                    }}>
                       {activity.taskLeaderName || '-'}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">
+                    <Typography variant="body2" sx={{ 
+                      fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                    }}>
                       {activity.mobility ? formatMobilityDisplay(activity.mobility) : '-'}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">
+                    <Typography variant="body2" sx={{ 
+                      fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                    }}>
                       {activity.participants.length}
                     </Typography>
                   </TableCell>
@@ -1027,30 +1130,36 @@ const Activities: React.FC = () => {
                       label={activity.status} 
                       color={getStatusColor(activity.status) as any}
                       size="small"
+                      sx={{ 
+                        fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                        height: { xs: 20, sm: 24 }
+                      }}
                     />
                   </TableCell>
                   <TableCell>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <IconButton
-                        size="small"
-                        color="primary"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenForm(activity);
-                        }}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={(e) => {
-                          e.stopPropagation();
+                                      <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 1 } }}>
+                    <IconButton
+                      size="small"
+                      color="primary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenForm(activity);
+                      }}
+                      sx={{ padding: { xs: 0.5, sm: 1 } }}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      color="error"
+                      onClick={(e) => {
+                        e.stopPropagation();
                           setDeleteId(activity.id);
                         }}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
+                      sx={{ padding: { xs: 0.5, sm: 1 } }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
                     </Box>
                   </TableCell>
                 </TableRow>
@@ -1062,18 +1171,35 @@ const Activities: React.FC = () => {
 
       {filteredActivities.length === 0 && (
         <Alert severity="info" sx={{ mt: 3 }}>
-          לא נמצאו פעילויות
+          <Typography sx={{ fontSize: { xs: '0.9rem', sm: '1rem' } }}>
+            לא נמצאו פעילויות
+          </Typography>
         </Alert>
       )}
 
       {/* Add/Edit Dialog */}
-      <Dialog open={showForm} onClose={handleCloseForm} maxWidth="md" fullWidth>
-        <DialogTitle>
+              <Dialog 
+          open={showForm} 
+          onClose={handleCloseForm} 
+          maxWidth="md" 
+          fullWidth
+          sx={{
+            '& .MuiDialog-paper': {
+              margin: { xs: 1, sm: 2 },
+              width: { xs: 'calc(100% - 2px)', sm: 'auto' },
+              maxHeight: { xs: 'calc(100% - 2px)', sm: '90vh' }
+            }
+          }}
+        >
+        <DialogTitle sx={{ 
+          p: { xs: 1.5, sm: 2 },
+          fontSize: { xs: '1.1rem', sm: '1.25rem' }
+        }}>
           {editId ? 'ערוך פעילות' : 'הוסף פעילות חדשה'}
         </DialogTitle>
         <form onSubmit={handleSubmit}>
-          <DialogContent>
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2 }}>
+          <DialogContent sx={{ p: { xs: 1.5, sm: 2 } }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: { xs: 1.5, sm: 2 } }}>
               <Box>
                 <TextField
                   fullWidth
@@ -1081,20 +1207,24 @@ const Activities: React.FC = () => {
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
+                  sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
                 />
               </Box>
               <Box>
                 <FormControl fullWidth>
-                  <InputLabel>מסגרת</InputLabel>
+                  <InputLabel sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>מסגרת</InputLabel>
                   <Select
                     name="frameworkId"
                     value={formData.frameworkId}
                     onChange={(e) => handleSelectChange('frameworkId', e.target.value)}
                     label="מסגרת"
+                    sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
                   >
-                    <MenuItem value="">בחר מסגרת</MenuItem>
+                    <MenuItem value="" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>בחר מסגרת</MenuItem>
                     {frameworks.map(framework => (
-                      <MenuItem key={framework.id} value={framework.id}>{framework.name}</MenuItem>
+                      <MenuItem key={framework.id} value={framework.id} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                        {framework.name}
+                      </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
@@ -1106,34 +1236,41 @@ const Activities: React.FC = () => {
                   name="location"
                   value={formData.location}
                   onChange={handleChange}
+                  sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
                 />
               </Box>
               <Box>
                 <FormControl fullWidth>
-                  <InputLabel>חטמר</InputLabel>
+                  <InputLabel sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>חטמר</InputLabel>
                   <Select
                     name="region"
                     value={formData.region}
                     onChange={(e) => handleSelectChange('region', e.target.value)}
                     label="חטמר"
+                    sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
                   >
                     {regions.map(region => (
-                      <MenuItem key={region} value={region}>{region}</MenuItem>
+                      <MenuItem key={region} value={region} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                        {region}
+                      </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
               </Box>
               <Box>
                 <FormControl fullWidth>
-                  <InputLabel>סוג פעילות</InputLabel>
+                  <InputLabel sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>סוג פעילות</InputLabel>
                   <Select
                     name="activityType"
                     value={formData.activityType}
                     onChange={(e) => handleSelectChange('activityType', e.target.value)}
                     label="סוג פעילות"
+                    sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
                   >
                     {activityTypes.map(type => (
-                      <MenuItem key={type} value={type}>{type}</MenuItem>
+                      <MenuItem key={type} value={type} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                        {type}
+                      </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
@@ -1146,6 +1283,7 @@ const Activities: React.FC = () => {
                   name="activityTypeOther"
                   value={formData.activityTypeOther}
                   onChange={handleChange}
+                  sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
                 />
                 </Box>
               )}
@@ -1158,6 +1296,7 @@ const Activities: React.FC = () => {
                   value={formData.plannedDate}
                   onChange={handleChange}
                   InputLabelProps={{ shrink: true }}
+                  sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
                 />
               </Box>
               <Box>
@@ -1169,6 +1308,7 @@ const Activities: React.FC = () => {
                   value={formData.plannedTime}
                   onChange={handleChange}
                   InputLabelProps={{ shrink: true }}
+                  sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
                 />
               </Box>
               <Box>
@@ -1180,6 +1320,7 @@ const Activities: React.FC = () => {
                   value={formData.duration}
                   onChange={handleChange}
                   inputProps={{ min: 1, max: 24 }}
+                  sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
                 />
               </Box>
             </Box>
@@ -1190,7 +1331,11 @@ const Activities: React.FC = () => {
                 value={soldiers.find(s => s.id === formData.commanderId) || null}
                 onChange={(_, newValue) => handleCommanderSelect(newValue)}
                 renderInput={(params) => (
-                  <TextField {...params} label="מפקד הפעילות" />
+                  <TextField 
+                    {...params} 
+                    label="מפקד הפעילות"
+                    sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                  />
                 )}
               />
             </Box>
@@ -1201,32 +1346,41 @@ const Activities: React.FC = () => {
                 value={soldiers.find(s => s.id === formData.taskLeaderId) || null}
                 onChange={(_, newValue) => handleTaskLeaderSelect(newValue)}
                 renderInput={(params) => (
-                  <TextField {...params} label="מוביל משימה" />
+                  <TextField 
+                    {...params} 
+                    label="מוביל משימה"
+                    sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                  />
                 )}
               />
             </Box>
             <Box sx={{ mt: 2 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6" gutterBottom>ניוד</Typography>
+                <Typography variant="h6" gutterBottom sx={{ 
+                  fontSize: { xs: '1.1rem', sm: '1.25rem' }
+                }}>
+                  ניוד
+                </Typography>
               </Box>
               <FormControl fullWidth>
-                <InputLabel>בחר נסיעות</InputLabel>
-                <Select
-                  multiple
-                  value={selectedTripIds}
-                  onChange={async (e) => {
-                    const value = e.target.value as string[];
-                    const previousTripIds = selectedTripIds;
-                    setSelectedTripIds(value);
-                    
-                    // עדכון שדה הניוד עם מזהי הנסיעות
-                    const selectedTrips = trips.filter(t => value.includes(t.id));
-                    const mobilityText = selectedTrips.map(trip => `TRIP_ID:${trip.id}`).join('; ');
-                    
-                    setFormData(prev => ({
-                      ...prev,
-                      mobility: mobilityText
-                    }));
+                <InputLabel sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>בחר נסיעות</InputLabel>
+                                  <Select
+                    multiple
+                    value={selectedTripIds}
+                    sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                    onChange={async (e) => {
+                      const value = e.target.value as string[];
+                      const previousTripIds = selectedTripIds;
+                      setSelectedTripIds(value);
+                      
+                      // עדכון שדה הניוד עם מזהי הנסיעות
+                      const selectedTrips = trips.filter(t => value.includes(t.id));
+                      const mobilityText = selectedTrips.map(trip => `TRIP_ID:${trip.id}`).join('; ');
+                      
+                      setFormData(prev => ({
+                        ...prev,
+                        mobility: mobilityText
+                      }));
                     
                     // עדכון כל הנסיעות הנבחרות עם קישור לפעילות
                     for (const tripId of value) {
@@ -1301,23 +1455,27 @@ const Activities: React.FC = () => {
                   label="בחר נסיעות"
                 >
                   {trips.filter(trip => (!trip.linkedActivityId || trip.linkedActivityId === editId) && !selectedTripIds.includes(trip.id)).map(trip => (
-                    <MenuItem key={trip.id} value={trip.id}>
+                    <MenuItem key={trip.id} value={trip.id} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                       <Box>
-                        <Typography variant="body2" fontWeight="bold">
+                        <Typography variant="body2" fontWeight="bold" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
                           {trip.purpose}
                         </Typography>
-                        <Typography variant="caption" color="textSecondary">
+                        <Typography variant="caption" color="textSecondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.75rem' } }}>
                           {trip.vehicleNumber && trip.driverName 
                             ? `רכב ${trip.vehicleNumber}, נהג: ${trip.driverName}`
                             : 'ללא רכב ונהג'
                           }
                         </Typography>
                         {trip.departureTime && trip.returnTime && (
-                          <Typography variant="caption" color="textSecondary" display="block">
+                          <Typography variant="caption" color="textSecondary" display="block" sx={{ 
+                            fontSize: { xs: '0.7rem', sm: '0.75rem' }
+                          }}>
                             {new Date(trip.departureTime).toLocaleString('he-IL')} - {new Date(trip.returnTime).toLocaleString('he-IL')}
                           </Typography>
                         )}
-                        <Typography variant="caption" color="textSecondary" display="block">
+                        <Typography variant="caption" color="textSecondary" display="block" sx={{ 
+                          fontSize: { xs: '0.7rem', sm: '0.75rem' }
+                        }}>
                           מיקום: {trip.location}
                         </Typography>
                       </Box>
@@ -1327,7 +1485,9 @@ const Activities: React.FC = () => {
               </FormControl>
               {selectedTripIds.length > 0 && (
                 <Box sx={{ mt: 1 }}>
-                  <Typography variant="body2" color="textSecondary" gutterBottom>
+                  <Typography variant="body2" color="textSecondary" gutterBottom sx={{ 
+                    fontSize: { xs: '0.9rem', sm: '1rem' }
+                  }}>
                     נסיעות נבחרות:
                   </Typography>
                   {selectedTripIds.map(tripId => {
@@ -1335,25 +1495,40 @@ const Activities: React.FC = () => {
                     if (!trip) return null;
                     
                     return (
-                      <Box key={trip.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, p: 1, border: '1px solid #e0e0e0', borderRadius: 1 }}>
+                      <Box key={trip.id} sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: { xs: 0.5, sm: 1 }, 
+                        mb: 1, 
+                        p: { xs: 0.5, sm: 1 }, 
+                        border: '1px solid #e0e0e0', 
+                        borderRadius: 1 
+                      }}>
                         <Box sx={{ flex: 1 }}>
-                          <Typography variant="body2" fontWeight="bold">
+                          <Typography variant="body2" fontWeight="bold" sx={{ 
+                            fontSize: { xs: '0.8rem', sm: '0.875rem' }
+                          }}>
                             {trip.purpose}
                           </Typography>
-                          <Typography variant="caption" color="textSecondary">
+                          <Typography variant="caption" color="textSecondary" sx={{ 
+                            fontSize: { xs: '0.7rem', sm: '0.75rem' }
+                          }}>
                             {trip.vehicleNumber && trip.driverName 
                               ? `רכב ${trip.vehicleNumber}, נהג: ${trip.driverName}`
                               : 'ללא רכב ונהג'
                             }
                           </Typography>
                           {trip.departureTime && trip.returnTime && (
-                            <Typography variant="caption" color="textSecondary" display="block">
+                            <Typography variant="caption" color="textSecondary" display="block" sx={{ 
+                              fontSize: { xs: '0.7rem', sm: '0.75rem' }
+                            }}>
                               {new Date(trip.departureTime).toLocaleString('he-IL')} - {new Date(trip.returnTime).toLocaleString('he-IL')}
                             </Typography>
                           )}
                         </Box>
                         <IconButton
                           size="small"
+                          sx={{ padding: { xs: 0.5, sm: 1 } }}
                           onClick={async () => {
                             // הסרת הנסיעה מהרשימה
                             const updatedTripIds = selectedTripIds.filter(id => id !== trip.id);
@@ -1419,7 +1594,11 @@ const Activities: React.FC = () => {
               )}
             </Box>
             <Box sx={{ mt: 2 }}>
-              <Typography variant="h6" sx={{ mb: 2 }}>
+              <Typography variant="h6" sx={{ 
+                mb: 2, 
+                fontWeight: 'bold',
+                fontSize: { xs: '1.1rem', sm: '1.25rem' }
+              }}>
                 משתתפים
               </Typography>
 
@@ -1437,11 +1616,16 @@ const Activities: React.FC = () => {
                     }
                   }}
                   renderInput={(params) => (
-                    <TextField {...params} label="הוסף משתתף" />
+                    <TextField 
+                      {...params} 
+                      label="הוסף משתתף"
+                      sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                    />
                   )}
                 />
               </Box>
-              <List dense>
+              
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 1.5, sm: 2 } }}>
                 {formData.participants.map((participant) => {
                   // בדיקה אם זה המפקד, מוביל משימה, נהג או מפקד נסיעה
                   const isCommander = participant.soldierId === formData.commanderId;
@@ -1450,161 +1634,145 @@ const Activities: React.FC = () => {
                   const isTripCommander = participant.role.includes('מפקד נסיעה');
                   const isReadOnly = isCommander || isTaskLeader || isDriver || isTripCommander;
                   
+                  // קביעת תגיות תפקיד
+                  let roleTags = [];
+                  if (isCommander) roleTags.push({ label: 'מפקד', color: 'primary' });
+                  if (isTaskLeader) roleTags.push({ label: 'מוביל', color: 'secondary' });
+                  if (isDriver) roleTags.push({ label: 'נהג', color: 'info' });
+                  if (isTripCommander) roleTags.push({ label: 'מפקד נסיעה', color: 'warning' });
+                  
                   return (
-                    <ListItem key={participant.soldierId}>
-                      <ListItemText
-                        primary={
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="body2">
+                    <Card key={participant.soldierId} sx={{ 
+                      p: { xs: 1.5, sm: 2 }, 
+                      borderRadius: 2,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      backgroundColor: 'background.paper',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 1, sm: 1.5 } }}>
+                        {/* שורת כותרת עם שם ותגיות */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, flexWrap: 'wrap' }}>
+                            <Typography variant="body1" sx={{ 
+                              fontWeight: 'medium',
+                              fontSize: { xs: '0.9rem', sm: '1rem' }
+                            }}>
                               {participant.soldierName}
                             </Typography>
-                            {isCommander && (
+                            {roleTags.map((tag, index) => (
                               <Chip 
-                                label="מפקד" 
+                                key={index}
+                                label={tag.label} 
                                 size="small" 
-                                color="primary" 
+                                color={tag.color as any} 
                                 variant="outlined"
+                                sx={{ 
+                                  fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                                  height: { xs: 20, sm: 24 }
+                                }}
                               />
-                            )}
-                            {isTaskLeader && (
-                              <Chip 
-                                label="מוביל משימה" 
-                                size="small" 
-                                color="secondary" 
-                                variant="outlined"
-                              />
-                            )}
-                            {isDriver && (
-                              <Chip 
-                                label="נהג" 
-                                size="small" 
-                                color="info" 
-                                variant="outlined"
-                              />
-                            )}
-                            {isTripCommander && (
-                              <Chip 
-                                label="מפקד נסיעה" 
-                                size="small" 
-                                color="warning" 
-                                variant="outlined"
-                              />
-                            )}
+                            ))}
                           </Box>
-                        }
-                        secondary={`${participant.personalNumber} - ${participant.role}`}
-                      />
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {isReadOnly ? (
-                          // קריאה בלבד למפקד, מוביל משימה ונהג
-                          <Box sx={{ display: 'flex', gap: 1 }}>
-                            <TextField
-                              size="small"
-                              placeholder="תפקיד בפעילות"
-                              value={participant.role}
-                              disabled
-                              sx={{ 
-                                minWidth: 150,
-                                '& .MuiInputBase-input.Mui-disabled': {
-                                  color: 'text.primary',
-                                  WebkitTextFillColor: 'text.primary'
-                                }
-                              }}
-                            />
-                            <FormControl size="small" sx={{ minWidth: 120 }}>
-                              <InputLabel>רכב</InputLabel>
-                              <Select
-                                value={participant.vehicleId || ''}
-                                onChange={(e) => handleUpdateParticipantVehicle(participant.soldierId, e.target.value)}
-                                label="רכב"
-                              >
-                                <MenuItem value="">ללא רכב</MenuItem>
-                                <MenuItem value="no_mobility">לא דורש ניוד</MenuItem>
-                                {getAvailableVehicles().map(vehicle => {
-                                  if (!vehicle) return null;
-                                  const availability = getVehicleAvailability(vehicle.id);
-                                  const isFull = availability.available <= 0;
-                                  return (
-                                    <MenuItem 
-                                      key={vehicle.id} 
-                                      value={vehicle.id}
-                                      disabled={isFull && participant.vehicleId !== vehicle.id}
-                                    >
-                                      {vehicle.type} ({vehicle.number}) - {availability.available}/{availability.total} מקומות
-                                    </MenuItem>
-                                  );
-                                })}
-                              </Select>
-                            </FormControl>
-                          </Box>
-                        ) : (
-                          // עריכה רגילה למשתתפים אחרים
-                          <>
-                            <TextField
-                              size="small"
-                              placeholder="תפקיד בפעילות"
-                              value={participant.role}
-                              onChange={(e) => handleUpdateParticipantRole(participant.soldierId, e.target.value)}
-                              sx={{ minWidth: 150 }}
-                            />
-                                                          <FormControl size="small" sx={{ minWidth: 120 }}>
-                                <InputLabel>רכב</InputLabel>
-                                <Select
-                                  value={participant.vehicleId || ''}
-                                  onChange={(e) => handleUpdateParticipantVehicle(participant.soldierId, e.target.value)}
-                                  label="רכב"
-                                >
-                                  <MenuItem value="">ללא רכב</MenuItem>
-                                  <MenuItem value="no_mobility">לא דורש ניוד</MenuItem>
-                                  {getAvailableVehicles().map(vehicle => {
-                                    if (!vehicle) return null;
-                                    const availability = getVehicleAvailability(vehicle.id);
-                                    const isFull = availability.available <= 0;
-                                    return (
-                                      <MenuItem 
-                                        key={vehicle.id} 
-                                        value={vehicle.id}
-                                        disabled={isFull && participant.vehicleId !== vehicle.id}
-                                      >
-                                        {vehicle.type} ({vehicle.number}) - {availability.available}/{availability.total} מקומות
-                                      </MenuItem>
-                                    );
-                                  })}
-                                </Select>
-                              </FormControl>
+                          {!isReadOnly && (
                             <IconButton
                               size="small"
                               onClick={() => handleRemoveParticipant(participant.soldierId)}
+                              sx={{ 
+                                color: 'error.main',
+                                padding: { xs: 0.5, sm: 1 }
+                              }}
                             >
-                              <DeleteIcon />
+                              <DeleteIcon fontSize="small" />
                             </IconButton>
-                          </>
-                        )}
+                          )}
+                        </Box>
+                        
+                        {/* פרטי המשתתף */}
+                        <Typography variant="body2" sx={{ 
+                          color: 'text.secondary',
+                          fontSize: { xs: '0.8rem', sm: '0.875rem' }
+                        }}>
+                          {participant.personalNumber} - {participant.role}
+                        </Typography>
+                        
+                        {/* שדות עריכה */}
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 1, sm: 1.5 } }}>
+                          <TextField
+                            size="small"
+                            placeholder="תפקיד בפעילות"
+                            value={participant.role}
+                            onChange={(e) => handleUpdateParticipantRole(participant.soldierId, e.target.value)}
+                            disabled={isReadOnly}
+                            sx={{ 
+                              fontSize: { xs: '0.875rem', sm: '1rem' },
+                              '& .MuiInputBase-input.Mui-disabled': {
+                                color: 'text.primary',
+                                WebkitTextFillColor: 'text.primary'
+                              }
+                            }}
+                          />
+                          
+                          <FormControl size="small">
+                            <InputLabel sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                              רכב מוקצה
+                            </InputLabel>
+                            <Select
+                              value={participant.vehicleId || ''}
+                              onChange={(e) => handleUpdateParticipantVehicle(participant.soldierId, e.target.value)}
+                              label="רכב מוקצה"
+                              sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                            >
+                              <MenuItem value="" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>ללא רכב</MenuItem>
+                              <MenuItem value="no_mobility" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>לא דורש ניוד</MenuItem>
+                              {getAvailableVehicles().map(vehicle => {
+                                if (!vehicle) return null;
+                                const availability = getVehicleAvailability(vehicle.id);
+                                const isFull = availability.available <= 0;
+                                return (
+                                  <MenuItem 
+                                    key={vehicle.id} 
+                                    value={vehicle.id}
+                                    disabled={isFull && participant.vehicleId !== vehicle.id}
+                                    sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                                  >
+                                    {vehicle.type} ({vehicle.number}) - {availability.available}/{availability.total} מקומות
+                                  </MenuItem>
+                                );
+                              })}
+                            </Select>
+                          </FormControl>
+                        </Box>
                       </Box>
-                    </ListItem>
+                    </Card>
                   );
                 })}
-              </List>
+              </Box>
             </Box>
             <Box sx={{ mt: 2 }}>
               <FormControl fullWidth>
-                <InputLabel>סטטוס</InputLabel>
+                <InputLabel sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>סטטוס</InputLabel>
                                   <Select
                     name="status"
                     value={formData.status}
                     onChange={(e) => handleSelectChange('status', e.target.value)}
                     label="סטטוס"
+                    sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
                   >
                   {statuses.map(status => (
-                    <MenuItem key={status} value={status}>{status}</MenuItem>
+                    <MenuItem key={status} value={status} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                      {status}
+                    </MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Box>
           </DialogContent>
-          <DialogActions>
-            <Button onClick={handleCloseForm}>ביטול</Button>
-            <Button type="submit" variant="contained">
+          <DialogActions sx={{ p: { xs: 1.5, sm: 2 } }}>
+            <Button onClick={handleCloseForm} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+              ביטול
+            </Button>
+            <Button type="submit" variant="contained" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
               {editId ? 'עדכן' : 'הוסף'}
             </Button>
           </DialogActions>
@@ -1612,14 +1780,32 @@ const Activities: React.FC = () => {
       </Dialog>
 
       {/* Delete Confirmation */}
-      <Dialog open={!!deleteId} onClose={() => setDeleteId(null)}>
-        <DialogTitle>מחיקת פעילות</DialogTitle>
-        <DialogContent>
-          <Typography>האם אתה בטוח שברצונך למחוק פעילות זו?</Typography>
+      <Dialog 
+        open={!!deleteId} 
+        onClose={() => setDeleteId(null)}
+        sx={{
+          '& .MuiDialog-paper': {
+            margin: { xs: 1, sm: 2 },
+            width: { xs: 'calc(100% - 2px)', sm: 'auto' }
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          p: { xs: 1.5, sm: 2 },
+          fontSize: { xs: '1.1rem', sm: '1.25rem' }
+        }}>
+          מחיקת פעילות
+        </DialogTitle>
+        <DialogContent sx={{ p: { xs: 1.5, sm: 2 } }}>
+          <Typography sx={{ fontSize: { xs: '0.9rem', sm: '1rem' } }}>
+            האם אתה בטוח שברצונך למחוק פעילות זו?
+          </Typography>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteId(null)}>ביטול</Button>
-          <Button onClick={handleDelete} color="error" variant="contained">
+        <DialogActions sx={{ p: { xs: 1.5, sm: 2 } }}>
+          <Button onClick={() => setDeleteId(null)} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+            ביטול
+          </Button>
+          <Button onClick={handleDelete} color="error" variant="contained" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
             מחק
           </Button>
         </DialogActions>

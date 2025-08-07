@@ -2,9 +2,11 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Soldier } from '../models/Soldier';
 import { getAllSoldiers, getAllSoldiersWithFrameworkNames, deleteSoldier } from '../services/soldierService';
+import { getAllFrameworks, getFrameworkWithDetails } from '../services/frameworkService';
 import { getPresenceColor, getProfileColor } from '../utils/colors';
 import { Link } from 'react-router-dom';
 import SoldierForm from '../components/SoldierForm';
+import HierarchicalChart from '../components/HierarchicalChart';
 import {
   Box,
   Container,
@@ -74,6 +76,7 @@ const Soldiers: React.FC = () => {
   const navigate = useNavigate();
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
   const [soldiersWithFrameworkNames, setSoldiersWithFrameworkNames] = useState<(Soldier & { frameworkName?: string })[]>([]);
+  const [frameworks, setFrameworks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -107,10 +110,13 @@ const Soldiers: React.FC = () => {
     setLoading(true);
     Promise.all([
       getAllSoldiers(),
-      getAllSoldiersWithFrameworkNames()
+      getAllSoldiersWithFrameworkNames(),
+      getAllFrameworks()
     ])
-      .then(([soldiersData, soldiersWithNamesData]) => {
+      .then(([soldiersData, soldiersWithNamesData, frameworksData]) => {
         console.log('Loaded soldiers from Firebase:', soldiersData.length);
+        console.log('Loaded frameworks from Firebase:', frameworksData.length);
+        
         // אם אין נתונים ב-Firebase, השתמש בדמו
         if (soldiersData.length === 0) {
           console.log('No soldiers in Firebase, using demo data');
@@ -120,12 +126,15 @@ const Soldiers: React.FC = () => {
           setSoldiers(soldiersData);
           setSoldiersWithFrameworkNames(soldiersWithNamesData);
         }
+        
+        setFrameworks(frameworksData);
       })
       .catch((error) => {
-        console.error('Error loading soldiers from Firebase:', error);
+        console.error('Error loading data from Firebase:', error);
         console.log('Using demo data due to error');
         setSoldiers(demo);
         setSoldiersWithFrameworkNames(demo.map(s => ({ ...s, frameworkName: s.frameworkId })));
+        setFrameworks([]);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -930,101 +939,7 @@ const Soldiers: React.FC = () => {
     setVisibleColumns(availableColumns);
   };
 
-  // פונקציה לארגון החיילים לפי צוותים
-  const getSoldiersByTeam = () => {
-    const teams: { [key: string]: Soldier[] } = {};
-    
-    filteredData.forEach((soldier: Soldier) => {
-      const frameworkId = soldier.frameworkId || 'לא מוגדר';
-      if (!teams[frameworkId]) {
-        teams[frameworkId] = [];
-      }
-      teams[frameworkId].push(soldier);
-    });
-    
-    return teams;
-  };
 
-  // פונקציה ליצירת מבנה היררכי של הפלוגה
-  const getHierarchicalStructure = () => {
-    const structure = {
-      pluga: {
-        name: 'מפקדת פלוגה',
-        type: 'pluga',
-        soldiers: filteredData.filter(s => s.frameworkId === '1'), // פלוגת זיק"ת
-        children: {
-          plagaA: {
-            name: 'פלגה א',
-            type: 'plaga',
-            soldiers: filteredData.filter(s => s.frameworkId === 'פלגה א'),
-            children: {
-              team1: {
-                name: 'צוות 1',
-                type: 'team',
-                soldiers: filteredData.filter(s => s.frameworkId === 'צוות 1')
-              },
-              team2: {
-                name: 'צוות 2',
-                type: 'team',
-                soldiers: filteredData.filter(s => s.frameworkId === 'צוות 2')
-              },
-              team3: {
-                name: 'צוות 3',
-                type: 'team',
-                soldiers: filteredData.filter(s => s.frameworkId === 'צוות 3')
-              }
-            }
-          },
-          plagaB: {
-            name: 'פלגה ב',
-            type: 'plaga',
-            soldiers: filteredData.filter(s => s.frameworkId === 'פלגה ב'),
-            children: {
-              team4: {
-                name: 'צוות 4',
-                type: 'team',
-                soldiers: filteredData.filter(s => s.frameworkId === 'צוות 4')
-              },
-              team5: {
-                name: 'צוות 5',
-                type: 'team',
-                soldiers: filteredData.filter(s => s.frameworkId === 'צוות 5')
-              },
-              team6: {
-                name: 'צוות 6',
-                type: 'team',
-                soldiers: filteredData.filter(s => s.frameworkId === 'צוות 6')
-              }
-            }
-          },
-          plagaZavit: {
-            name: 'פלגה זווית',
-            type: 'plaga',
-            soldiers: filteredData.filter(s => s.frameworkId === 'פלגה זווית'),
-            children: {
-              team7: {
-                name: 'צוות 7',
-                type: 'team',
-                soldiers: filteredData.filter(s => s.frameworkId === 'צוות 7')
-              },
-              team8: {
-                name: 'צוות 8',
-                type: 'team',
-                soldiers: filteredData.filter(s => s.frameworkId === 'צוות 8')
-              }
-            }
-          },
-          mplag: {
-            name: 'מפל"ג',
-            type: 'mplag',
-            soldiers: filteredData.filter(s => s.frameworkId === 'מפל"ג')
-          }
-        }
-      }
-    };
-    
-    return structure;
-  };
 
   return (
     <Container maxWidth="lg" sx={{ py: 3, direction: 'rtl' }}>
@@ -1079,82 +994,84 @@ const Soldiers: React.FC = () => {
         </Box>
       </Box>
 
-      {/* Search and Filters */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ 
-            display: 'grid', 
-            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, 
-            gap: 2 
-          }}>
-            <TextField
-              fullWidth
-              placeholder="חיפוש לפי שם או מספר אישי"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-              }}
-            />
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <FilterIcon />
-                  <Typography>מסננים</Typography>
-                </Box>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Box sx={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, 
-                  gap: 2 
-                }}>
-                  <TextField
-                    fullWidth
-                                          label="מסגרת"
-                                  value={filterFramework}
-              onChange={(e) => setFilterFramework(e.target.value)}
-                    size="small"
-                  />
-                  <TextField
-                    fullWidth
-                    label="תפקיד"
-                    value={filterRole}
-                    onChange={(e) => setFilterRole(e.target.value)}
-                    size="small"
-                  />
-                  <TextField
-                    fullWidth
-                    label="כשירות"
-                    value={filterQualification}
-                    onChange={(e) => setFilterQualification(e.target.value)}
-                    size="small"
-                  />
-                  <FormControl fullWidth size="small">
-                    <InputLabel>נוכחות</InputLabel>
-                    <Select
-                      value={filterPresence}
-                      onChange={(e: any) => setFilterPresence(e.target.value)}
-                      label="נוכחות"
-                    >
-                      <MenuItem value="">כל הנוכחויות</MenuItem>
-                      <MenuItem value="בבסיס">בבסיס</MenuItem>
-                      <MenuItem value="בפעילות">בפעילות</MenuItem>
-                      <MenuItem value="חופש">חופש</MenuItem>
-                      <MenuItem value="גימלים">גימלים</MenuItem>
-                      <MenuItem value="אחר">אחר</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Box>
-              </AccordionDetails>
-            </Accordion>
-          </Box>
-        </CardContent>
-      </Card>
+      {/* Search and Filters - מוסתר בתצוגה היררכית */}
+      {viewMode !== 'hierarchy' && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Box sx={{ 
+              display: 'grid', 
+              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, 
+              gap: 2 
+            }}>
+              <TextField
+                fullWidth
+                placeholder="חיפוש לפי שם או מספר אישי"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <Accordion>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <FilterIcon />
+                    <Typography>מסננים</Typography>
+                  </Box>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Box sx={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, 
+                    gap: 2 
+                  }}>
+                    <TextField
+                      fullWidth
+                      label="מסגרת"
+                      value={filterFramework}
+                      onChange={(e) => setFilterFramework(e.target.value)}
+                      size="small"
+                    />
+                    <TextField
+                      fullWidth
+                      label="תפקיד"
+                      value={filterRole}
+                      onChange={(e) => setFilterRole(e.target.value)}
+                      size="small"
+                    />
+                    <TextField
+                      fullWidth
+                      label="כשירות"
+                      value={filterQualification}
+                      onChange={(e) => setFilterQualification(e.target.value)}
+                      size="small"
+                    />
+                    <FormControl fullWidth size="small">
+                      <InputLabel>נוכחות</InputLabel>
+                      <Select
+                        value={filterPresence}
+                        onChange={(e: any) => setFilterPresence(e.target.value)}
+                        label="נוכחות"
+                      >
+                        <MenuItem value="">כל הנוכחויות</MenuItem>
+                        <MenuItem value="בבסיס">בבסיס</MenuItem>
+                        <MenuItem value="בפעילות">בפעילות</MenuItem>
+                        <MenuItem value="חופש">חופש</MenuItem>
+                        <MenuItem value="גימלים">גימלים</MenuItem>
+                        <MenuItem value="אחר">אחר</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Box>
+                </AccordionDetails>
+              </Accordion>
+            </Box>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Content */}
       {loading ? (
@@ -1347,394 +1264,12 @@ const Soldiers: React.FC = () => {
           </Table>
         </TableContainer>
       ) : viewMode === 'hierarchy' ? (
-        // Hierarchical Visual View
-        <Box sx={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          gap: 4, 
-          alignItems: 'center',
-          minHeight: '600px',
-          position: 'relative'
-        }}>
-          {/* מפקדת פלוגה - רמה ראשונה */}
-          <Box sx={{ 
-            display: 'flex', 
-            flexDirection: 'column', 
-            alignItems: 'center',
-            position: 'relative'
-          }}>
-            {/* קו מחבר למטה */}
-            <Box sx={{ 
-              width: '2px', 
-              height: '40px', 
-              bgcolor: 'primary.main',
-              mb: 1
-            }} />
-            
-            {/* קוביית מפקדת פלוגה */}
-            <Card sx={{ 
-              bgcolor: 'primary.main', 
-              color: 'white',
-              minWidth: '200px',
-              textAlign: 'center',
-              boxShadow: 3,
-              position: 'relative'
-            }}>
-              <CardContent sx={{ p: 2 }}>
-                <SecurityIcon sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
-                  מפקדת פלוגה
-                </Typography>
-                <Typography variant="body2">
-                  {getHierarchicalStructure().pluga.soldiers.length} חיילים
-                </Typography>
-              </CardContent>
-            </Card>
-
-            {/* קווים מחברים לפלגות */}
-            <Box sx={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              width: '100%', 
-              maxWidth: '800px',
-              mt: 2,
-              position: 'relative'
-            }}>
-              {/* קו שמאלי */}
-              <Box sx={{ 
-                width: '2px', 
-                height: '40px', 
-                bgcolor: 'primary.main',
-                position: 'absolute',
-                left: '25%',
-                top: '-20px'
-              }} />
-              
-              {/* קו מרכזי */}
-              <Box sx={{ 
-                width: '2px', 
-                height: '40px', 
-                bgcolor: 'primary.main',
-                position: 'absolute',
-                left: '50%',
-                top: '-20px',
-                transform: 'translateX(-50%)'
-              }} />
-              
-              {/* קו ימני */}
-              <Box sx={{ 
-                width: '2px', 
-                height: '40px', 
-                bgcolor: 'primary.main',
-                position: 'absolute',
-                right: '25%',
-                top: '-20px'
-              }} />
-            </Box>
-          </Box>
-
-          {/* פלגות - רמה שנייה */}
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            width: '100%', 
-            maxWidth: '800px',
-            gap: 2
-          }}>
-            {/* פלגה א */}
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <Card sx={{ 
-                bgcolor: 'secondary.main', 
-                color: 'white',
-                width: '100%',
-                textAlign: 'center',
-                boxShadow: 2
-              }}>
-                <CardContent sx={{ p: 2 }}>
-                  <SupervisorAccountIcon sx={{ fontSize: 30, mb: 1 }} />
-                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-                    פלגה א
-                  </Typography>
-                  <Typography variant="body2">
-                    {getHierarchicalStructure().pluga.children.plagaA.soldiers.length} חיילים
-                  </Typography>
-                </CardContent>
-              </Card>
-
-              {/* קווים מחברים לצוותים */}
-              <Box sx={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                width: '100%', 
-                mt: 2,
-                position: 'relative'
-              }}>
-                <Box sx={{ 
-                  width: '2px', 
-                  height: '30px', 
-                  bgcolor: 'secondary.main',
-                  position: 'absolute',
-                  left: '33%',
-                  top: '-15px'
-                }} />
-                <Box sx={{ 
-                  width: '2px', 
-                  height: '30px', 
-                  bgcolor: 'secondary.main',
-                  position: 'absolute',
-                  left: '50%',
-                  top: '-15px',
-                  transform: 'translateX(-50%)'
-                }} />
-                <Box sx={{ 
-                  width: '2px', 
-                  height: '30px', 
-                  bgcolor: 'secondary.main',
-                  position: 'absolute',
-                  right: '33%',
-                  top: '-15px'
-                }} />
-              </Box>
-
-              {/* צוותים */}
-              <Box sx={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                width: '100%', 
-                mt: 2,
-                gap: 1
-              }}>
-                {['צוות 1', 'צוות 2', 'צוות 3'].map((teamName, index) => {
-                  const teamSoldiers = (getHierarchicalStructure().pluga.children.plagaA.children as any)[`team${index + 1}`]?.soldiers || [];
-                  return (
-                    <Card 
-                      key={teamName}
-                      sx={{ 
-                        flex: 1,
-                        bgcolor: 'grey.100',
-                        textAlign: 'center',
-                        cursor: 'pointer',
-                        transition: 'all 0.3s ease',
-                        '&:hover': {
-                          transform: 'translateY(-2px)',
-                          boxShadow: 2
-                        }
-                      }}
-                      onClick={() => navigate(`/teams/${teamName}`)}
-                    >
-                      <CardContent sx={{ p: 1 }}>
-                        <GroupIcon sx={{ fontSize: 20, mb: 0.5 }} />
-                        <Typography variant="caption" sx={{ fontWeight: 600, display: 'block' }}>
-                          {teamName}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                          {teamSoldiers.length}
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </Box>
-            </Box>
-
-            {/* פלגה ב */}
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <Card sx={{ 
-                bgcolor: 'secondary.main', 
-                color: 'white',
-                width: '100%',
-                textAlign: 'center',
-                boxShadow: 2
-              }}>
-                <CardContent sx={{ p: 2 }}>
-                  <SupervisorAccountIcon sx={{ fontSize: 30, mb: 1 }} />
-                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-                    פלגה ב
-                  </Typography>
-                  <Typography variant="body2">
-                    {getHierarchicalStructure().pluga.children.plagaB.soldiers.length} חיילים
-                  </Typography>
-                </CardContent>
-              </Card>
-
-              {/* קווים מחברים לצוותים */}
-              <Box sx={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                width: '100%', 
-                mt: 2,
-                position: 'relative'
-              }}>
-                <Box sx={{ 
-                  width: '2px', 
-                  height: '30px', 
-                  bgcolor: 'secondary.main',
-                  position: 'absolute',
-                  left: '33%',
-                  top: '-15px'
-                }} />
-                <Box sx={{ 
-                  width: '2px', 
-                  height: '30px', 
-                  bgcolor: 'secondary.main',
-                  position: 'absolute',
-                  left: '50%',
-                  top: '-15px',
-                  transform: 'translateX(-50%)'
-                }} />
-                <Box sx={{ 
-                  width: '2px', 
-                  height: '30px', 
-                  bgcolor: 'secondary.main',
-                  position: 'absolute',
-                  right: '33%',
-                  top: '-15px'
-                }} />
-              </Box>
-
-              {/* צוותים */}
-              <Box sx={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                width: '100%', 
-                mt: 2,
-                gap: 1
-              }}>
-                {['צוות 4', 'צוות 5', 'צוות 6'].map((teamName, index) => {
-                  const teamSoldiers = (getHierarchicalStructure().pluga.children.plagaB.children as any)[`team${index + 4}`]?.soldiers || [];
-                  return (
-                    <Card 
-                      key={teamName}
-                      sx={{ 
-                        flex: 1,
-                        bgcolor: 'grey.100',
-                        textAlign: 'center',
-                        cursor: 'pointer',
-                        transition: 'all 0.3s ease',
-                        '&:hover': {
-                          transform: 'translateY(-2px)',
-                          boxShadow: 2
-                        }
-                      }}
-                      onClick={() => navigate(`/teams/${teamName}`)}
-                    >
-                      <CardContent sx={{ p: 1 }}>
-                        <GroupIcon sx={{ fontSize: 20, mb: 0.5 }} />
-                        <Typography variant="caption" sx={{ fontWeight: 600, display: 'block' }}>
-                          {teamName}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                          {teamSoldiers.length}
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </Box>
-            </Box>
-
-            {/* פלגה זווית */}
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <Card sx={{ 
-                bgcolor: 'secondary.main', 
-                color: 'white',
-                width: '100%',
-                textAlign: 'center',
-                boxShadow: 2
-              }}>
-                <CardContent sx={{ p: 2 }}>
-                  <SupervisorAccountIcon sx={{ fontSize: 30, mb: 1 }} />
-                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-                    פלגה זווית
-                  </Typography>
-                  <Typography variant="body2">
-                    {getHierarchicalStructure().pluga.children.plagaZavit.soldiers.length} חיילים
-                  </Typography>
-                </CardContent>
-              </Card>
-
-              {/* קווים מחברים לצוותים */}
-              <Box sx={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                width: '100%', 
-                mt: 2,
-                position: 'relative'
-              }}>
-                <Box sx={{ 
-                  width: '2px', 
-                  height: '30px', 
-                  bgcolor: 'secondary.main',
-                  position: 'absolute',
-                  left: '50%',
-                  top: '-15px',
-                  transform: 'translateX(-50%)'
-                }} />
-              </Box>
-
-              {/* צוותים */}
-              <Box sx={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                width: '100%', 
-                mt: 2,
-                gap: 1
-              }}>
-                {['צוות 7', 'צוות 8'].map((teamName, index) => {
-                  const teamSoldiers = (getHierarchicalStructure().pluga.children.plagaZavit.children as any)[`team${index + 7}`]?.soldiers || [];
-                  return (
-                    <Card 
-                      key={teamName}
-                      sx={{ 
-                        flex: 1,
-                        bgcolor: 'grey.100',
-                        textAlign: 'center',
-                        cursor: 'pointer',
-                        transition: 'all 0.3s ease',
-                        '&:hover': {
-                          transform: 'translateY(-2px)',
-                          boxShadow: 2
-                        }
-                      }}
-                      onClick={() => navigate(`/teams/${teamName}`)}
-                    >
-                      <CardContent sx={{ p: 1 }}>
-                        <GroupIcon sx={{ fontSize: 20, mb: 0.5 }} />
-                        <Typography variant="caption" sx={{ fontWeight: 600, display: 'block' }}>
-                          {teamName}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                          {teamSoldiers.length}
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </Box>
-            </Box>
-
-            {/* מפל"ג */}
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <Card sx={{ 
-                bgcolor: 'warning.main', 
-                color: 'white',
-                width: '100%',
-                textAlign: 'center',
-                boxShadow: 2
-              }}>
-                <CardContent sx={{ p: 2 }}>
-                  <PersonIcon sx={{ fontSize: 30, mb: 1 }} />
-                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-                    מפל"ג
-                  </Typography>
-                  <Typography variant="body2">
-                    {getHierarchicalStructure().pluga.children.mplag.soldiers.length} חיילים
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Box>
-          </Box>
-        </Box>
+        // Hierarchical Chart View - D3.js
+        <HierarchicalChart 
+          frameworks={frameworks}
+          soldiers={soldiers}
+          loading={loading}
+        />
       ) : (
         // Cards View
         <Box sx={{ 

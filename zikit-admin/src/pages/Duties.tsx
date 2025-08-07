@@ -225,13 +225,21 @@ const Duties: React.FC = () => {
         <Typography variant="h4" component="h1">
           תורנויות
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenForm()}
-        >
-          הוסף תורנות
-        </Button>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button
+            variant="outlined"
+            onClick={() => navigate('/weekly-duties')}
+          >
+            תצוגה שבועית
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenForm()}
+          >
+            הוסף תורנות
+          </Button>
+        </Box>
       </Box>
 
       {/* Filters */}
