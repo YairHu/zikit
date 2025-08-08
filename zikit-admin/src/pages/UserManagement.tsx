@@ -38,7 +38,8 @@ import {
   assignToTeam,
   canUserAssignRoles,
   canUserRemoveUsers,
-  removeUserFromSystem
+  removeUserFromSystem,
+  updateUserDisplayNameFromSoldier
 } from '../services/userService';
 
 interface TabPanelProps {
@@ -114,9 +115,20 @@ const UserManagement: React.FC = () => {
     try {
       await removeUserFromSystem(selectedUser.uid, currentUser.uid);
       setDeleteDialogOpen(false);
+      alert('המשתמש הוסר בהצלחה מכל המקומות במערכת!');
       loadUsers();
     } catch (error) {
       alert('שגיאה בהסרת משתמש: ' + error);
+    }
+  };
+
+  const handleUpdateDisplayName = async (userData: User) => {
+    try {
+      await updateUserDisplayNameFromSoldier(userData.uid);
+      alert('השם עודכן בהצלחה!');
+      loadUsers();
+    } catch (error) {
+      alert('שגיאה בעדכון השם: ' + error);
     }
   };
 
@@ -213,7 +225,6 @@ const UserManagement: React.FC = () => {
         <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
           <Tab label="כל המשתמשים" icon={<PersonIcon />} />
           <Tab label="לפי תפקידים" icon={<SecurityIcon />} />
-          <Tab label="מבנה ארגוני" icon={<GroupIcon />} />
         </Tabs>
       </Card>
 
@@ -297,6 +308,17 @@ const UserManagement: React.FC = () => {
                   >
                     שבץ לצוות
                   </Button>
+                  {userData.soldierDocId && (
+                    <Button
+                      size="small"
+                      startIcon={<PersonIcon />}
+                      onClick={() => handleUpdateDisplayName(userData)}
+                      variant="outlined"
+                      color="info"
+                    >
+                      עדכן שם
+                    </Button>
+                  )}
                   {canRemoveUsers && userData.uid !== currentUser?.uid && (
                     <Button
                       size="small"
@@ -375,12 +397,7 @@ const UserManagement: React.FC = () => {
         })}
       </TabPanel>
 
-      {/* Tab 3: מבנה ארגוני */}
-      <TabPanel value={tabValue} index={2}>
-        <Alert severity="info" sx={{ mb: 3 }}>
-          תצוגת מבנה ארגוני - בפיתוח
-        </Alert>
-      </TabPanel>
+
 
       {/* Dialog for Role Assignment */}
       <Dialog open={roleDialogOpen} onClose={() => setRoleDialogOpen(false)} maxWidth="sm" fullWidth>

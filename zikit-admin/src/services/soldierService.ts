@@ -1,11 +1,19 @@
 import { db } from '../firebase';
-import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
 import { Soldier } from '../models/Soldier';
 
 
 const soldiersCollection = collection(db, 'soldiers');
 
 export const getAllSoldiers = async (): Promise<Soldier[]> => {
+  // רק חיילים שכבר שובצו למסגרת (יש להם frameworkId)
+  const snapshot = await getDocs(soldiersCollection);
+  const allSoldiers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Soldier));
+  return allSoldiers.filter(soldier => soldier.frameworkId && soldier.frameworkId.trim() !== '');
+};
+
+// פונקציה נפרדת לקבלת כל החיילים (כולל ממתינים) - לשימוש פנימי
+export const getAllSoldiersIncludingPending = async (): Promise<Soldier[]> => {
   const snapshot = await getDocs(soldiersCollection);
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Soldier));
 };
@@ -48,8 +56,10 @@ export const updateSoldierFramework = async (soldierId: string, frameworkId: str
 };
 
 export const getAllSoldiersWithFrameworkNames = async (): Promise<(Soldier & { frameworkName?: string })[]> => {
+  // רק חיילים שכבר שובצו למסגרת (יש להם frameworkId)
   const snapshot = await getDocs(soldiersCollection);
-  const soldiers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Soldier));
+  const allSoldiers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Soldier));
+  const soldiers = allSoldiers.filter(soldier => soldier.frameworkId && soldier.frameworkId.trim() !== '');
   
   // הוספת שמות המסגרות
   const soldiersWithFrameworkNames = await Promise.all(

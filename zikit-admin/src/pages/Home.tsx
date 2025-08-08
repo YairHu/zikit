@@ -7,7 +7,13 @@ import {
   CardContent,
   Box,
   Avatar,
-  alpha
+  alpha,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Alert
 } from '@mui/material';
 import {
   Groups as GroupsIcon,
@@ -32,6 +38,8 @@ import { getAllActivities } from '../services/activityService';
 import { getAllDuties } from '../services/dutyService';
 import { getAllMissions } from '../services/missionService';
 import { getAllReferrals } from '../services/referralService';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../firebase';
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
@@ -48,11 +56,30 @@ const Home: React.FC = () => {
     referrals: 0
   });
   const [loading, setLoading] = useState(true);
+  const [showNewUserDialog, setShowNewUserDialog] = useState(false);
+  const [showPendingAssignmentDialog, setShowPendingAssignmentDialog] = useState(false);
 
   // טעינת סטטיסטיקות מותאמות למשתמש
   useEffect(() => {
     const loadStats = async () => {
       if (!user) return;
+      
+      // בדיקה אם המשתמש חדש (אין לו soldierDocId)
+      if (!user.soldierDocId) {
+        setShowNewUserDialog(true);
+      } else {
+        // בדיקה אם המשתמש קושר אבל עדיין ממתין לשיבוץ
+        const soldiersQuery = query(
+          collection(db, 'soldiers'),
+          where('userUid', '==', user.uid),
+          where('status', '==', 'pending_assignment')
+        );
+        const soldiersSnapshot = await getDocs(soldiersQuery);
+        if (!soldiersSnapshot.empty) {
+          // המשתמש קושר אבל ממתין לשיבוץ
+          setShowPendingAssignmentDialog(true);
+        }
+      }
       
       // השתמש בנקודת המבט הפעילה אם יש
       const currentUser = selectedSoldierId ? {
@@ -280,6 +307,26 @@ const Home: React.FC = () => {
       {/* מידע על הרשאות */}
       <PermissionInfo showDetails={false} variant="info" />
 
+      {/* הודעה למשתמשים חדשים */}
+      {showNewUserDialog && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          <Typography variant="body2">
+            <strong>משתמש חדש:</strong> ברוך הבא למערכת! כדי להשלים את הקליטה שלך, 
+            יש צורך בנתונים נוספים. אם מילאת טופס גוגל, הנתונים יקושרו אוטומטית.
+          </Typography>
+        </Alert>
+      )}
+
+      {/* הודעה למשתמשים ממתינים לשיבוץ */}
+      {showPendingAssignmentDialog && (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          <Typography variant="body2">
+            <strong>ממתין לשיבוץ:</strong> הנתונים שלך קושרו בהצלחה למערכת. 
+            מנהל המערכת יבדוק את הנתונים וישובץ אותך לתפקיד וצוות מתאים.
+          </Typography>
+        </Alert>
+      )}
+
       {/* מערכות */}
       <Box>
         <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
@@ -359,6 +406,68 @@ const Home: React.FC = () => {
           </Typography>
         </Box>
       )}
+
+      {/* דיאלוג למשתמשים חדשים */}
+      <Dialog open={showNewUserDialog} onClose={() => setShowNewUserDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          ברוך הבא למערכת!
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            נראה שאתה משתמש חדש במערכת. כדי להשלים את הקליטה שלך, יש צורך בנתונים נוספים.
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            <strong>אפשרויות:</strong>
+          </Typography>
+          <Box sx={{ pl: 2 }}>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              • אם מילאת טופס גוגל - הנתונים יקושרו אוטומטית
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              • אם לא מילאת טופס - פנה למנהל המערכת
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              • לאחר הקישור, תועבר ל"חיילים ממתינים לשיבוץ"
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowNewUserDialog(false)} variant="contained">
+            הבנתי
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* דיאלוג למשתמשים ממתינים לשיבוץ */}
+      <Dialog open={showPendingAssignmentDialog} onClose={() => setShowPendingAssignmentDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          ממתין לשיבוץ
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            הנתונים שלך קושרו בהצלחה למערכת! כעת אתה ממתין לשיבוץ לתפקיד וצוות.
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            <strong>מה קורה עכשיו:</strong>
+          </Typography>
+          <Box sx={{ pl: 2 }}>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              • מנהל המערכת יבדוק את הנתונים שלך
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              • תישובץ לתפקיד וצוות מתאים
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              • לאחר השיבוץ, תוכל לגשת לכל הפונקציות במערכת
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowPendingAssignmentDialog(false)} variant="contained">
+            הבנתי
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

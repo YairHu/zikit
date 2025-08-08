@@ -21,8 +21,10 @@ export const setCustomClaims = functions.https.onCall(async (data, context) => {
     const requesterRecord = await admin.auth().getUser(context.auth.uid);
     const requesterClaims = requesterRecord.customClaims || {};
     
+    // בדיקה לפי התפקיד - רק אדמין, מ"פ וסמ"פ יכולים לשנות תפקידים
     if (requesterClaims.role !== "admin" && 
-        requesterClaims.canAssignRoles !== true) {
+        requesterClaims.role !== "mefaked_pluga" && 
+        requesterClaims.role !== "samal_pluga") {
       throw new functions.https.HttpsError(
         "permission-denied", 
         "אין הרשאה לשנות תפקידים"
@@ -143,22 +145,24 @@ export const createUserFromSoldier = functions.firestore
     try {
       // בדיקה אם כבר קיים משתמש עם האימייל הזה
       let userRecord;
+      
       try {
         userRecord = await admin.auth().getUserByEmail(soldierData.email);
         functions.logger.info(`User already exists for email: ${soldierData.email}`);
       } catch (error) {
-        // משתמש לא קיים - ניצור אותו
-        userRecord = await admin.auth().createUser({
-          email: soldierData.email,
-          displayName: soldierData.fullName,
-          disabled: false
+        // משתמש לא קיים - נשנה סטטוס לממתין לקישור משתמש
+        await snap.ref.update({
+          status: "pending_user_link",
+          updatedAt: admin.firestore.Timestamp.now()
         });
-        functions.logger.info(`Created new user: ${userRecord.uid} for soldier: ${soldierId}`);
+        functions.logger.info(`No user found for email: ${soldierData.email}, status set to pending_user_link`);
+        return;
       }
 
       // עדכון רשומת החייל עם UID של המשתמש
       await snap.ref.update({
         userUid: userRecord.uid,
+        status: "pending_assignment",
         updatedAt: admin.firestore.Timestamp.now()
       });
 
@@ -174,6 +178,14 @@ export const createUserFromSoldier = functions.firestore
             soldierDocId: soldierId,
             updatedAt: admin.firestore.Timestamp.now()
           };
+          
+          // עדכן את השם אם הוא ריק או אם יש שם חדש מהטופס
+          if (!existingData.displayName || existingData.displayName === '') {
+            updateData.displayName = soldierData.fullName;
+            functions.logger.info(`Updating displayName for user ${userRecord.uid}: ${soldierData.fullName}`);
+          } else {
+            functions.logger.info(`User ${userRecord.uid} already has displayName: ${existingData.displayName}`);
+          }
           
           // אל תעדכן תפקיד והרשאות אם המשתמש כבר קיים
           if (!existingData.role) {
@@ -223,6 +235,60 @@ export const createUserFromSoldier = functions.firestore
         errorMessage: error instanceof Error ? error.message : "Unknown error",
         updatedAt: admin.firestore.Timestamp.now()
       });
+    }
+  });
+
+// Function to sync user data with soldier data
+export const createSoldierFromUser = functions.firestore
+  .document("users/{userId}")
+  .onCreate(async (snap, context) => {
+    const userData = snap.data();
+    const userId = context.params.userId;
+
+    try {
+      // בדיקה אם כבר קיימים נתוני חייל עם האימייל הזה
+      const soldiersQuery = await admin.firestore()
+        .collection("soldiers")
+        .where("email", "==", userData.email)
+        .get();
+      
+      if (!soldiersQuery.empty) {
+        // יש נתוני חייל - קשר אותם
+        const soldierDoc = soldiersQuery.docs[0];
+        const soldierData = soldierDoc.data();
+        
+        // עדכון רשומת החייל עם UID של המשתמש
+        await soldierDoc.ref.update({
+          userUid: userId,
+          status: "pending_assignment",
+          updatedAt: admin.firestore.Timestamp.now()
+        });
+
+        // עדכון רשומת המשתמש עם קישור לחייל
+        const updateData: any = {
+          soldierDocId: soldierDoc.id,
+          personalNumber: soldierData.personalNumber,
+          updatedAt: admin.firestore.Timestamp.now()
+        };
+        
+        // עדכן את השם אם הוא ריק או אם יש שם חדש מהטופס
+        if (!userData.displayName || userData.displayName === '') {
+          updateData.displayName = soldierData.fullName;
+          functions.logger.info(`Updating displayName for user ${userId}: ${soldierData.fullName}`);
+        } else {
+          functions.logger.info(`User ${userId} already has displayName: ${userData.displayName}`);
+        }
+        
+        await snap.ref.update(updateData);
+
+        functions.logger.info(`Linked existing soldier data for user: ${userId}`);
+      } else {
+        // אין נתוני חייל - המשתמש ממתין לנתונים
+        functions.logger.info(`No soldier data found for user: ${userId}, waiting for form submission`);
+      }
+      
+    } catch (error) {
+      functions.logger.error("Error linking user with soldier data:", error);
     }
   });
 

@@ -9,13 +9,11 @@ import {
   query, 
   where
 } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '../firebase';
-import { User, PlagaStructure, TeamStructure } from '../models/User';
+import { User } from '../models/User';
 import { UserRole } from '../models/UserRole';
 
 const USERS_COLLECTION = 'users';
-const STRUCTURE_COLLECTION = 'plagaStructure';
 
 // שירותי משתמשים בסיסיים
 export const getAllUsers = async (): Promise<User[]> => {
@@ -75,30 +73,111 @@ export const removeUserFromSystem = async (uid: string, removerUid: string): Pro
     throw new Error('רק אדמין יכול להסיר אדמין אחר');
   }
 
-  // הסרת המשתמש דרך Cloud Function (שתטפל בכל המחיקות)
-  const functions = getFunctions();
-  const deleteUserAccount = httpsCallable(functions, 'deleteUserAccount');
-  await deleteUserAccount({ uid });
+  // הסרת המשתמש מכל המקומות במערכת
+  try {
+    // 1. הסרת המשתמש מ-collection users
+    await deleteUser(uid);
+
+    // 2. הסרת רשומת חייל מקושרת (אם יש)
+    if (userToRemove?.soldierDocId) {
+      const soldierRef = doc(db, 'soldiers', userToRemove.soldierDocId);
+      await deleteDoc(soldierRef);
+    }
+
+    // 3. הסרת חייל מ-collection soldiers לפי email (אם לא נמצא דרך soldierDocId)
+    if (userToRemove?.email) {
+      const soldiersQuery = query(
+        collection(db, 'soldiers'),
+        where('email', '==', userToRemove.email)
+      );
+      const soldiersSnapshot = await getDocs(soldiersQuery);
+      
+      for (const soldierDoc of soldiersSnapshot.docs) {
+        await deleteDoc(soldierDoc.ref);
+      }
+    }
+
+    // 4. הסרת המשתמש מרשימת הכפופים של מפקדים אחרים
+    const commandersQuery = query(
+      collection(db, 'users'),
+      where('subordinatesUids', 'array-contains', uid)
+    );
+    const commandersSnapshot = await getDocs(commandersQuery);
+    
+    for (const commanderDoc of commandersSnapshot.docs) {
+      const commanderData = commanderDoc.data();
+      const updatedSubordinates = commanderData.subordinatesUids?.filter((id: string) => id !== uid) || [];
+      await updateDoc(commanderDoc.ref, { subordinatesUids: updatedSubordinates });
+    }
+
+    console.log(`משתמש ${uid} הוסר בהצלחה מכל המקומות במערכת`);
+  } catch (error) {
+    console.error('שגיאה בהסרת משתמש:', error);
+    throw new Error('שגיאה בהסרת משתמש מהמערכת');
+  }
+};
+
+// פונקציה לעדכון שם משתמש מרשומת החייל המקושרת
+export const updateUserDisplayNameFromSoldier = async (uid: string): Promise<void> => {
+  try {
+    // קבלת נתוני המשתמש
+    const user = await getUserById(uid);
+    if (!user) {
+      throw new Error('משתמש לא נמצא');
+    }
+
+    // בדיקה אם יש רשומת חייל מקושרת
+    if (!user.soldierDocId) {
+      throw new Error('אין רשומת חייל מקושרת למשתמש זה');
+    }
+
+    // קבלת נתוני החייל
+    const soldierRef = doc(db, 'soldiers', user.soldierDocId);
+    const soldierDoc = await getDoc(soldierRef);
+    
+    if (!soldierDoc.exists()) {
+      throw new Error('רשומת החייל לא נמצאה');
+    }
+
+    const soldierData = soldierDoc.data();
+    
+    // עדכון השם אם יש שם בטופס
+    if (soldierData.fullName && soldierData.fullName.trim() !== '') {
+      await updateUser(uid, { 
+        displayName: soldierData.fullName,
+        updatedAt: new Date()
+      });
+      console.log(`Updated displayName for user ${uid}: ${soldierData.fullName}`);
+    } else {
+      console.log(`No fullName found in soldier data for user ${uid}`);
+    }
+  } catch (error) {
+    console.error('שגיאה בעדכון שם המשתמש:', error);
+    throw error;
+  }
 };
 
 // שירותי תפקידים והרשאות
 export const assignRole = async (uid: string, role: UserRole, assignerUid: string): Promise<void> => {
   // בדיקת הרשאות - רק מ"פ, סמ"פ ואדמין יכולים לשבץ תפקידים
   const assigner = await getUserById(assignerUid);
-  if (!assigner || !assigner.canAssignRoles) {
+  if (!assigner || !canUserAssignRoles(assigner)) {
     throw new Error('אין הרשאה לשיבוץ תפקידים');
   }
 
-  // עדכון התפקיד ב-Firestore
+  // עדכון התפקיד ב-Firestore בלבד
   await updateUser(uid, { role });
-
-  // עדכון Custom Claims ב-Firebase Auth (דרך Cloud Function)
-  const functions = getFunctions();
-  const setCustomClaims = httpsCallable(functions, 'setCustomClaims');
-  await setCustomClaims({ uid, claims: { role } });
 };
 
-export const assignToTeam = async (uid: string, teamId: string, plagaId: string): Promise<void> => {
+export const assignToTeam = async (uid: string, teamId: string, plagaId: string, assignerUid?: string): Promise<void> => {
+  // אם יש assignerUid, בדוק הרשאות
+  if (assignerUid) {
+    const assigner = await getUserById(assignerUid);
+    if (!assigner || !canUserAssignRoles(assigner)) {
+      throw new Error('אין הרשאה לשיבוץ לצוות');
+    }
+  }
+
   await updateUser(uid, { 
     team: teamId, 
     pelaga: plagaId 
@@ -120,7 +199,7 @@ export const setCommander = async (subordinateUid: string, commanderUid: string)
   }
 };
 
-// שירותי מבנה ארגוני
+// שירותי מבנה ארגוני - הועברו לשירות נפרד
 export const getUsersByRole = async (role: UserRole): Promise<User[]> => {
   const q = query(
     collection(db, USERS_COLLECTION),
@@ -131,85 +210,22 @@ export const getUsersByRole = async (role: UserRole): Promise<User[]> => {
   return querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
 };
 
-export const getUsersByTeam = async (teamId: string): Promise<User[]> => {
-  const q = query(
-    collection(db, USERS_COLLECTION),
-    where('team', '==', teamId),
-    where('isActive', '==', true)
-  );
-  const querySnapshot = await getDocs(q);
-  const users = querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
-  
-  // מיון בצד הלקוח
-  return users.sort((a, b) => {
-    const roleOrder = {
-      [UserRole.ADMIN]: 0,
-      [UserRole.MEFAKED_PLUGA]: 1,
-      [UserRole.SAMAL_PLUGA]: 2,
-      [UserRole.MEFAKED_PELAGA]: 3,
-      [UserRole.RASP]: 4,
-      [UserRole.SARASP]: 5,
-      [UserRole.KATZIN_NIHUL]: 6,
-      [UserRole.MANIP]: 7,
-      [UserRole.HOFPAL]: 8,
-      [UserRole.PAP]: 9,
-      [UserRole.MEFAKED_TZEVET]: 10,
-      [UserRole.SAMAL]: 11,
-      [UserRole.MEFAKED_CHAYAL]: 12,
-      [UserRole.CHAYAL]: 13,
-      [UserRole.HAMAL]: 14
-    };
-    return (roleOrder[b.role] || 0) - (roleOrder[a.role] || 0);
-  });
-};
-
-export const getSubordinates = async (commanderUid: string): Promise<User[]> => {
-  const commander = await getUserById(commanderUid);
-  if (!commander || !commander.subordinatesUids) return [];
-  
-  const subordinates: User[] = [];
-  for (const uid of commander.subordinatesUids) {
-    const user = await getUserById(uid);
-    if (user) subordinates.push(user);
-  }
-  return subordinates;
-};
-
-// שירותי מבנה הפלוגה
-export const getPlagaStructure = async (): Promise<PlagaStructure[]> => {
-  const querySnapshot = await getDocs(collection(db, STRUCTURE_COLLECTION));
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlagaStructure));
-};
-
-export const createTeam = async (team: Omit<TeamStructure, 'id'>): Promise<void> => {
-  const teamRef = doc(collection(db, 'teams'));
-  await setDoc(teamRef, team);
-};
-
-export const getTeamStructure = async (teamId: string): Promise<TeamStructure | null> => {
-  const docRef = doc(db, 'teams', teamId);
-  const docSnap = await getDoc(docRef);
-  return docSnap.exists() ? { id: teamId, ...docSnap.data() } as TeamStructure : null;
-};
-
 // פונקציות עזר להרשאות
 export const canUserAssignRoles = (user: User): boolean => {
-  return user.canAssignRoles || 
-         user.role === UserRole.ADMIN || 
+  // בדיקה לפי התפקיד
+  return user.role === UserRole.ADMIN || 
          user.role === UserRole.MEFAKED_PLUGA || 
          user.role === UserRole.SAMAL_PLUGA;
 };
 
 export const canUserViewSensitiveData = (user: User): boolean => {
-  return user.canViewSensitiveData || 
-         user.role === UserRole.ADMIN || 
+  return user.role === UserRole.ADMIN || 
          user.role === UserRole.MEFAKED_PLUGA || 
          user.role === UserRole.SAMAL_PLUGA;
 };
 
 export const canUserRemoveUsers = (user: User): boolean => {
-  return user.canRemoveUsers || 
-         user.role === UserRole.ADMIN || 
+  return user.role === UserRole.ADMIN || 
          user.role === UserRole.MEFAKED_PLUGA;
 };
 

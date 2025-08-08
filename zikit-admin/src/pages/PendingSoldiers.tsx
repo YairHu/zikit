@@ -38,6 +38,7 @@ import {
 import { useUser } from '../contexts/UserContext';
 import { UserRole, getRoleDisplayName } from '../models/UserRole';
 import { assignRole, assignToTeam } from '../services/userService';
+import { getAllFrameworks } from '../services/frameworkService';
 import { collection, query, where, getDocs, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -67,6 +68,7 @@ interface PendingSoldier {
 const PendingSoldiers: React.FC = () => {
   const { user } = useUser();
   const [pendingSoldiers, setPendingSoldiers] = useState<PendingSoldier[]>([]);
+  const [frameworks, setFrameworks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [selectedSoldier, setSelectedSoldier] = useState<PendingSoldier | null>(null);
@@ -76,6 +78,7 @@ const PendingSoldiers: React.FC = () => {
     role: UserRole.CHAYAL,
     team: '',
     pelaga: 'A',
+    frameworkId: '',
     personalNumber: ''
   });
 
@@ -91,10 +94,14 @@ const PendingSoldiers: React.FC = () => {
       const soldiers: PendingSoldier[] = [];
       
       querySnapshot.forEach((doc) => {
-        soldiers.push({
-          id: doc.id,
-          ...doc.data()
-        } as PendingSoldier);
+        const data = doc.data();
+        // רק חיילים שיש להם userUid (כלומר קושרו למשתמש)
+        if (data.userUid) {
+          soldiers.push({
+            id: doc.id,
+            ...data
+          } as PendingSoldier);
+        }
       });
       
       // מיון לפי תאריך הגשת הטופס
@@ -113,8 +120,23 @@ const PendingSoldiers: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    loadPendingSoldiers();
+    const loadData = async () => {
+      await Promise.all([
+        loadPendingSoldiers(),
+        loadFrameworks()
+      ]);
+    };
+    loadData();
   }, [loadPendingSoldiers]);
+
+  const loadFrameworks = async () => {
+    try {
+      const frameworksData = await getAllFrameworks();
+      setFrameworks(frameworksData);
+    } catch (error) {
+      console.error('שגיאה בטעינת מסגרות:', error);
+    }
+  };
 
   const handleOpenAssignDialog = (soldier: PendingSoldier) => {
     setSelectedSoldier(soldier);
@@ -122,6 +144,7 @@ const PendingSoldiers: React.FC = () => {
       role: UserRole.CHAYAL,
       team: '',
       pelaga: 'A',
+      frameworkId: '',
       personalNumber: soldier.personalNumber || ''
     });
     setAssignDialogOpen(true);
@@ -130,6 +153,18 @@ const PendingSoldiers: React.FC = () => {
   const handleAssignSoldier = async () => {
     if (!selectedSoldier || !user) return;
 
+    // בדיקה שהמסגרת נבחרה
+    if (!assignmentData.frameworkId) {
+      alert('יש לבחור מסגרת לשיבוץ');
+      return;
+    }
+
+    // בדיקה שהמספר האישי מלא
+    if (!assignmentData.personalNumber) {
+      alert('יש למלא מספר אישי');
+      return;
+    }
+
     try {
       // עדכון רשומת החייל
       const soldierRef = doc(db, 'soldiers', selectedSoldier.id);
@@ -137,6 +172,7 @@ const PendingSoldiers: React.FC = () => {
         role: assignmentData.role,
         team: assignmentData.team || null,
         pelaga: assignmentData.pelaga,
+        frameworkId: assignmentData.frameworkId || null,
         status: 'assigned',
         assignedBy: user.uid,
         assignedAt: Timestamp.now(),
@@ -148,14 +184,16 @@ const PendingSoldiers: React.FC = () => {
       if (selectedSoldier.userUid) {
         await assignRole(selectedSoldier.userUid, assignmentData.role, user.uid);
         if (assignmentData.team) {
-          await assignToTeam(selectedSoldier.userUid, assignmentData.team, assignmentData.pelaga);
+          await assignToTeam(selectedSoldier.userUid, assignmentData.team, assignmentData.pelaga, user.uid);
         }
       }
 
       setAssignDialogOpen(false);
+      alert('החייל שובץ בהצלחה!');
       loadPendingSoldiers();
     } catch (error) {
-      alert('שגיאה בשיבוץ החייל: ' + error);
+      console.error('שגיאה בשיבוץ החייל:', error);
+      alert('שגיאה בשיבוץ החייל: ' + (error instanceof Error ? error.message : String(error)));
     }
   };
 
@@ -227,7 +265,7 @@ const PendingSoldiers: React.FC = () => {
       {/* Instructions */}
       <Alert severity="info" sx={{ mb: 3 }}>
         <Typography variant="body2">
-          <strong>הוראות:</strong> חיילים אלו מילאו את טופס ההצטרפות. לאחר בדיקת הפרטים, שבץ אותם לתפקיד וצוות מתאים.
+          <strong>הוראות:</strong> חיילים אלו מילאו את טופס ההצטרפות וקושרו למשתמשים במערכת. לאחר בדיקת הפרטים, שבץ אותם לתפקיד וצוות מתאים.
         </Typography>
       </Alert>
 
@@ -454,6 +492,22 @@ const PendingSoldiers: React.FC = () => {
                 <MenuItem value="A">פלגה א</MenuItem>
                 <MenuItem value="B">פלגה ב</MenuItem>
                 <MenuItem value="C">פלגה ג</MenuItem>
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth>
+              <InputLabel>מסגרת</InputLabel>
+              <Select
+                value={assignmentData.frameworkId}
+                onChange={(e) => setAssignmentData({ ...assignmentData, frameworkId: e.target.value })}
+                label="מסגרת"
+              >
+                <MenuItem value="">בחר מסגרת</MenuItem>
+                {frameworks.map((framework) => (
+                  <MenuItem key={framework.id} value={framework.id}>
+                    {framework.name}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
 
