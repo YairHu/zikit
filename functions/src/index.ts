@@ -74,6 +74,19 @@ export const processGoogleFormSubmission = functions.https.onRequest(async (req,
       return;
     }
 
+    // בדיקה אם כבר קיים משתמש עם האימייל הזה
+    try {
+      const existingUser = await admin.auth().getUserByEmail(formData.email);
+      if (existingUser) {
+        res.status(400).json({ 
+          error: "כתובת האימייל כבר קיימת במערכת. אם אתה כבר נרשמת, אנא התחבר למערכת במקום למלא טופס חדש." 
+        });
+        return;
+      }
+    } catch (error) {
+      // משתמש לא קיים - זה בסדר, נמשיך
+    }
+
     // יצירת רשומת חייל חדש
     const soldierData = {
       email: formData.email,
@@ -92,6 +105,18 @@ export const processGoogleFormSubmission = functions.https.onRequest(async (req,
       motivation: formData.motivation || "",
       expectations: formData.expectations || "",
       additionalInfo: formData.additionalInfo || "",
+      
+      // שדות מערך - וודא שהם תמיד מערכים ריקים
+      qualifications: [],
+      licenses: [],
+      certifications: [],
+      
+      // שדות נוספים
+      profile: "72", // ברירת מחדל
+      presence: "בבסיס", // ברירת מחדל
+      presenceOther: "",
+      family: "",
+      notes: "",
       
       // מטאדטה
       formSubmittedAt: admin.firestore.Timestamp.now(),
@@ -159,9 +184,10 @@ export const createUserFromSoldier = functions.firestore
         return;
       }
 
-      // עדכון רשומת החייל עם UID של המשתמש
+      // עדכון רשומת החייל עם UID של המשתמש ושם
       await snap.ref.update({
         userUid: userRecord.uid,
+        name: soldierData.fullName, // עדכון השדה name
         status: "pending_assignment",
         updatedAt: admin.firestore.Timestamp.now()
       });
@@ -257,9 +283,10 @@ export const createSoldierFromUser = functions.firestore
         const soldierDoc = soldiersQuery.docs[0];
         const soldierData = soldierDoc.data();
         
-        // עדכון רשומת החייל עם UID של המשתמש
+        // עדכון רשומת החייל עם UID של המשתמש ושם
         await soldierDoc.ref.update({
           userUid: userId,
+          name: soldierData.fullName, // עדכון השדה name
           status: "pending_assignment",
           updatedAt: admin.firestore.Timestamp.now()
         });

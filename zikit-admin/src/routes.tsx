@@ -18,10 +18,8 @@ import SoldierProfile from './pages/SoldierProfile';
 import TeamDetails from './pages/TeamDetails';
 import UserManagement from './pages/UserManagement';
 import PersonalProfile from './pages/PersonalProfile';
-import PendingSoldiers from './pages/PendingSoldiers';
 
 import DataSeeder from './pages/DataSeeder';
-import DataCollection from './pages/DataCollection';
 import ActivityDetails from './pages/ActivityDetails';
 import ActivityStatistics from './pages/ActivityStatistics';
 import DutyDetails from './pages/DutyDetails';
@@ -112,8 +110,6 @@ const getMenuItems = (user: any, selectedSoldierId?: string) => {
 
   const adminItems = [
     ...(userPermissions.navigation.frameworkManagement ? [{ text: 'ניהול מבנה פלוגה', icon: <GroupsIcon />, path: '/framework-management' }] : []),
-    ...(userPermissions.navigation.pendingSoldiers ? [{ text: 'קליטת חיילים', icon: <PersonIcon />, path: '/data-collection' }] : []),
-    ...(userPermissions.navigation.pendingSoldiers ? [{ text: 'חיילים לשיבוץ', icon: <AssignmentIcon />, path: '/pending-soldiers' }] : []),
     ...(userPermissions.navigation.userManagement ? [{ text: 'ניהול משתמשים', icon: <SettingsIcon />, path: '/users' }] : []),
     ...(userPermissions.navigation.dataSeeder ? [{ text: 'הכנסת נתונים', icon: <SettingsIcon />, path: '/data-seeder' }] : []),
   ];
@@ -436,17 +432,7 @@ const AppRoutes: React.FC = () => {
               <FrameworkManagement />
             </ProtectedRoute>
           } />
-          <Route path="/pending-soldiers" element={
-            <ProtectedRoute requiredPermission="pendingSoldiers" userRole={user.role as UserRole}>
-              <PendingSoldiers />
-            </ProtectedRoute>
-          } />
 
-          <Route path="/data-collection" element={
-            <ProtectedRoute requiredPermission="pendingSoldiers" userRole={user.role as UserRole}>
-              <DataCollection />
-            </ProtectedRoute>
-          } />
           <Route path="/data-seeder" element={
             <ProtectedRoute requiredPermission="dataSeeder" userRole={user.role as UserRole}>
               <DataSeeder />

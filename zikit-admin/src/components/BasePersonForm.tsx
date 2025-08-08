@@ -63,7 +63,13 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
   useEffect(() => {
     if (person && mode === 'edit') {
       const { id, ...rest } = person;
-      setFormData(rest);
+      // וודא שהמערכים תמיד מאותחלים
+      setFormData({
+        ...rest,
+        qualifications: rest.qualifications || [],
+        licenses: rest.licenses || [],
+        certifications: rest.certifications || []
+      });
     } else {
       setFormData(emptyPerson);
     }
@@ -229,7 +235,7 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
                 fullWidth
                 label="כשירויות (מופרד בפסיקים)"
                 name="qualifications"
-                value={formData.qualifications.join(', ')}
+                value={(formData.qualifications || []).join(', ')}
                 onChange={handleArrayChange}
                 multiline
                 rows={2}
@@ -239,14 +245,14 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
               fullWidth
               label="רישיונות נהיגה (מופרד בפסיקים)"
               name="licenses"
-              value={formData.licenses.join(', ')}
+              value={(formData.licenses || []).join(', ')}
               onChange={handleArrayChange}
             />
             <TextField
               fullWidth
               label="הסמכות (מופרד בפסיקים)"
               name="certifications"
-              value={formData.certifications.join(', ')}
+              value={(formData.certifications || []).join(', ')}
               onChange={handleArrayChange}
             />
             <TextField

@@ -117,45 +117,7 @@ export const removeUserFromSystem = async (uid: string, removerUid: string): Pro
   }
 };
 
-// פונקציה לעדכון שם משתמש מרשומת החייל המקושרת
-export const updateUserDisplayNameFromSoldier = async (uid: string): Promise<void> => {
-  try {
-    // קבלת נתוני המשתמש
-    const user = await getUserById(uid);
-    if (!user) {
-      throw new Error('משתמש לא נמצא');
-    }
 
-    // בדיקה אם יש רשומת חייל מקושרת
-    if (!user.soldierDocId) {
-      throw new Error('אין רשומת חייל מקושרת למשתמש זה');
-    }
-
-    // קבלת נתוני החייל
-    const soldierRef = doc(db, 'soldiers', user.soldierDocId);
-    const soldierDoc = await getDoc(soldierRef);
-    
-    if (!soldierDoc.exists()) {
-      throw new Error('רשומת החייל לא נמצאה');
-    }
-
-    const soldierData = soldierDoc.data();
-    
-    // עדכון השם אם יש שם בטופס
-    if (soldierData.fullName && soldierData.fullName.trim() !== '') {
-      await updateUser(uid, { 
-        displayName: soldierData.fullName,
-        updatedAt: new Date()
-      });
-      console.log(`Updated displayName for user ${uid}: ${soldierData.fullName}`);
-    } else {
-      console.log(`No fullName found in soldier data for user ${uid}`);
-    }
-  } catch (error) {
-    console.error('שגיאה בעדכון שם המשתמש:', error);
-    throw error;
-  }
-};
 
 // שירותי תפקידים והרשאות
 export const assignRole = async (uid: string, role: UserRole, assignerUid: string): Promise<void> => {

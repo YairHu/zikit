@@ -35,12 +35,13 @@ import { UserRole, getRoleDisplayName } from '../models/UserRole';
 import { 
   getAllUsers, 
   assignRole, 
-  assignToTeam,
   canUserAssignRoles,
   canUserRemoveUsers,
-  removeUserFromSystem,
-  updateUserDisplayNameFromSoldier
+  removeUserFromSystem
 } from '../services/userService';
+import { getAllFrameworks } from '../services/frameworkService';
+import { doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -66,8 +67,12 @@ const UserManagement: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedRole, setSelectedRole] = useState<UserRole>(UserRole.CHAYAL);
-  const [selectedTeam, setSelectedTeam] = useState('');
-  const [selectedPelaga, setSelectedPelaga] = useState('');
+  const [frameworks, setFrameworks] = useState<any[]>([]);
+  const [assignmentData, setAssignmentData] = useState({
+    role: UserRole.CHAYAL,
+    frameworkId: '',
+    personalNumber: ''
+  });
 
   const loadUsers = useCallback(async () => {
     try {
@@ -82,8 +87,23 @@ const UserManagement: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    loadUsers();
+    const loadData = async () => {
+      await Promise.all([
+        loadUsers(),
+        loadFrameworks()
+      ]);
+    };
+    loadData();
   }, [loadUsers]);
+
+  const loadFrameworks = async () => {
+    try {
+      const frameworksData = await getAllFrameworks();
+      setFrameworks(frameworksData);
+    } catch (error) {
+      console.error('שגיאה בטעינת מסגרות:', error);
+    }
+  };
 
   const handleAssignRole = async () => {
     if (!selectedUser || !currentUser) return;
@@ -98,14 +118,49 @@ const UserManagement: React.FC = () => {
   };
 
   const handleAssignTeam = async () => {
-    if (!selectedUser) return;
-    
+    if (!selectedUser || !currentUser) return;
+
+    // בדיקה שהמסגרת נבחרה
+    if (!assignmentData.frameworkId) {
+      alert('יש לבחור מסגרת לשיבוץ');
+      return;
+    }
+
+    // בדיקה שהמספר האישי מלא
+    if (!assignmentData.personalNumber) {
+      alert('יש למלא מספר אישי');
+      return;
+    }
+
     try {
-      await assignToTeam(selectedUser.uid, selectedTeam, selectedPelaga);
+      // עדכון רשומת החייל אם יש
+      if (selectedUser.soldierDocId) {
+        const soldierRef = doc(db, 'soldiers', selectedUser.soldierDocId);
+        await updateDoc(soldierRef, {
+          name: selectedUser.displayName, // עדכון השדה name
+          role: assignmentData.role,
+          frameworkId: assignmentData.frameworkId,
+          status: 'assigned',
+          assignedBy: currentUser.uid,
+          assignedAt: Timestamp.now(),
+          personalNumber: assignmentData.personalNumber,
+          // וודא שהמערכים תמיד קיימים
+          qualifications: [],
+          licenses: [],
+          certifications: [],
+          updatedAt: Timestamp.now()
+        });
+      }
+
+      // עדכון רשומת המשתמש
+      await assignRole(selectedUser.uid, assignmentData.role, currentUser.uid);
+
       setTeamDialogOpen(false);
+      alert('המשתמש שובץ בהצלחה!');
       loadUsers();
     } catch (error) {
-      alert('שגיאה בשיבוץ לצוות: ' + error);
+      console.error('שגיאה בשיבוץ המשתמש:', error);
+      alert('שגיאה בשיבוץ המשתמש: ' + (error instanceof Error ? error.message : String(error)));
     }
   };
 
@@ -122,15 +177,7 @@ const UserManagement: React.FC = () => {
     }
   };
 
-  const handleUpdateDisplayName = async (userData: User) => {
-    try {
-      await updateUserDisplayNameFromSoldier(userData.uid);
-      alert('השם עודכן בהצלחה!');
-      loadUsers();
-    } catch (error) {
-      alert('שגיאה בעדכון השם: ' + error);
-    }
-  };
+
 
   const openRoleDialog = (user: User) => {
     setSelectedUser(user);
@@ -140,8 +187,11 @@ const UserManagement: React.FC = () => {
 
   const openTeamDialog = (user: User) => {
     setSelectedUser(user);
-    setSelectedTeam(user.team || '');
-    setSelectedPelaga(user.pelaga || '');
+    setAssignmentData({
+      role: user.role,
+      frameworkId: '',
+      personalNumber: user.personalNumber || ''
+    });
     setTeamDialogOpen(true);
   };
 
@@ -291,46 +341,48 @@ const UserManagement: React.FC = () => {
 
                 <Divider sx={{ my: 2 }} />
 
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <Button
-                    size="small"
-                    startIcon={<SecurityIcon />}
-                    onClick={() => openRoleDialog(userData)}
-                    variant="outlined"
-                  >
-                    שנה תפקיד
-                  </Button>
-                  <Button
-                    size="small"
-                    startIcon={<GroupIcon />}
-                    onClick={() => openTeamDialog(userData)}
-                    variant="outlined"
-                  >
-                    שבץ לצוות
-                  </Button>
-                  {userData.soldierDocId && (
-                    <Button
-                      size="small"
-                      startIcon={<PersonIcon />}
-                      onClick={() => handleUpdateDisplayName(userData)}
-                      variant="outlined"
-                      color="info"
-                    >
-                      עדכן שם
-                    </Button>
-                  )}
-                  {canRemoveUsers && userData.uid !== currentUser?.uid && (
-                    <Button
-                      size="small"
-                      startIcon={<DeleteIcon />}
-                      onClick={() => openDeleteDialog(userData)}
-                      variant="outlined"
-                      color="error"
-                    >
-                      הסר מהמערכת
-                    </Button>
-                  )}
-                </Box>
+                                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                   <Button
+                     size="small"
+                     startIcon={<SecurityIcon />}
+                     onClick={() => openRoleDialog(userData)}
+                     variant="outlined"
+                     disabled={!userData.soldierDocId}
+                     title={!userData.soldierDocId ? "יש למלא טופס לפני שיבוץ תפקיד" : ""}
+                   >
+                     שנה תפקיד
+                   </Button>
+                   <Button
+                     size="small"
+                     startIcon={<GroupIcon />}
+                     onClick={() => openTeamDialog(userData)}
+                     variant="outlined"
+                     disabled={!userData.soldierDocId}
+                     title={!userData.soldierDocId ? "יש למלא טופס לפני שיבוץ למסגרת" : ""}
+                   >
+                     שבץ לצוות
+                   </Button>
+                   {canRemoveUsers && userData.uid !== currentUser?.uid && (
+                     <Button
+                       size="small"
+                       startIcon={<DeleteIcon />}
+                       onClick={() => openDeleteDialog(userData)}
+                       variant="outlined"
+                       color="error"
+                     >
+                       הסר מהמערכת
+                     </Button>
+                   )}
+                 </Box>
+                 
+                 {!userData.soldierDocId && (
+                   <Alert severity="info" sx={{ mt: 2, fontSize: '0.875rem' }}>
+                     <Typography variant="body2">
+                       <strong>הערה:</strong> משתמש זה טרם מילא את טופס ההצטרפות. 
+                       יש למלא את הטופס לפני שניתן יהיה לשבץ תפקיד או מסגרת.
+                     </Typography>
+                   </Alert>
+                 )}
               </CardContent>
             </Card>
           ))}
@@ -435,40 +487,59 @@ const UserManagement: React.FC = () => {
 
       {/* Dialog for Team Assignment */}
       <Dialog open={teamDialogOpen} onClose={() => setTeamDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>שיבוץ לצוות</DialogTitle>
+        <DialogTitle>שיבוץ למסגרת</DialogTitle>
         <DialogContent>
           {selectedUser && (
             <>
               <Typography variant="body1" sx={{ mb: 2 }}>
-                שיבוץ לצוות עבור: <strong>{selectedUser.displayName}</strong>
+                שיבוץ למסגרת עבור: <strong>{selectedUser.displayName}</strong>
               </Typography>
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>פלגה</InputLabel>
-                <Select
-                  value={selectedPelaga}
-                  onChange={(e) => setSelectedPelaga(e.target.value)}
-                  label="פלגה"
-                >
-                  <MenuItem value="A">פלגה א</MenuItem>
-                  <MenuItem value="B">פלגה ב</MenuItem>
-                  <MenuItem value="C">פלגה ג</MenuItem>
-                </Select>
-              </FormControl>
+              
               <TextField
                 fullWidth
-                label="צוות (מספר)"
-                value={selectedTeam}
-                onChange={(e) => setSelectedTeam(e.target.value)}
-                placeholder="10, 20, 30..."
+                label="מספר אישי"
+                value={assignmentData.personalNumber}
+                onChange={(e) => setAssignmentData({ ...assignmentData, personalNumber: e.target.value })}
                 sx={{ mb: 2 }}
               />
+
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel>תפקיד</InputLabel>
+                <Select
+                  value={assignmentData.role}
+                  onChange={(e) => setAssignmentData({ ...assignmentData, role: e.target.value as UserRole })}
+                  label="תפקיד"
+                >
+                  {Object.values(UserRole).map((role) => (
+                    <MenuItem key={role} value={role}>
+                      {getRoleDisplayName(role)}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel>מסגרת</InputLabel>
+                <Select
+                  value={assignmentData.frameworkId}
+                  onChange={(e) => setAssignmentData({ ...assignmentData, frameworkId: e.target.value })}
+                  label="מסגרת"
+                >
+                  <MenuItem value="">בחר מסגרת</MenuItem>
+                  {frameworks.map((framework) => (
+                    <MenuItem key={framework.id} value={framework.id}>
+                      {framework.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </>
           )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setTeamDialogOpen(false)}>ביטול</Button>
           <Button onClick={handleAssignTeam} variant="contained">
-            שבץ לצוות
+            שבץ למסגרת
           </Button>
         </DialogActions>
       </Dialog>
