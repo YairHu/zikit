@@ -223,14 +223,24 @@ const DataCollection: React.FC = () => {
                         <strong>תאריך לידה:</strong> {data.birthDate}
                       </Typography>
                     )}
-                    {data.education && (
+                                         {data.address && (
+                       <Typography variant="body2">
+                         <strong>כתובת:</strong> {data.address}
+                       </Typography>
+                     )}
+                     {data.militaryBackground && (
+                       <Typography variant="body2">
+                         <strong>רקע צבאי:</strong> {data.militaryBackground}
+                       </Typography>
+                     )}
+                     {data.medicalProfile && (
+                       <Typography variant="body2">
+                         <strong>פרופיל רפואי:</strong> {data.medicalProfile}
+                       </Typography>
+                     )}
+                    {data.additionalInfo && (
                       <Typography variant="body2">
-                        <strong>השכלה:</strong> {data.education}
-                      </Typography>
-                    )}
-                    {data.militaryBackground && (
-                      <Typography variant="body2">
-                        <strong>רקע צבאי:</strong> {data.militaryBackground}
+                        <strong>מידע נוסף:</strong> {data.additionalInfo}
                       </Typography>
                     )}
                   </Box>

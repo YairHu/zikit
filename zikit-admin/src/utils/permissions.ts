@@ -113,18 +113,19 @@ export const canViewMission = (user: User, mission: any): boolean => {
   // אם רואה רק נתונים אישיים
   if (permissions.content.viewOwnDataOnly) {
     return mission.assignedTo?.includes(user.uid) || 
-           mission.creatorUid === user.uid ||
-           mission.teamId === user.team;
+           mission.assignedBy === user.uid ||
+           mission.frameworkId === user.team ||
+           mission.team === user.team;
   }
   
   // אם רואה נתוני צוות
   if (permissions.content.viewTeamData) {
-    return mission.teamId === user.team;
+    return mission.frameworkId === user.team || mission.team === user.team;
   }
   
   // אם רואה נתוני פלגה
   if (permissions.content.viewPlagaData) {
-    return mission.pelagaId === user.pelaga;
+    return mission.frameworkId === user.pelaga || mission.team === user.pelaga;
   }
   
   return false;
@@ -174,18 +175,19 @@ export const canViewDuty = (user: User, duty: any): boolean => {
   
   // אם רואה רק נתונים אישיים
   if (permissions.content.viewOwnDataOnly) {
-    return duty.assignedTo?.includes(user.uid) || 
-           duty.teamId === user.team;
+    return duty.participants?.some((p: any) => p.soldierId === user.uid) || 
+           duty.frameworkId === user.team ||
+           duty.team === user.team;
   }
   
   // אם רואה נתוני צוות
   if (permissions.content.viewTeamData) {
-    return duty.teamId === user.team;
+    return duty.frameworkId === user.team || duty.team === user.team;
   }
   
   // אם רואה נתוני פלגה
   if (permissions.content.viewPlagaData) {
-    return duty.pelagaId === user.pelaga;
+    return duty.frameworkId === user.pelaga || duty.team === user.pelaga;
   }
   
   return false;
@@ -204,18 +206,19 @@ export const canViewReferral = (user: User, referral: any): boolean => {
   
   // אם רואה רק נתונים אישיים
   if (permissions.content.viewOwnDataOnly) {
-    return referral.soldierUid === user.uid || 
-           referral.teamId === user.team;
+    return referral.soldierId === user.uid || 
+           referral.frameworkId === user.team ||
+           referral.team === user.team;
   }
   
   // אם רואה נתוני צוות
   if (permissions.content.viewTeamData) {
-    return referral.teamId === user.team;
+    return referral.frameworkId === user.team || referral.team === user.team;
   }
   
   // אם רואה נתוני פלגה
   if (permissions.content.viewPlagaData) {
-    return referral.pelagaId === user.pelaga;
+    return referral.frameworkId === user.pelaga || referral.team === user.pelaga;
   }
   
   return false;

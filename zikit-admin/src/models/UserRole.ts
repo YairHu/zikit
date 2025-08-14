@@ -553,7 +553,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   
   [UserRole.CHAYAL]: {
     navigation: {
-      soldiers: false,
+      soldiers: true, // יכול לראות כוח אדם (רק נתונים רלוונטיים לו)
       teams: true, // רק "צוות" - הצוות שלו
       trips: true,
       missions: true,

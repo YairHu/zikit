@@ -66,6 +66,8 @@ import { getAllTrips, addTrip, updateTrip, deleteTrip, checkAvailability } from 
 import { getAllVehicles, addVehicle, updateVehicle } from '../services/vehicleService';
 import { getAllSoldiers, updateSoldier } from '../services/soldierService';
 import { getAllActivities, updateActivity } from '../services/activityService';
+import { getUserPermissions, UserRole } from '../models/UserRole';
+import { filterByPermissions, canViewTrip } from '../utils/permissions';
 
 const Trips: React.FC = () => {
   const navigate = useNavigate();
@@ -113,7 +115,10 @@ const Trips: React.FC = () => {
         getAllActivities()
       ]);
       
-      setTrips(tripsData);
+      // סינון נסיעות לפי הרשאות המשתמש
+      const filteredTrips = user ? filterByPermissions(user, tripsData, canViewTrip) : tripsData;
+      
+      setTrips(filteredTrips);
       setVehicles(vehiclesData);
       setSoldiers(soldiersData);
       setActivities(activitiesData);
@@ -128,7 +133,7 @@ const Trips: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     loadData();
@@ -663,6 +668,12 @@ const Trips: React.FC = () => {
     }
   };
 
+  // בדיקת הרשאות למשתמש
+  const userPermissions = getUserPermissions(user?.role as UserRole);
+  const canEdit = userPermissions.actions.canEdit;
+  const canDelete = userPermissions.actions.canDelete;
+  const canCreate = userPermissions.actions.canCreate;
+
   const isTripComplete = (trip: Trip) => {
     const missingFields: string[] = [];
     
@@ -726,14 +737,20 @@ const Trips: React.FC = () => {
               size="small"
               sx={{ mb: 1 }}
             />
-            <Box>
-              <IconButton size="small" onClick={() => handleEditTrip(trip)}>
-                <EditIcon />
-              </IconButton>
-              <IconButton size="small" onClick={() => handleDeleteTrip(trip.id)}>
-                <DeleteIcon />
-              </IconButton>
-            </Box>
+            {(canEdit || canDelete) && (
+              <Box>
+                {canEdit && (
+                  <IconButton size="small" onClick={() => handleEditTrip(trip)}>
+                    <EditIcon />
+                  </IconButton>
+                )}
+                {canDelete && (
+                  <IconButton size="small" onClick={() => handleDeleteTrip(trip.id)}>
+                    <DeleteIcon />
+                  </IconButton>
+                )}
+              </Box>
+            )}
           </Box>
         </Box>
         {!isTripComplete(trip).isComplete && (
@@ -794,12 +811,20 @@ const Trips: React.FC = () => {
                 />
               </TableCell>
               <TableCell>
-                <IconButton size="small" onClick={() => handleEditTrip(trip)}>
-                  <EditIcon />
-                </IconButton>
-                <IconButton size="small" onClick={() => handleDeleteTrip(trip.id)}>
-                  <DeleteIcon />
-                </IconButton>
+                {(canEdit || canDelete) && (
+                  <>
+                    {canEdit && (
+                      <IconButton size="small" onClick={() => handleEditTrip(trip)}>
+                        <EditIcon />
+                      </IconButton>
+                    )}
+                    {canDelete && (
+                      <IconButton size="small" onClick={() => handleDeleteTrip(trip.id)}>
+                        <DeleteIcon />
+                      </IconButton>
+                    )}
+                  </>
+                )}
               </TableCell>
             </TableRow>
           ))}
@@ -853,9 +878,11 @@ const Trips: React.FC = () => {
                 טבלה
               </Button>
             </Box>
-            <Fab color="primary" onClick={handleAddTrip}>
-              <AddIcon />
-            </Fab>
+            {canCreate && (
+              <Fab color="primary" onClick={handleAddTrip}>
+                <AddIcon />
+              </Fab>
+            )}
           </Box>
 
           {viewMode === 'cards' ? (

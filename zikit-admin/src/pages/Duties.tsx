@@ -2,9 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useUser } from '../contexts/UserContext';
 import { Duty, DutyParticipant } from '../models/Duty';
 import { Soldier } from '../models/Soldier';
-import { getAllDuties, addDuty, updateDuty, deleteDuty } from '../services/dutyService';
+import { getAllDuties, addDuty, updateDuty, deleteDuty, getDutiesBySoldier } from '../services/dutyService';
 import { getAllSoldiers } from '../services/soldierService';
 import { getAllFrameworks } from '../services/frameworkService';
+import { getUserPermissions, UserRole } from '../models/UserRole';
+import { filterByPermissions, canViewDuty, canEditItem, canDeleteItem } from '../utils/permissions';
 import {
   Container,
   Typography,
@@ -87,11 +89,26 @@ const Duties: React.FC = () => {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [dutiesData, soldiersData, frameworksData] = await Promise.all([
-        getAllDuties(),
+      const [soldiersData, frameworksData] = await Promise.all([
         getAllSoldiers(),
         getAllFrameworks()
       ]);
+
+      // טעינת תורנויות לפי הרשאות המשתמש
+      let dutiesData: Duty[] = [];
+      if (user) {
+        const userPermissions = getUserPermissions(user.role as UserRole);
+        
+        // אם המשתמש הוא חייל - רואה רק את התורנויות שלו
+        if (user.role === UserRole.CHAYAL) {
+          dutiesData = await getDutiesBySoldier(user.uid);
+        } else {
+          // משתמשים אחרים - קבלת כל התורנויות וסינון לפי הרשאות
+          const allDuties = await getAllDuties();
+          dutiesData = filterByPermissions(user, allDuties, canViewDuty);
+        }
+      }
+
       setDuties(dutiesData);
       setSoldiers(soldiersData);
       setFrameworks(frameworksData);
@@ -100,7 +117,7 @@ const Duties: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     refresh();
@@ -232,13 +249,15 @@ const Duties: React.FC = () => {
           >
             תצוגה שבועית
           </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => handleOpenForm()}
-          >
-            הוסף תורנות
-          </Button>
+          {user && getUserPermissions(user.role as UserRole).actions.canCreate && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => handleOpenForm()}
+            >
+              הוסף תורנות
+            </Button>
+          )}
         </Box>
       </Box>
 
@@ -291,31 +310,35 @@ const Duties: React.FC = () => {
                       {duty.team}
                     </Typography>
                   </Box>
-                  <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                     <Chip 
                       label={duty.status} 
                       color={getStatusColor(duty.status) as any}
                       size="small"
                     />
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenForm(duty);
-                      }}
-                    >
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      color="error"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteId(duty.id);
-                      }}
-                    >
-                      <DeleteIcon />
-                    </IconButton>
+                    {user && canEditItem(user, duty, 'duty') && (
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenForm(duty);
+                        }}
+                      >
+                        <EditIcon />
+                      </IconButton>
+                    )}
+                    {user && canDeleteItem(user, duty, 'duty') && (
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteId(duty.id);
+                        }}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    )}
                   </Box>
                 </Box>
 
@@ -432,25 +455,29 @@ const Duties: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <Box sx={{ display: 'flex', gap: 0.5 }}>
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenForm(duty);
-                        }}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteId(duty.id);
-                        }}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
+                      {user && canEditItem(user, duty, 'duty') && (
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenForm(duty);
+                          }}
+                        >
+                          <EditIcon />
+                        </IconButton>
+                      )}
+                      {user && canDeleteItem(user, duty, 'duty') && (
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteId(duty.id);
+                          }}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      )}
                     </Box>
                   </TableCell>
                 </TableRow>

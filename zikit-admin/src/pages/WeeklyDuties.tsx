@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Duty, DutyParticipant } from '../models/Duty';
 import { Soldier } from '../models/Soldier';
-import { getAllDuties, addDuty, updateDuty, deleteDuty } from '../services/dutyService';
+import { getAllDuties, addDuty, updateDuty, deleteDuty, getDutiesBySoldier } from '../services/dutyService';
 import { getAllSoldiers } from '../services/soldierService';
 import { getAllFrameworks } from '../services/frameworkService';
+import { useUser } from '../contexts/UserContext';
+import { getUserPermissions, UserRole } from '../models/UserRole';
+import { filterByPermissions, canViewDuty } from '../utils/permissions';
 import {
   Container,
   Typography,
@@ -70,6 +73,7 @@ interface DutyStatistics {
 
 const WeeklyDuties: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useUser();
   const [duties, setDuties] = useState<Duty[]>([]);
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
   const [frameworks, setFrameworks] = useState<any[]>([]);
@@ -255,11 +259,26 @@ const WeeklyDuties: React.FC = () => {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [dutiesData, soldiersData, frameworksData] = await Promise.all([
-        getAllDuties(),
+      const [soldiersData, frameworksData] = await Promise.all([
         getAllSoldiers(),
         getAllFrameworks()
       ]);
+
+      // טעינת תורנויות לפי הרשאות המשתמש
+      let dutiesData: Duty[] = [];
+      if (user) {
+        const userPermissions = getUserPermissions(user.role as UserRole);
+        
+        // אם המשתמש הוא חייל - רואה רק את התורנויות שלו
+        if (user.role === UserRole.CHAYAL) {
+          dutiesData = await getDutiesBySoldier(user.uid);
+        } else {
+          // משתמשים אחרים - קבלת כל התורנויות וסינון לפי הרשאות
+          const allDuties = await getAllDuties();
+          dutiesData = filterByPermissions(user, allDuties, canViewDuty);
+        }
+      }
+
       setDuties(dutiesData);
       setSoldiers(soldiersData);
       setFrameworks(frameworksData);
@@ -268,7 +287,7 @@ const WeeklyDuties: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     refresh();

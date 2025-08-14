@@ -69,15 +69,20 @@ const Home: React.FC = () => {
         setShowNewUserDialog(true);
       } else {
         // בדיקה אם המשתמש קושר אבל עדיין ממתין לשיבוץ
-        const soldiersQuery = query(
-          collection(db, 'soldiers'),
-          where('userUid', '==', user.uid),
-          where('status', '==', 'pending_assignment')
-        );
-        const soldiersSnapshot = await getDocs(soldiersQuery);
-        if (!soldiersSnapshot.empty) {
-          // המשתמש קושר אבל ממתין לשיבוץ
-          setShowPendingAssignmentDialog(true);
+        try {
+          const soldiersQuery = query(
+            collection(db, 'soldiers'),
+            where('userUid', '==', user.uid),
+            where('status', '==', 'pending_assignment')
+          );
+          const soldiersSnapshot = await getDocs(soldiersQuery);
+          if (!soldiersSnapshot.empty) {
+            // המשתמש קושר אבל ממתין לשיבוץ
+            setShowPendingAssignmentDialog(true);
+          }
+        } catch (error) {
+          console.warn('לא ניתן לבדוק סטטוס שיבוץ:', error);
+          // נמשיך בלי להציג דיאלוג
         }
       }
       
@@ -92,22 +97,80 @@ const Home: React.FC = () => {
       try {
         console.log('מתחיל טעינת סטטיסטיקות...');
         
-        const [allSoldiers, allVehicles, allActivities, allDuties, allMissions, allReferrals] = await Promise.all([
-          getAllSoldiers(),
-          getAllVehicles(),
-          getAllActivities(),
-          getAllDuties(),
-          getAllMissions(),
-          getAllReferrals()
-        ]);
-
-        // סינון נתונים לפי הרשאות המשתמש
+        // קבלת הרשאות המשתמש
         const userPermissions = getUserPermissions(currentUser.role as UserRole);
         
-        // חיילים - לפי הרשאות
+        // טעינת נתונים לפי הרשאות
+        let allSoldiers: any[] = [];
+        let allVehicles: any[] = [];
+        let allActivities: any[] = [];
+        let allDuties: any[] = [];
+        let allMissions: any[] = [];
+        let allReferrals: any[] = [];
+        
+        // טעינת חיילים - רק אם יש הרשאה
+        if (userPermissions.navigation.soldiers) {
+          try {
+            allSoldiers = await getAllSoldiers();
+          } catch (error) {
+            console.warn('לא ניתן לטעון נתוני חיילים:', error);
+            allSoldiers = [];
+          }
+        }
+        
+        // טעינת רכבים - תמיד ננסה (לא רגיש)
+        try {
+          allVehicles = await getAllVehicles();
+        } catch (error) {
+          console.warn('לא ניתן לטעון נתוני רכבים:', error);
+          allVehicles = [];
+        }
+        
+        // טעינת פעילויות - רק אם יש הרשאה
+        if (userPermissions.navigation.activities) {
+          try {
+            allActivities = await getAllActivities();
+          } catch (error) {
+            console.warn('לא ניתן לטעון נתוני פעילויות:', error);
+            allActivities = [];
+          }
+        }
+        
+        // טעינת תורנויות - רק אם יש הרשאה
+        if (userPermissions.navigation.duties) {
+          try {
+            allDuties = await getAllDuties();
+          } catch (error) {
+            console.warn('לא ניתן לטעון נתוני תורנויות:', error);
+            allDuties = [];
+          }
+        }
+        
+        // טעינת משימות - רק אם יש הרשאה
+        if (userPermissions.navigation.missions) {
+          try {
+            allMissions = await getAllMissions();
+          } catch (error) {
+            console.warn('לא ניתן לטעון נתוני משימות:', error);
+            allMissions = [];
+          }
+        }
+        
+        // טעינת הפניות - רק אם יש הרשאה
+        if (userPermissions.navigation.referrals) {
+          try {
+            allReferrals = await getAllReferrals();
+          } catch (error) {
+            console.warn('לא ניתן לטעון נתוני הפניות:', error);
+            allReferrals = [];
+          }
+        }
+        
+        // סינון נתונים לפי הרשאות המשתמש
         let visibleSoldiers = allSoldiers;
         if (userPermissions.content.viewOwnDataOnly) {
-          visibleSoldiers = allSoldiers.filter(s => s.id === currentUser.uid);
+          // חייל רואה רק את עצמו
+          visibleSoldiers = allSoldiers.filter(s => s.id === currentUser.uid || s.personalNumber === currentUser.personalNumber);
         } else if (userPermissions.content.viewTeamData) {
           // נשתמש ב-frameworkId כדי לזהות צוותים
           visibleSoldiers = allSoldiers.filter(s => s.frameworkId === currentUser.team);
@@ -173,6 +236,17 @@ const Home: React.FC = () => {
         });
       } catch (error) {
         console.error('שגיאה בטעינת סטטיסטיקות:', error);
+        // במקרה של שגיאה, נציג נתונים בסיסיים
+        setStats({
+          soldiers: 0,
+          teams: 0,
+          vehicles: 0,
+          drivers: 0,
+          activities: 0,
+          duties: 0,
+          missions: 0,
+          referrals: 0
+        });
       } finally {
         setLoading(false);
       }

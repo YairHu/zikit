@@ -42,15 +42,8 @@ interface SoldierData {
   phone?: string;
   birthDate?: string;
   address?: string;
-  emergencyContact?: string;
-  emergencyPhone?: string;
   medicalProfile?: string;
   militaryBackground?: string;
-  education?: string;
-  languages?: string;
-  hobbies?: string;
-  motivation?: string;
-  expectations?: string;
   additionalInfo?: string;
   formSubmittedAt?: any;
 }
@@ -239,9 +232,49 @@ const PersonalProfile: React.FC = () => {
 
         {/* מידע רגיש - רק למ"פ או למשתמש עצמו */}
         <Box sx={{ mt: 3 }}>
-          <Alert severity="info">
-            פרטים נוספים (רקע משפחתי, מידע רפואי, הערות אישיות) יתווספו בהמשך פיתוח המערכת
-          </Alert>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                <PersonIcon sx={{ mr: 1 }} />
+                פרטים נוספים מטופס הקליטה
+              </Typography>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2 }}>
+                {soldierData?.phone && (
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+                      טלפון:
+                    </Typography>
+                    <Typography>{soldierData.phone}</Typography>
+                  </Box>
+                )}
+                {soldierData?.birthDate && (
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+                      תאריך לידה:
+                    </Typography>
+                    <Typography>{soldierData.birthDate}</Typography>
+                  </Box>
+                )}
+                {soldierData?.address && (
+                  <Box sx={{ gridColumn: { xs: '1', md: '1 / -1' } }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+                      כתובת:
+                    </Typography>
+                    <Typography>{soldierData.address}</Typography>
+                  </Box>
+                )}
+                
+                {soldierData?.additionalInfo && (
+                  <Box sx={{ gridColumn: { xs: '1', md: '1 / -1' } }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+                      מידע נוסף:
+                    </Typography>
+                    <Typography>{soldierData.additionalInfo}</Typography>
+                  </Box>
+                )}
+              </Box>
+            </CardContent>
+          </Card>
         </Box>
       </TabPanel>
 

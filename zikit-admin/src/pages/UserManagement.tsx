@@ -143,11 +143,6 @@ const UserManagement: React.FC = () => {
           status: 'assigned',
           assignedBy: currentUser.uid,
           assignedAt: Timestamp.now(),
-          personalNumber: assignmentData.personalNumber,
-          // וודא שהמערכים תמיד קיימים
-          qualifications: [],
-          licenses: [],
-          certifications: [],
           updatedAt: Timestamp.now()
         });
       }

@@ -66,22 +66,48 @@ export const processGoogleFormSubmission = functions.https.onRequest(async (req,
   try {
     const formData = req.body;
     
+    // לוג מפורט של הנתונים שהתקבלו מהטופס
+    functions.logger.info("=== נתונים שהתקבלו מהטופס ===");
+    functions.logger.info("Raw formData:", JSON.stringify(formData, null, 2));
+    functions.logger.info("Email:", formData.email);
+    functions.logger.info("FullName:", formData.fullName);
+    functions.logger.info("PersonalNumber:", formData.personalNumber);
+    functions.logger.info("Phone:", formData.phone);
+    functions.logger.info("BirthDate:", formData.birthDate);
+    functions.logger.info("Address:", formData.address);
+    functions.logger.info("Family:", formData.family);
+    functions.logger.info("Skills:", formData.skills);
+    functions.logger.info("MedicalProfile:", formData.medicalProfile);
+    functions.logger.info("AdditionalInfo:", formData.additionalInfo);
+    functions.logger.info("=== סוף נתוני הטופס ===");
+    
     // בדיקת נתונים חובה
-    if (!formData.email || !formData.fullName) {
+    if (!formData.email || !formData.fullName || !formData.personalNumber) {
       res.status(400).json({ 
-        error: "נתונים חסרים - דרושים לפחות אימייל ושם מלא" 
+        error: "נתונים חסרים - דרושים לפחות אימייל, שם מלא ומספר אישי" 
       });
       return;
     }
 
-    // בדיקה אם כבר קיים משתמש עם האימייל הזה
+    // בדיקה אם כבר קיים משתמש עם האימייל הזה ויש לו מספר אישי
     try {
       const existingUser = await admin.auth().getUserByEmail(formData.email);
       if (existingUser) {
-        res.status(400).json({ 
-          error: "כתובת האימייל כבר קיימת במערכת. אם אתה כבר נרשמת, אנא התחבר למערכת במקום למלא טופס חדש." 
-        });
-        return;
+        // בדיקה אם יש חייל עם האימייל הזה ויש לו מספר אישי
+        const existingSoldierQuery = await admin.firestore()
+          .collection("soldiers")
+          .where("email", "==", formData.email)
+          .where("personalNumber", "!=", "")
+          .limit(1)
+          .get();
+
+        if (!existingSoldierQuery.empty) {
+          res.status(400).json({ 
+            error: "כתובת האימייל כבר קיימת במערכת עם מספר אישי. אם אתה כבר נרשמת, אנא התחבר למערכת במקום למלא טופס חדש." 
+          });
+          return;
+        }
+        // אם יש משתמש אבל אין לו מספר אישי - זה בסדר, נמשיך
       }
     } catch (error) {
       // משתמש לא קיים - זה בסדר, נמשיך
@@ -91,32 +117,39 @@ export const processGoogleFormSubmission = functions.https.onRequest(async (req,
     const soldierData = {
       email: formData.email,
       fullName: formData.fullName,
+      name: formData.fullName, // הוספת שדה name לתצוגה
       personalNumber: formData.personalNumber || "",
       phone: formData.phone || "",
       birthDate: formData.birthDate || "",
       address: formData.address || "",
-      emergencyContact: formData.emergencyContact || "",
-      emergencyPhone: formData.emergencyPhone || "",
       medicalProfile: formData.medicalProfile || "",
-      militaryBackground: formData.militaryBackground || "",
-      education: formData.education || "",
-      languages: formData.languages || "",
-      hobbies: formData.hobbies || "",
-      motivation: formData.motivation || "",
-      expectations: formData.expectations || "",
       additionalInfo: formData.additionalInfo || "",
       
-      // שדות מערך - וודא שהם תמיד מערכים ריקים
-      qualifications: [],
-      licenses: [],
-      certifications: [],
+      // עיבוד רקע צבאי מהשדה skills
+      qualifications: formData.skills ? 
+        formData.skills.split(',').map((skill: string) => skill.trim()).filter((skill: string) => skill.length > 0) : [],
+      licenses: [], // ריק כברירת מחדל
+      certifications: [], // ריק כברירת מחדל
       
-      // שדות נוספים
-      profile: "72", // ברירת מחדל
+      // שדות נוספים - תואמים למודל BasePerson
+      profile: formData.medicalProfile || "72", // פרופיל רפואי כפרופיל כללי
       presence: "בבסיס", // ברירת מחדל
       presenceOther: "",
-      family: "",
-      notes: "",
+      family: formData.family || "", // משפחה מהטופס
+
+      
+      // מבחן בראור - ריק כברירת מחדל
+      braurTest: {
+        strength: "",
+        running: ""
+      },
+      
+      // ימי חופש - ריקים כברירת מחדל
+      vacationDays: {
+        total: 30,
+        used: 0,
+        status: "good"
+      },
       
       // מטאדטה
       formSubmittedAt: admin.firestore.Timestamp.now(),
@@ -125,7 +158,7 @@ export const processGoogleFormSubmission = functions.https.onRequest(async (req,
       assignedAt: null,
       
       // תפקיד ברירת מחדל
-      role: "chayal",
+      role: "חייל",
       team: null,
       pelaga: null,
       
@@ -135,6 +168,11 @@ export const processGoogleFormSubmission = functions.https.onRequest(async (req,
       updatedAt: admin.firestore.Timestamp.now()
     };
 
+    // לוג של הנתונים שנשמרים בפיירבס
+    functions.logger.info("=== נתונים שנשמרים בפיירבס ===");
+    functions.logger.info("SoldierData to save:", JSON.stringify(soldierData, null, 2));
+    functions.logger.info("=== סוף נתוני השמירה ===");
+    
     // שמירה ב-Firestore
     const docRef = await admin.firestore().collection("soldiers").add(soldierData);
     

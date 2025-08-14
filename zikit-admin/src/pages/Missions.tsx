@@ -12,7 +12,9 @@ import {
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
 import { Mission } from '../models/Mission';
-import { getAllMissions, addMission, updateMission, deleteMission } from '../services/missionService';
+import { getAllMissions, addMission, updateMission, deleteMission, getMissionsBySoldier } from '../services/missionService';
+import { getUserPermissions, UserRole } from '../models/UserRole';
+import { filterByPermissions, canViewMission, canEditItem, canDeleteItem } from '../utils/permissions';
 
 const Missions: React.FC = () => {
   const navigate = useNavigate();
@@ -44,14 +46,29 @@ const Missions: React.FC = () => {
   const loadMissions = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getAllMissions();
+      
+      // טעינת משימות לפי הרשאות המשתמש
+      let data: Mission[] = [];
+      if (user) {
+        const userPermissions = getUserPermissions(user.role as UserRole);
+        
+        // אם המשתמש הוא חייל - רואה רק את המשימות שלו
+        if (user.role === UserRole.CHAYAL) {
+          data = await getMissionsBySoldier(user.uid);
+        } else {
+          // משתמשים אחרים - קבלת כל המשימות וסינון לפי הרשאות
+          const allMissions = await getAllMissions();
+          data = filterByPermissions(user, allMissions, canViewMission);
+        }
+      }
+      
       setMissions(data);
     } catch (error) {
       console.error('שגיאה בטעינת משימות:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     loadMissions();
@@ -167,14 +184,16 @@ const Missions: React.FC = () => {
         <Typography variant="h4" component="h1" fontWeight="bold">
           משימות
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenForm()}
-          sx={{ borderRadius: 2 }}
-        >
-          הוסף משימה
-        </Button>
+        {user && getUserPermissions(user.role as UserRole).actions.canCreate && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenForm()}
+            sx={{ borderRadius: 2 }}
+          >
+            הוסף משימה
+          </Button>
+        )}
       </Box>
 
       {/* Filters */}
@@ -222,20 +241,24 @@ const Missions: React.FC = () => {
                     {mission.name}
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 1 }}>
-                    <IconButton
-                      size="small"
-                      color="primary"
-                      onClick={() => handleOpenForm(mission)}
-                    >
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      color="error"
-                      onClick={() => setDeleteId(mission.id)}
-                    >
-                      <DeleteIcon />
-                    </IconButton>
+                    {user && canEditItem(user, mission, 'mission') && (
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => handleOpenForm(mission)}
+                      >
+                        <EditIcon />
+                      </IconButton>
+                    )}
+                    {user && canDeleteItem(user, mission, 'mission') && (
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => setDeleteId(mission.id)}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    )}
                   </Box>
                 </Box>
 
@@ -305,20 +328,24 @@ const Missions: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <Box sx={{ display: 'flex', gap: 1 }}>
-                      <IconButton
-                        size="small"
-                        color="primary"
-                        onClick={() => handleOpenForm(mission)}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => setDeleteId(mission.id)}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
+                      {user && canEditItem(user, mission, 'mission') && (
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={() => handleOpenForm(mission)}
+                        >
+                          <EditIcon />
+                        </IconButton>
+                      )}
+                      {user && canDeleteItem(user, mission, 'mission') && (
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => setDeleteId(mission.id)}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      )}
                     </Box>
                   </TableCell>
                 </TableRow>

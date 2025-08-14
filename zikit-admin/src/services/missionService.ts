@@ -1,6 +1,6 @@
 import { Mission } from '../models/Mission';
 import { db } from '../firebase';
-import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
 
 const missionsCollection = collection(db, 'missions');
 
@@ -32,4 +32,40 @@ export const updateMission = async (id: string, updates: Partial<Mission>): Prom
 
 export const deleteMission = async (id: string): Promise<void> => {
   await deleteDoc(doc(missionsCollection, id));
+};
+
+export const getMissionsBySoldier = async (soldierId: string): Promise<Mission[]> => {
+  try {
+    // קבל את כל המשימות וסנן בצד הלקוח
+    const querySnapshot = await getDocs(missionsCollection);
+    const allMissions = querySnapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() } as Mission))
+      .filter(mission => 
+        mission.assignedTo?.includes(soldierId)
+      )
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+    
+    return allMissions;
+  } catch (error) {
+    console.error('Error getting missions by soldier:', error);
+    return [];
+  }
+};
+
+export const getMissionsByFramework = async (frameworkId: string): Promise<Mission[]> => {
+  try {
+    // קבל את כל המשימות וסנן בצד הלקוח
+    const querySnapshot = await getDocs(missionsCollection);
+    const allMissions = querySnapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() } as Mission))
+      .filter(mission => 
+        mission.frameworkId === frameworkId || mission.team === frameworkId
+      )
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+    
+    return allMissions;
+  } catch (error) {
+    console.error('Error getting missions by framework:', error);
+    return [];
+  }
 }; 

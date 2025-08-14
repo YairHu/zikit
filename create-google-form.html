@@ -121,50 +121,23 @@
         <h3>פרטים נוספים</h3>
         <div class="field"><strong>5. תאריך לידה</strong> - סוג: Date</div>
         <div class="field"><strong>6. כתובת מגורים</strong> - סוג: Text - Short answer</div>
-        <div class="field"><strong>7. איש קשר לחירום</strong> - סוג: Text - Short answer</div>
-        <div class="field"><strong>8. טלפון חירום</strong> - סוג: Text - Short answer</div>
+        <div class="field"><strong>7. משפחה</strong> - סוג: Text - Short answer</div>
 
         <h3>רקע ומיומנויות</h3>
         <div class="field">
-            <strong>9. השכלה</strong><br>
-            סוג: Multiple choice<br>
-            אפשרויות: תיכון, תעודת הנדסאי, תואר ראשון, תואר שני, אחר
+            <strong>8. כשירויות</strong><br>
+            סוג: Text - Short answer<br>
+            תיאור: "ציין כשירויות צבאיות (לדוגמה: מאג, קשר, נהג)"
         </div>
 
         <div class="field">
-            <strong>10. שפות</strong><br>
-            סוג: Checkboxes<br>
-            אפשרויות: עברית, אנגלית, ערבית, רוסית, צרפתית, אחר
-        </div>
-
-        <div class="field">
-            <strong>11. רקע צבאי</strong><br>
-            סוג: Text - Paragraph<br>
-            תיאור: "ציין יחידות קודמות, קורסים, הסמכות"
-        </div>
-
-        <div class="field">
-            <strong>12. פרופיל רפואי</strong><br>
+            <strong>9. פרופיל רפואי</strong><br>
             סוג: Multiple choice<br>
             אפשרויות: 97, 82, 72, 64, 45, 21, אחר
         </div>
 
-        <h3>מוטיבציה והתאמה</h3>
         <div class="field">
-            <strong>13. מוטיבציה לשירות</strong><br>
-            סוג: Text - Paragraph<br>
-            תיאור: "מדוע אתה רוצה לשרת ביחידה?"
-        </div>
-
-        <div class="field">
-            <strong>14. ציפיות מהשירות</strong><br>
-            סוג: Text - Paragraph<br>
-            תיאור: "מה אתה מצפה ללמוד ולחוות?"
-        </div>
-
-        <div class="field"><strong>15. תחומי עניין/תחביבים</strong> - סוג: Text - Short answer</div>
-        <div class="field">
-            <strong>16. מידע נוסף</strong><br>
+            <strong>10. מידע נוסף</strong><br>
             סוג: Text - Paragraph<br>
             תיאור: "כל מידע נוסף שחשוב לך לשתף"
         </div>
@@ -196,16 +169,10 @@
     phone: e.values[4], // טלפון
     birthDate: e.values[5], // תאריך לידה
     address: e.values[6], // כתובת
-    emergencyContact: e.values[7], // איש קשר חירום
-    emergencyPhone: e.values[8], // טלפון חירום
-    education: e.values[9], // השכלה
-    languages: e.values[10], // שפות
-    militaryBackground: e.values[11], // רקע צבאי
-    medicalProfile: e.values[12], // פרופיל רפואי
-    motivation: e.values[13], // מוטיבציה
-    expectations: e.values[14], // ציפיות
-    hobbies: e.values[15], // תחביבים
-    additionalInfo: e.values[16] // מידע נוסף
+    family: e.values[7], // משפחה
+    skills: e.values[8], // רקע צבאי
+    medicalProfile: e.values[9], // פרופיל רפואי
+    additionalInfo: e.values[10] // מידע נוסף
   };
 
   // שליחה למערכת

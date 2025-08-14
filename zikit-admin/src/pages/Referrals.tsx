@@ -14,8 +14,10 @@ import {
 import { useUser } from '../contexts/UserContext';
 import { Referral } from '../models/Referral';
 import { Soldier } from '../models/Soldier';
-import { getAllReferrals, addReferral, updateReferral, deleteReferral } from '../services/referralService';
+import { getAllReferrals, addReferral, updateReferral, deleteReferral, getReferralsBySoldier } from '../services/referralService';
 import { getAllSoldiers } from '../services/soldierService';
+import { getUserPermissions, UserRole } from '../models/UserRole';
+import { filterByPermissions, canViewReferral, canEditItem, canDeleteItem } from '../utils/permissions';
 
 const Referrals: React.FC = () => {
   const navigate = useNavigate();
@@ -52,10 +54,25 @@ const Referrals: React.FC = () => {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [referralsData, soldiersData] = await Promise.all([
-        getAllReferrals(),
+      const [soldiersData] = await Promise.all([
         getAllSoldiers()
       ]);
+
+      // טעינת הפניות לפי הרשאות המשתמש
+      let referralsData: Referral[] = [];
+      if (user) {
+        const userPermissions = getUserPermissions(user.role as UserRole);
+        
+        // אם המשתמש הוא חייל - רואה רק את ההפניות שלו
+        if (user.role === UserRole.CHAYAL) {
+          referralsData = await getReferralsBySoldier(user.uid);
+        } else {
+          // משתמשים אחרים - קבלת כל ההפניות וסינון לפי הרשאות
+          const allReferrals = await getAllReferrals();
+          referralsData = filterByPermissions(user, allReferrals, canViewReferral);
+        }
+      }
+
       setReferrals(referralsData);
       setSoldiers(soldiersData);
     } catch (error) {
@@ -63,7 +80,7 @@ const Referrals: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     loadData();
@@ -211,7 +228,7 @@ const Referrals: React.FC = () => {
             ניהול הפניות של חיילים
           </Typography>
         </Box>
-        {user && (user.role === 'mefaked_tzevet' || user.role === 'mefaked_pluga' || user.role === 'admin') && (
+        {user && getUserPermissions(user.role as UserRole).actions.canCreate && (
           <Fab
             color="primary"
             onClick={() => handleOpenForm()}
@@ -311,28 +328,28 @@ const Referrals: React.FC = () => {
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2, gap: 1 }}>
-                  {user && (user.role === 'mefaked_tzevet' || user.role === 'mefaked_pluga' || user.role === 'admin') && (
-                    <>
-                      <IconButton 
-                        size="small" 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenForm(referral);
-                        }}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton 
-                        size="small" 
-                        color="error"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteId(referral.id);
-                        }}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </>
+                  {user && canEditItem(user, referral, 'referral') && (
+                    <IconButton 
+                      size="small" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenForm(referral);
+                      }}
+                    >
+                      <EditIcon />
+                    </IconButton>
+                  )}
+                  {user && canDeleteItem(user, referral, 'referral') && (
+                    <IconButton 
+                      size="small" 
+                      color="error"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteId(referral.id);
+                      }}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
                   )}
                 </Box>
               </CardContent>
@@ -382,28 +399,32 @@ const Referrals: React.FC = () => {
                       size="small"
                     />
                   </TableCell>
-                  {user && (user.role === 'mefaked_tzevet' || user.role === 'mefaked_pluga' || user.role === 'admin') && (
+                  {user && (canEditItem(user, referral, 'referral') || canDeleteItem(user, referral, 'referral')) && (
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
-                        <IconButton 
-                          size="small" 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenForm(referral);
-                          }}
-                        >
-                          <EditIcon />
-                        </IconButton>
-                        <IconButton 
-                          size="small" 
-                          color="error"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteId(referral.id);
-                          }}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
+                        {user && canEditItem(user, referral, 'referral') && (
+                          <IconButton 
+                            size="small" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenForm(referral);
+                            }}
+                          >
+                            <EditIcon />
+                          </IconButton>
+                        )}
+                        {user && canDeleteItem(user, referral, 'referral') && (
+                          <IconButton 
+                            size="small" 
+                            color="error"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteId(referral.id);
+                            }}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        )}
                       </Box>
                     </TableCell>
                   )}

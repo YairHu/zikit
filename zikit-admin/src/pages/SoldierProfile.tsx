@@ -298,6 +298,48 @@ const SoldierProfile: React.FC = () => {
                       }}
                     />
                   </Box>
+                  {soldier.phone && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" color="text.secondary">טלפון:</Typography>
+                      <Typography variant="body2" fontWeight="bold">{soldier.phone}</Typography>
+                    </Box>
+                  )}
+                  {soldier.birthDate && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" color="text.secondary">תאריך לידה:</Typography>
+                      <Typography variant="body2" fontWeight="bold">{soldier.birthDate}</Typography>
+                    </Box>
+                  )}
+                  {soldier.address && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" color="text.secondary">כתובת:</Typography>
+                      <Typography variant="body2" fontWeight="bold">{soldier.address}</Typography>
+                    </Box>
+                  )}
+                  {soldier.family && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" color="text.secondary">משפחה:</Typography>
+                      <Typography variant="body2" fontWeight="bold">{soldier.family}</Typography>
+                    </Box>
+                  )}
+                  {soldier.medicalProfile && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" color="text.secondary">פרופיל רפואי:</Typography>
+                      <Typography variant="body2" fontWeight="bold">{soldier.medicalProfile}</Typography>
+                    </Box>
+                  )}
+                  {soldier.notes && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" color="text.secondary">הערות:</Typography>
+                      <Typography variant="body2" fontWeight="bold">{soldier.notes}</Typography>
+                    </Box>
+                  )}
+                  {soldier.additionalInfo && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" color="text.secondary">מידע נוסף:</Typography>
+                      <Typography variant="body2" fontWeight="bold">{soldier.additionalInfo}</Typography>
+                    </Box>
+                  )}
                 </Box>
               </Box>
 
@@ -482,79 +524,9 @@ const SoldierProfile: React.FC = () => {
           </Card>
         </Box>
 
-        {/* Additional Info & Activities */}
+        {/* Activities */}
         <Box sx={{ flex: 1 }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {/* Additional Info */}
-            <Card>
-              <CardContent>
-                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-                  <PersonIcon sx={{ mr: 1, fontSize: 20 }} />
-                  מידע נוסף
-                </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                  {soldier.family && (
-                    <Box sx={{ flex: '1 1 300px' }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                        <FamilyIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                        <Typography variant="body2" color="text.secondary">משפחה:</Typography>
-                      </Box>
-                      <Typography variant="body1">{soldier.family}</Typography>
-                    </Box>
-                  )}
-                  {soldier.militaryBackground && (
-                    <Box sx={{ flex: '1 1 300px' }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                        <SecurityIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                        <Typography variant="body2" color="text.secondary">רקע צבאי:</Typography>
-                      </Box>
-                      <Typography variant="body1">{soldier.militaryBackground}</Typography>
-                    </Box>
-                  )}
-                  {soldier.medicalProfile && (
-                    <Box sx={{ flex: '1 1 300px' }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                        <MedicalIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                        <Typography variant="body2" color="text.secondary">פרופיל רפואי:</Typography>
-                      </Box>
-                      <Typography variant="body1">{soldier.medicalProfile}</Typography>
-                    </Box>
-                  )}
-                  {soldier.notes && (
-                    <Box sx={{ flex: '1 1 100%' }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                        <DescriptionIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                        <Typography variant="body2" color="text.secondary">הערות:</Typography>
-                      </Box>
-                      <Typography variant="body1">{soldier.notes}</Typography>
-                    </Box>
-                  )}
-                  {soldier.documents && soldier.documents.length > 0 && (
-                    <Box sx={{ flex: '1 1 100%' }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                        <DocumentIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                        <Typography variant="body2" color="text.secondary">מסמכים:</Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                        {soldier.documents.map((url, i) => (
-                          <Button
-                            key={i}
-                            variant="outlined"
-                            size="small"
-                            startIcon={<DocumentIcon />}
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            קובץ {i+1}
-                          </Button>
-                        ))}
-                      </Box>
-                    </Box>
-                  )}
-                </Box>
-              </CardContent>
-            </Card>
 
             {/* Activities */}
             {activities.length > 0 && (

@@ -20,6 +20,15 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
     militaryBackground: 'שירות קרבי 8 שנים',
     notes: 'מפקד מנוסה עם ניסיון בפיקוד על פלוגות',
     medicalProfile: 'A1',
+    
+         // שדות מטופס הקליטה
+     email: 'commander@example.com',
+     fullName: 'מפקד פלוגה',
+     phone: '050-1234567',
+     birthDate: '15/03/1985',
+     address: 'רחוב הראשי 123, תל אביב',
+     additionalInfo: 'מפקד מנוסה עם יכולות פיקודיות מצוינות',
+    
     braurTest: {
       strength: 'passed',
       running: '12:45'
@@ -43,6 +52,15 @@ export const demoSoldiers: Omit<Soldier, 'id'>[] = [
     militaryBackground: 'שירות קרבי 8 שנים',
     notes: 'מפקד מנוסה עם ניסיון בפיקוד על פלוגות',
     medicalProfile: 'A1',
+    
+         // שדות מטופס הקליטה
+     email: 'pluga1@example.com',
+     fullName: 'מפקד פלגה א',
+     phone: '050-2345678',
+     birthDate: '22/07/1987',
+     address: 'רחוב השלום 45, ירושלים',
+     additionalInfo: 'מפקד פלגה א מנוסה',
+    
     braurTest: {
       strength: 'passed',
       running: '12:45'

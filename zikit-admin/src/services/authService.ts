@@ -178,10 +178,10 @@ export const updateUserPermissions = async (
   permissions: { canAssignRoles?: boolean; canViewSensitiveData?: boolean }
 ): Promise<void> => {
   const userRef = doc(db, 'users', uid);
-  await setDoc(userRef, {
+  await updateDoc(userRef, {
     ...permissions,
     updatedAt: new Date()
-  }, { merge: true });
+  });
 };
 
 // פונקציה להאזנה לשינויי אימות

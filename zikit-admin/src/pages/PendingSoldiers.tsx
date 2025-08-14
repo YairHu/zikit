@@ -39,7 +39,7 @@ import { useUser } from '../contexts/UserContext';
 import { UserRole, getRoleDisplayName } from '../models/UserRole';
 import { assignRole, assignToTeam } from '../services/userService';
 import { getAllFrameworks } from '../services/frameworkService';
-import { collection, query, where, getDocs, doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, getDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
 interface PendingSoldier {
@@ -50,15 +50,8 @@ interface PendingSoldier {
   phone: string;
   birthDate: string;
   address: string;
-  emergencyContact: string;
-  emergencyPhone: string;
   medicalProfile: string;
   militaryBackground: string;
-  education: string;
-  languages: string;
-  hobbies: string;
-  motivation: string;
-  expectations: string;
   additionalInfo: string;
   formSubmittedAt: any;
   status: string;
@@ -166,9 +159,14 @@ const PendingSoldiers: React.FC = () => {
     }
 
     try {
-      // עדכון רשומת החייל
+      // לוג לפני העדכון
+      console.log('=== לפני שיבוץ לצוות ===');
+      console.log('SelectedSoldier data:', selectedSoldier);
+      console.log('AssignmentData:', assignmentData);
+      
+      // עדכון רשומת החייל - רק השדות הרלוונטיים לשיבוץ
       const soldierRef = doc(db, 'soldiers', selectedSoldier.id);
-      await updateDoc(soldierRef, {
+      const updateData = {
         role: assignmentData.role,
         team: assignmentData.team || null,
         pelaga: assignmentData.pelaga,
@@ -176,9 +174,16 @@ const PendingSoldiers: React.FC = () => {
         status: 'assigned',
         assignedBy: user.uid,
         assignedAt: Timestamp.now(),
-        personalNumber: assignmentData.personalNumber,
         updatedAt: Timestamp.now()
-      });
+      };
+      
+      console.log('Update data:', updateData);
+      await updateDoc(soldierRef, updateData);
+      
+      // לוג אחרי העדכון
+      console.log('=== אחרי שיבוץ לצוות ===');
+      const updatedDoc = await getDoc(soldierRef);
+      console.log('Updated soldier data:', updatedDoc.data());
 
       // אם יש משתמש מקושר - עדכן גם אותו
       if (selectedSoldier.userUid) {
@@ -372,16 +377,7 @@ const PendingSoldiers: React.FC = () => {
                           <strong>כתובת:</strong> {soldier.address}
                         </Typography>
                       )}
-                      {soldier.emergencyContact && (
-                        <Typography variant="body2" sx={{ mb: 0.5 }}>
-                          <strong>איש קשר חירום:</strong> {soldier.emergencyContact}
-                        </Typography>
-                      )}
-                      {soldier.emergencyPhone && (
-                        <Typography variant="body2" sx={{ mb: 0.5 }}>
-                          <strong>טלפון חירום:</strong> {soldier.emergencyPhone}
-                        </Typography>
-                      )}
+
                     </Box>
 
                     {/* Background */}
@@ -389,16 +385,7 @@ const PendingSoldiers: React.FC = () => {
                       <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
                         רקע ומיומנויות
                       </Typography>
-                      {soldier.education && (
-                        <Typography variant="body2" sx={{ mb: 0.5 }}>
-                          <strong>השכלה:</strong> {soldier.education}
-                        </Typography>
-                      )}
-                      {soldier.languages && (
-                        <Typography variant="body2" sx={{ mb: 0.5 }}>
-                          <strong>שפות:</strong> {soldier.languages}
-                        </Typography>
-                      )}
+
                       {soldier.militaryBackground && (
                         <Typography variant="body2" sx={{ mb: 0.5 }}>
                           <strong>רקע צבאי:</strong> {soldier.militaryBackground}
@@ -413,21 +400,11 @@ const PendingSoldiers: React.FC = () => {
                   </Box>
 
                   {/* Additional Info */}
-                  {(soldier.motivation || soldier.expectations || soldier.additionalInfo) && (
+                  {soldier.additionalInfo && (
                     <Box sx={{ mt: 2 }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
                         מידע נוסף
                       </Typography>
-                      {soldier.motivation && (
-                        <Typography variant="body2" sx={{ mb: 1 }}>
-                          <strong>מוטיבציה:</strong> {soldier.motivation}
-                        </Typography>
-                      )}
-                      {soldier.expectations && (
-                        <Typography variant="body2" sx={{ mb: 1 }}>
-                          <strong>ציפיות:</strong> {soldier.expectations}
-                        </Typography>
-                      )}
                       {soldier.additionalInfo && (
                         <Typography variant="body2" sx={{ mb: 1 }}>
                           <strong>מידע נוסף:</strong> {soldier.additionalInfo}

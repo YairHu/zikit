@@ -15,6 +15,15 @@ export interface BasePerson {
   militaryBackground?: string;
   notes?: string;
   medicalProfile?: string;
+  
+  // שדות מטופס הקליטה
+  email?: string;
+  fullName?: string;
+  phone?: string;
+  birthDate?: string;
+  address?: string;
+  additionalInfo?: string;
+  
   braurTest?: {
     strength: 'passed' | 'failed';
     running: string;

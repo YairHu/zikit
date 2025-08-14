@@ -9,15 +9,8 @@ export interface PendingData {
   phone: string;
   birthDate: string;
   address: string;
-  emergencyContact: string;
-  emergencyPhone: string;
   medicalProfile: string;
   militaryBackground: string;
-  education: string;
-  languages: string;
-  hobbies: string;
-  motivation: string;
-  expectations: string;
   additionalInfo: string;
   formSubmittedAt: any;
   status: string;

@@ -35,9 +35,16 @@ const emptyPerson: Omit<BasePerson, 'id'> = {
   presence: 'בבסיס',
   presenceOther: '',
   family: '',
-  militaryBackground: '',
-  notes: '',
   medicalProfile: '',
+  
+  // שדות מטופס הקליטה
+  email: '',
+  fullName: '',
+  phone: '',
+  birthDate: '',
+  address: '',
+  additionalInfo: '',
+  
   braurTest: {
     strength: 'passed',
     running: ''
@@ -243,48 +250,51 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
             </Box>
             <TextField
               fullWidth
-              label="רישיונות נהיגה (מופרד בפסיקים)"
-              name="licenses"
-              value={(formData.licenses || []).join(', ')}
-              onChange={handleArrayChange}
-            />
-            <TextField
-              fullWidth
-              label="הסמכות (מופרד בפסיקים)"
-              name="certifications"
-              value={(formData.certifications || []).join(', ')}
-              onChange={handleArrayChange}
-            />
-            <TextField
-              fullWidth
               label="משפחה"
               name="family"
               value={formData.family || ''}
               onChange={handleChange}
             />
-            <TextField
-              fullWidth
-              label="רקע צבאי"
-              name="militaryBackground"
-              value={formData.militaryBackground || ''}
-              onChange={handleChange}
-            />
-            <TextField
-              fullWidth
-              label="הערות"
-              name="notes"
-              value={formData.notes || ''}
-              onChange={handleChange}
-              multiline
-              rows={2}
-            />
-            <TextField
-              fullWidth
-              label="פרופיל רפואי"
-              name="medicalProfile"
-              value={formData.medicalProfile || ''}
-              onChange={handleChange}
-            />
+                         <TextField
+               fullWidth
+               label="פרופיל רפואי"
+               name="medicalProfile"
+               value={formData.medicalProfile || ''}
+               onChange={handleChange}
+             />
+             <TextField
+               fullWidth
+               label="טלפון"
+               name="phone"
+               value={formData.phone || ''}
+               onChange={handleChange}
+             />
+             <TextField
+               fullWidth
+               label="תאריך לידה"
+               name="birthDate"
+               value={formData.birthDate || ''}
+               onChange={handleChange}
+               helperText="פורמט: DD/MM/YYYY"
+             />
+             <TextField
+               fullWidth
+               label="כתובת"
+               name="address"
+               value={formData.address || ''}
+               onChange={handleChange}
+               multiline
+               rows={2}
+             />
+             <TextField
+               fullWidth
+               label="מידע נוסף"
+               name="additionalInfo"
+               value={formData.additionalInfo || ''}
+               onChange={handleChange}
+               multiline
+               rows={3}
+             />
             <TextField
               fullWidth
               label="ציון מבחן בראור - כח"

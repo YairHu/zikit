@@ -10,6 +10,8 @@ import { getAllSoldiers, updateSoldier } from '../services/soldierService';
 import { getAllVehicles } from '../services/vehicleService';
 import { getAllTrips, updateTrip } from '../services/tripService';
 import { getAllFrameworks } from '../services/frameworkService';
+import { getUserPermissions, UserRole } from '../models/UserRole';
+import { filterByPermissions, canViewActivity } from '../utils/permissions';
 
 import {
   Container,
@@ -121,7 +123,12 @@ const Activities: React.FC = () => {
         getAllTrips(),
         getAllFrameworks()
       ]);
-      setActivities(activitiesData);
+      
+      // סינון פעילויות לפי הרשאות המשתמש
+      const userPermissions = getUserPermissions(user?.role as UserRole);
+      const filteredActivities = user ? filterByPermissions(user, activitiesData, canViewActivity) : activitiesData;
+      
+      setActivities(filteredActivities);
       setSoldiers(soldiersData);
       setVehicles(vehiclesData);
       setTrips(tripsData);
@@ -131,7 +138,7 @@ const Activities: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     refresh();
@@ -645,6 +652,12 @@ const Activities: React.FC = () => {
     return mobility;
   };
 
+  // בדיקת הרשאות למשתמש
+  const userPermissions = getUserPermissions(user?.role as UserRole);
+  const canEdit = userPermissions.actions.canEdit;
+  const canDelete = userPermissions.actions.canDelete;
+  const canCreate = userPermissions.actions.canCreate;
+
   const isActivityComplete = (activity: Activity) => {
     const missingFields: string[] = [];
     
@@ -726,17 +739,19 @@ const Activities: React.FC = () => {
         }}>
           פעילויות מבצעיות
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenForm()}
-          sx={{ 
-            borderRadius: 2,
-            fontSize: { xs: '0.875rem', sm: '1rem' }
-          }}
-        >
-          הוסף פעילות
-        </Button>
+        {canCreate && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenForm()}
+            sx={{ 
+              borderRadius: 2,
+              fontSize: { xs: '0.875rem', sm: '1rem' }
+            }}
+          >
+            הוסף פעילות
+          </Button>
+        )}
       </Box>
 
       {/* Filters and View Mode */}
@@ -834,30 +849,36 @@ const Activities: React.FC = () => {
                   }}>
                     {activity.name}
                   </Typography>
-                  <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 1 } }}>
-                    <IconButton
-                      size="small"
-                      color="primary"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenForm(activity);
-                      }}
-                      sx={{ padding: { xs: 0.5, sm: 1 } }}
-                    >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      color="error"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteId(activity.id);
-                      }}
-                      sx={{ padding: { xs: 0.5, sm: 1 } }}
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </Box>
+                  {(canEdit || canDelete) && (
+                    <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 1 } }}>
+                      {canEdit && (
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenForm(activity);
+                          }}
+                          sx={{ padding: { xs: 0.5, sm: 1 } }}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                      {canDelete && (
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteId(activity.id);
+                          }}
+                          sx={{ padding: { xs: 0.5, sm: 1 } }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                    </Box>
+                  )}
                 </Box>
 
                 <Box sx={{ mb: 2 }}>
@@ -1137,30 +1158,36 @@ const Activities: React.FC = () => {
                     />
                   </TableCell>
                   <TableCell>
-                                      <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 1 } }}>
-                    <IconButton
-                      size="small"
-                      color="primary"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenForm(activity);
-                      }}
-                      sx={{ padding: { xs: 0.5, sm: 1 } }}
-                    >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      color="error"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                          setDeleteId(activity.id);
-                        }}
-                      sx={{ padding: { xs: 0.5, sm: 1 } }}
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                    </Box>
+                    {(canEdit || canDelete) && (
+                      <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 1 } }}>
+                        {canEdit && (
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenForm(activity);
+                            }}
+                            sx={{ padding: { xs: 0.5, sm: 1 } }}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        )}
+                        {canDelete && (
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteId(activity.id);
+                            }}
+                            sx={{ padding: { xs: 0.5, sm: 1 } }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        )}
+                      </Box>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
