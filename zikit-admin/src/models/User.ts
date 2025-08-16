@@ -1,4 +1,5 @@
 import { UserRole } from './UserRole';
+import { PermissionPolicy } from './PermissionPolicy';
 
 export interface User {
   uid: string;
@@ -12,6 +13,7 @@ export interface User {
   
   // מבנה ארגוני
   team?: string; // צוות (למפקד צוות/חייל) - "10", "20", "30" וכו'
+  frameworkId?: string; // מזהה המסגרת שאליה שייך המשתמש
   pelaga?: string; // פלגה (A, B, C וכו') 
   unit?: string; // יחידה/חטיבה
   
@@ -19,10 +21,14 @@ export interface User {
   commanderUid?: string; // UID של הממונה הישיר
   subordinatesUids?: string[]; // רשימת UIDs של הכפופים
   
-  // הרשאות מיוחדות
+  // הרשאות מיוחדות (לשמירה על תאימות לאחור)
   canAssignRoles?: boolean; // האם יכול לשבץ תפקידים (מ"פ, סמ"פ, אדמין)
   canViewSensitiveData?: boolean; // האם יכול לראות מידע רגיש (מ"פ, סמ"פ)
   canRemoveUsers?: boolean; // האם יכול להסיר משתמשים מהמערכת (אדמין, מ"פ)
+  
+  // מערכת ההרשאות החדשה
+  permissionPolicies?: string[]; // רשימת מזההי מדיניויות הרשאות
+  customPermissions?: PermissionPolicy[]; // מדיניויות הרשאות מותאמות אישית
   
   // קישור לרשומת החייל
   soldierDocId?: string;

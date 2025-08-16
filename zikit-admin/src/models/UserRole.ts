@@ -68,7 +68,7 @@ export interface RolePermissions {
     forms: boolean; // טפסים
     hamal: boolean; // מסך חמ"ל
     frameworkManagement: boolean; // ניהול מבנה פלוגה
-    pendingSoldiers: boolean; // חיילים ממתינים
+
     soldierLinking: boolean; // קישור חיילים
     userManagement: boolean; // ניהול משתמשים
     dataSeeder: boolean; // הכנסת נתונים
@@ -89,7 +89,7 @@ export interface RolePermissions {
     canCreate: boolean; // יכול ליצור
     canAssignRoles: boolean; // יכול לשבץ תפקידים
     canViewSensitiveData: boolean; // יכול לראות מידע רגיש
-    canChangeViewMode: boolean; // יכול לשנות נקודת מבט
+
     canRemoveUsers: boolean; // יכול להסיר משתמשים מהמערכת
   };
 }
@@ -109,7 +109,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       forms: true,
       hamal: true,
       frameworkManagement: true,
-      pendingSoldiers: true,
       soldierLinking: true,
       userManagement: true,
       dataSeeder: true,
@@ -126,7 +125,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canCreate: true,
       canAssignRoles: true,
       canViewSensitiveData: true,
-      canChangeViewMode: true,
+
       canRemoveUsers: true,
     },
   },
@@ -144,7 +143,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       forms: true,
       hamal: true,
       frameworkManagement: true,
-      pendingSoldiers: true,
       soldierLinking: true,
       userManagement: true,
       dataSeeder: false,
@@ -161,7 +159,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canCreate: true,
       canAssignRoles: true,
       canViewSensitiveData: true,
-      canChangeViewMode: false,
+
       canRemoveUsers: true,
     },
   },
@@ -179,7 +177,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       forms: true,
       hamal: true,
       frameworkManagement: false,
-      pendingSoldiers: true,
       soldierLinking: true,
       userManagement: false,
       dataSeeder: false,
@@ -196,7 +193,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canCreate: true,
       canAssignRoles: false,
       canViewSensitiveData: true,
-      canChangeViewMode: false,
+
       canRemoveUsers: false,
     },
   },
@@ -214,7 +211,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       forms: true,
       hamal: false,
       frameworkManagement: false,
-      pendingSoldiers: false,
       soldierLinking: false,
       userManagement: false,
       dataSeeder: false,
@@ -231,7 +227,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canCreate: true,
       canAssignRoles: false,
       canViewSensitiveData: false,
-      canChangeViewMode: false,
+
       canRemoveUsers: false,
     },
   },
@@ -249,7 +245,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       forms: true,
       hamal: false,
       frameworkManagement: false,
-      pendingSoldiers: false,
+      
       soldierLinking: false,
       userManagement: false,
       dataSeeder: false,
@@ -266,7 +262,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canCreate: true,
       canAssignRoles: false,
       canViewSensitiveData: false,
-      canChangeViewMode: false,
+
       canRemoveUsers: false,
     },
   },
@@ -284,7 +280,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       forms: true,
       hamal: false,
       frameworkManagement: false,
-      pendingSoldiers: false,
+      
       soldierLinking: false,
       userManagement: false,
       dataSeeder: false,
@@ -301,7 +297,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canCreate: true,
       canAssignRoles: false,
       canViewSensitiveData: false,
-      canChangeViewMode: false,
+
       canRemoveUsers: false,
     },
   },
@@ -319,7 +315,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       forms: true,
       hamal: false,
       frameworkManagement: false,
-      pendingSoldiers: false,
+      
       soldierLinking: false,
       userManagement: false,
       dataSeeder: false,
@@ -336,7 +332,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canCreate: true,
       canAssignRoles: false,
       canViewSensitiveData: false,
-      canChangeViewMode: false,
+
       canRemoveUsers: false,
     },
   },
@@ -354,7 +350,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       forms: true,
       hamal: false,
       frameworkManagement: false,
-      pendingSoldiers: false,
+      
       soldierLinking: false,
       userManagement: false,
       dataSeeder: false,
@@ -371,7 +367,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canCreate: true,
       canAssignRoles: false,
       canViewSensitiveData: false,
-      canChangeViewMode: false,
+
       canRemoveUsers: false,
     },
   },
@@ -389,7 +385,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       forms: true,
       hamal: false,
       frameworkManagement: false,
-      pendingSoldiers: false,
+      
       soldierLinking: false,
       userManagement: false,
       dataSeeder: false,
@@ -406,7 +402,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canCreate: true,
       canAssignRoles: false,
       canViewSensitiveData: false,
-      canChangeViewMode: false,
+
       canRemoveUsers: false,
     },
   },
@@ -424,7 +420,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       forms: true,
       hamal: false,
       frameworkManagement: false,
-      pendingSoldiers: false,
+      
       soldierLinking: false,
       userManagement: false,
       dataSeeder: false,
@@ -441,7 +437,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canCreate: true,
       canAssignRoles: false,
       canViewSensitiveData: false,
-      canChangeViewMode: false,
+
       canRemoveUsers: false,
     },
   },
@@ -459,7 +455,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       forms: false,
       hamal: false,
       frameworkManagement: false,
-      pendingSoldiers: false,
+      
       soldierLinking: false,
       userManagement: false,
       dataSeeder: false,
@@ -476,7 +472,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canCreate: true,
       canAssignRoles: false,
       canViewSensitiveData: false,
-      canChangeViewMode: false,
+
       canRemoveUsers: false,
     },
   },
@@ -494,7 +490,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       forms: false,
       hamal: false,
       frameworkManagement: false,
-      pendingSoldiers: false,
+      
       soldierLinking: false,
       userManagement: false,
       dataSeeder: false,
@@ -511,7 +507,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canCreate: true,
       canAssignRoles: false,
       canViewSensitiveData: false,
-      canChangeViewMode: false,
+
       canRemoveUsers: false,
     },
   },
@@ -529,7 +525,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       forms: false,
       hamal: false,
       frameworkManagement: false,
-      pendingSoldiers: false,
+      
       soldierLinking: false,
       userManagement: false,
       dataSeeder: false,
@@ -546,7 +542,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canCreate: true,
       canAssignRoles: false,
       canViewSensitiveData: false,
-      canChangeViewMode: false,
+
       canRemoveUsers: false,
     },
   },
@@ -554,7 +550,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   [UserRole.CHAYAL]: {
     navigation: {
       soldiers: true, // יכול לראות כוח אדם (רק נתונים רלוונטיים לו)
-      teams: true, // רק "צוות" - הצוות שלו
+      teams: false, // לא יכול לראות צוותים
       trips: true,
       missions: true,
       activities: true,
@@ -564,7 +560,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       forms: false,
       hamal: false,
       frameworkManagement: false,
-      pendingSoldiers: false,
+      
       soldierLinking: false,
       userManagement: false,
       dataSeeder: false,
@@ -581,7 +577,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canCreate: false,
       canAssignRoles: false,
       canViewSensitiveData: false,
-      canChangeViewMode: false,
+
       canRemoveUsers: false,
     },
   },
@@ -599,7 +595,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       forms: true,
       hamal: true,
       frameworkManagement: false,
-      pendingSoldiers: false,
+      
       soldierLinking: false,
       userManagement: false,
       dataSeeder: false,
@@ -616,7 +612,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       canCreate: false,
       canAssignRoles: false,
       canViewSensitiveData: true,
-      canChangeViewMode: false, 
+ 
       canRemoveUsers: false,
     },
   },
@@ -667,7 +663,7 @@ export const getRoleDisplayName = (role: UserRole): string => {
     [UserRole.MEFAKED_TZEVET]: 'מפקד צוות',
     [UserRole.SAMAL]: 'סמל',
     [UserRole.MEFAKED_CHAYAL]: 'מפקד',
-    [UserRole.CHAYAL]: 'חייל',
+    [UserRole.CHAYAL]: 'לוחם',
     [UserRole.HAMAL]: 'חמ"ל',
   };
   return roleNames[role] || role;

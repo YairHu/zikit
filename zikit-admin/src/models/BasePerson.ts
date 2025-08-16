@@ -3,12 +3,14 @@ export interface BasePerson {
   id: string;
   name: string;
   personalNumber: string;
+  rank?: string; // דרגה (רב"ט, סמ"ר וכו')
   frameworkId?: string; // מזהה המסגרת שאליה שייך האדם
   role: string;
   profile: string;
   qualifications: string[];
   licenses: string[];
   certifications: string[];
+  drivingLicenses?: string[]; // היתרים לנהיגה
   presence?: string;
   presenceOther?: string;
   family?: string;

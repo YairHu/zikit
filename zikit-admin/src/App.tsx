@@ -1,7 +1,7 @@
 import React from 'react';
 import AppRoutes from './routes';
 import { UserProvider } from './contexts/UserContext';
-import { ViewModeProvider } from './contexts/ViewModeContext';
+
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { StyledEngineProvider } from '@mui/material/styles';
@@ -173,11 +173,9 @@ function App() {
         <ThemeProvider theme={theme}>
           <CssBaseline />
           <UserProvider>
-            <ViewModeProvider>
-              <div dir="rtl">
-                <AppRoutes />
-              </div>
-            </ViewModeProvider>
+            <div dir="rtl">
+              <AppRoutes />
+            </div>
           </UserProvider>
         </ThemeProvider>
       </StylesProvider>

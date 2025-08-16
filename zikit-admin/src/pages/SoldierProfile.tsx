@@ -200,9 +200,11 @@ const SoldierProfile: React.FC = () => {
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
-        <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
-          <ArrowBackIcon />
-        </IconButton>
+        {user && user.role !== 'chayal' && (
+          <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
+            <ArrowBackIcon />
+          </IconButton>
+        )}
         <Box sx={{ flex: 1 }}>
           <Typography variant="h4" component="h1" fontWeight="bold">
             פרופיל חייל
@@ -211,14 +213,16 @@ const SoldierProfile: React.FC = () => {
             {soldier.name} • {soldier.personalNumber}
           </Typography>
         </Box>
-        {user && (user.role === 'mefaked_tzevet' || user.role === 'mefaked_pluga' || user.role === 'admin') && (
-          <IconButton 
-            color="primary"
-            onClick={handleOpenEditForm}
-            sx={{ bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' } }}
-          >
-            <EditIcon />
-          </IconButton>
+        {user && (
+          (user.role === 'mefaked_tzevet' || user.role === 'mefaked_pluga' || user.role === 'admin') && (
+            <IconButton 
+              color="primary"
+              onClick={handleOpenEditForm}
+              sx={{ bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' } }}
+            >
+              <EditIcon />
+            </IconButton>
+          )
         )}
       </Box>
 
@@ -246,6 +250,11 @@ const SoldierProfile: React.FC = () => {
                   <Typography variant="body2" color="text.secondary">
                     {soldier.personalNumber}
                   </Typography>
+                  {soldier.rank && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      {soldier.rank}
+                    </Typography>
+                  )}
                 </Box>
               </Box>
 

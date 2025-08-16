@@ -5,13 +5,13 @@ import { Activity, ActivityParticipant } from '../models/Activity';
 import { Soldier } from '../models/Soldier';
 import { Vehicle } from '../models/Vehicle';
 import { Trip } from '../models/Trip';
-import { getAllActivities, addActivity, updateActivity, deleteActivity } from '../services/activityService';
-import { getAllSoldiers, updateSoldier } from '../services/soldierService';
+import { getAllActivities, addActivity, updateActivity, deleteActivity, getActivityById } from '../services/activityService';
+import { getAllSoldiers, updateSoldier, getSoldierById } from '../services/soldierService';
 import { getAllVehicles } from '../services/vehicleService';
 import { getAllTrips, updateTrip } from '../services/tripService';
 import { getAllFrameworks } from '../services/frameworkService';
 import { getUserPermissions, UserRole } from '../models/UserRole';
-import { filterByPermissions, canViewActivity } from '../utils/permissions';
+import { filterByPermissions, canViewActivity, canEditActivity, canDeleteItem } from '../utils/permissions';
 
 import {
   Container,
@@ -73,6 +73,7 @@ import {
 const emptyActivity: Omit<Activity, 'id' | 'createdAt' | 'updatedAt'> = {
   name: '',
   frameworkId: '',
+  frameworkIds: [],
   location: '',
   region: 'מנשה',
   activityType: 'מארב ירי',
@@ -116,19 +117,33 @@ const Activities: React.FC = () => {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [activitiesData, soldiersData, vehiclesData, tripsData, frameworksData] = await Promise.all([
-        getAllActivities(),
+      const userPermissions = getUserPermissions(user?.role as UserRole);
+      
+      let activitiesData: Activity[] = [];
+      
+      if (userPermissions.content.viewOwnDataOnly && user?.soldierDocId) {
+        // עבור חייל - נטען רק את הפעילויות שהוא משתתף בהן
+        const soldierData = await getSoldierById(user.soldierDocId);
+        if (soldierData?.activities && soldierData.activities.length > 0) {
+          // נטען רק את הפעילויות הספציפיות
+          const activityPromises = soldierData.activities.map(activityId => getActivityById(activityId));
+          const activitiesResults = await Promise.all(activityPromises);
+          activitiesData = activitiesResults.filter((activity): activity is Activity => activity !== null);
+        }
+      } else {
+        // עבור מפקדים - נטען את כל הפעילויות ונסנן לפי הרשאות
+        const allActivitiesData = await getAllActivities();
+        activitiesData = user ? filterByPermissions(user, allActivitiesData, canViewActivity) : allActivitiesData;
+      }
+      
+      const [soldiersData, vehiclesData, tripsData, frameworksData] = await Promise.all([
         getAllSoldiers(),
         getAllVehicles(),
         getAllTrips(),
         getAllFrameworks()
       ]);
       
-      // סינון פעילויות לפי הרשאות המשתמש
-      const userPermissions = getUserPermissions(user?.role as UserRole);
-      const filteredActivities = user ? filterByPermissions(user, activitiesData, canViewActivity) : activitiesData;
-      
-      setActivities(filteredActivities);
+      setActivities(activitiesData);
       setSoldiers(soldiersData);
       setVehicles(vehiclesData);
       setTrips(tripsData);
@@ -162,6 +177,7 @@ const Activities: React.FC = () => {
       setFormData({
         name: activity.name,
         frameworkId: activity.frameworkId || '',
+        frameworkIds: activity.frameworkIds || (activity.frameworkId ? [activity.frameworkId] : []),
         location: activity.location,
         region: activity.region,
         activityType: activity.activityType,
@@ -557,6 +573,11 @@ const Activities: React.FC = () => {
       // רענון הנתונים ואז סגירת החלונית
       await refresh();
       handleCloseForm();
+      
+      // ניקוי פרמטר edit מה-URL כדי למנוע פתיחה מחדש של הטופס
+      const url = new URL(window.location.href);
+      url.searchParams.delete('edit');
+      window.history.replaceState({}, '', url.toString());
     } catch (error) {
       console.error('Error saving activity:', error);
       // גם במקרה של שגיאה, נסגור את החלונית
@@ -654,8 +675,6 @@ const Activities: React.FC = () => {
 
   // בדיקת הרשאות למשתמש
   const userPermissions = getUserPermissions(user?.role as UserRole);
-  const canEdit = userPermissions.actions.canEdit;
-  const canDelete = userPermissions.actions.canDelete;
   const canCreate = userPermissions.actions.canCreate;
 
   const isActivityComplete = (activity: Activity) => {
@@ -849,9 +868,9 @@ const Activities: React.FC = () => {
                   }}>
                     {activity.name}
                   </Typography>
-                  {(canEdit || canDelete) && (
+                  {user && (canEditActivity(user, activity) || canDeleteItem(user, activity, 'activity')) && (
                     <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 1 } }}>
-                      {canEdit && (
+                      {user && canEditActivity(user, activity) && (
                         <IconButton
                           size="small"
                           color="primary"
@@ -864,7 +883,7 @@ const Activities: React.FC = () => {
                           <EditIcon fontSize="small" />
                         </IconButton>
                       )}
-                      {canDelete && (
+                      {user && canDeleteItem(user, activity, 'activity') && (
                         <IconButton
                           size="small"
                           color="error"
@@ -1158,9 +1177,9 @@ const Activities: React.FC = () => {
                     />
                   </TableCell>
                   <TableCell>
-                    {(canEdit || canDelete) && (
+                    {user && (canEditActivity(user, activity) || canDeleteItem(user, activity, 'activity')) && (
                       <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 1 } }}>
-                        {canEdit && (
+                        {user && canEditActivity(user, activity) && (
                           <IconButton
                             size="small"
                             color="primary"
@@ -1173,7 +1192,7 @@ const Activities: React.FC = () => {
                             <EditIcon fontSize="small" />
                           </IconButton>
                         )}
-                        {canDelete && (
+                        {user && canDeleteItem(user, activity, 'activity') && (
                           <IconButton
                             size="small"
                             color="error"
@@ -1239,15 +1258,24 @@ const Activities: React.FC = () => {
               </Box>
               <Box>
                 <FormControl fullWidth>
-                  <InputLabel sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>מסגרת</InputLabel>
+                  <InputLabel sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>מסגרות</InputLabel>
                   <Select
-                    name="frameworkId"
-                    value={formData.frameworkId}
-                    onChange={(e) => handleSelectChange('frameworkId', e.target.value)}
-                    label="מסגרת"
+                    multiple
+                    name="frameworkIds"
+                    value={formData.frameworkIds || []}
+                    onChange={(e) => {
+                      const value = e.target.value as string[];
+                      handleSelectChange('frameworkIds', value);
+                      // שמירה על תאימות לאחור עם frameworkId
+                      if (value.length > 0) {
+                        handleSelectChange('frameworkId', value[0]);
+                      } else {
+                        handleSelectChange('frameworkId', '');
+                      }
+                    }}
+                    label="מסגרות"
                     sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
                   >
-                    <MenuItem value="" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>בחר מסגרת</MenuItem>
                     {frameworks.map(framework => (
                       <MenuItem key={framework.id} value={framework.id} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                         {framework.name}

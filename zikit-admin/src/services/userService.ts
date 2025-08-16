@@ -12,6 +12,14 @@ import {
 import { db } from '../firebase';
 import { User } from '../models/User';
 import { UserRole } from '../models/UserRole';
+import { PermissionPolicy, PermissionEvaluator } from '../models/PermissionPolicy';
+import { 
+  getUserPolicies, 
+  addPolicyToUser, 
+  removePolicyFromUser as removePolicyFromUserService,
+  getPermissionPolicyById,
+  getPoliciesByRole
+} from './permissionPolicyService';
 
 const USERS_COLLECTION = 'users';
 
@@ -39,10 +47,68 @@ export const createUser = async (user: Omit<User, 'uid'>): Promise<void> => {
 
 export const updateUser = async (uid: string, userData: Partial<User>): Promise<void> => {
   const userRef = doc(db, USERS_COLLECTION, uid);
+  
+  // אם התפקיד השתנה, עדכן את המדיניות אוטומטית
+  if (userData.role) {
+    const currentUser = await getUserById(uid);
+    if (currentUser && currentUser.role !== userData.role) {
+      await updateUserPoliciesByRole(uid, userData.role);
+    }
+  }
+  
   await updateDoc(userRef, {
     ...userData,
     updatedAt: new Date()
   });
+};
+
+// פונקציה לעדכון מדיניות משתמש לפי תפקיד
+export const updateUserPoliciesByRole = async (uid: string, newRole: UserRole): Promise<void> => {
+  try {
+    const currentUser = await getUserById(uid);
+    if (!currentUser) {
+      throw new Error('משתמש לא נמצא');
+    }
+
+    // הסר את כל המדיניות הקיימות
+    if (currentUser.permissionPolicies) {
+      for (const policyId of currentUser.permissionPolicies) {
+        await removePolicyFromUserService(uid, policyId);
+      }
+    }
+
+    // טיפול מיוחד למפקדי מסגרת
+    if (newRole === UserRole.MEFAKED_PELAGA || newRole === UserRole.MEFAKED_TZEVET) {
+      if (currentUser.frameworkId) {
+        // צור מדיניות מותאמת למסגרת הספציפית
+        const { createFrameworkCommanderPolicy } = await import('../models/PermissionPolicy');
+        const frameworkPolicy = createFrameworkCommanderPolicy(currentUser.frameworkId);
+        
+        // שמור את המדיניות ב-Firebase
+        const { createPermissionPolicy } = await import('./permissionPolicyService');
+        const policyId = await createPermissionPolicy(frameworkPolicy);
+        
+        // הקצה למשתמש
+        await addPolicyToUser(uid, policyId);
+        console.log(`נוצרה מדיניות מותאמת למפקד מסגרת ${currentUser.frameworkId}`);
+      } else {
+        console.warn(`משתמש ${uid} מוגדר כמפקד מסגרת אך אין לו מזהה מסגרת`);
+      }
+    } else {
+      // קבל את המדיניות המתאימות לתפקיד החדש
+      const rolePolicies = await getPoliciesByRole(newRole);
+      
+      // הוסף את המדיניות החדשות
+      for (const policy of rolePolicies) {
+        await addPolicyToUser(uid, policy.id);
+      }
+    }
+    
+    console.log(`עודכנו מדיניות למשתמש ${uid} לתפקיד ${newRole}`);
+  } catch (error) {
+    console.error('שגיאה בעדכון מדיניות לפי תפקיד:', error);
+    throw error;
+  }
 };
 
 export const deleteUser = async (uid: string): Promise<void> => {
@@ -201,4 +267,154 @@ export const getVisibleUsers = async (viewerUid: string): Promise<User[]> => {
     const { canUserSeeOtherUser } = require('../models/User');
     return canUserSeeOtherUser(viewer, user);
   });
+}; 
+
+// פונקציות חדשות לניהול הרשאות
+export const getUserPermissionPolicies = async (user: User): Promise<PermissionPolicy[]> => {
+  try {
+    if (!user.permissionPolicies || user.permissionPolicies.length === 0) {
+      return [];
+    }
+    
+    return await getUserPolicies(user.permissionPolicies);
+  } catch (error) {
+    console.error('שגיאה בטעינת מדיניויות הרשאות של משתמש:', error);
+    return [];
+  }
+};
+
+export const assignPolicyToUser = async (userId: string, policyId: string, assignerUid: string): Promise<void> => {
+  try {
+    // בדיקת הרשאות - רק אדמין יכול לנהל הרשאות
+    const assigner = await getUserById(assignerUid);
+    if (!assigner || assigner.role !== UserRole.ADMIN) {
+      throw new Error('אין הרשאה לניהול הרשאות - רק אדמין יכול לבצע פעולה זו');
+    }
+
+    // בדיקה שהמדיניות קיימת
+    const policy = await getPermissionPolicyById(policyId);
+    if (!policy) {
+      throw new Error('מדיניות הרשאות לא נמצאה');
+    }
+
+    // הוספת המדיניות למשתמש
+    await addPolicyToUser(userId, policyId);
+    
+    console.log(`מדיניות הרשאות ${policyId} נוספה למשתמש ${userId}`);
+  } catch (error) {
+    console.error('שגיאה בשיבוץ מדיניות הרשאות:', error);
+    throw error;
+  }
+};
+
+export const removePolicyFromUser = async (userId: string, policyId: string, removerUid: string): Promise<void> => {
+  try {
+    // בדיקת הרשאות - רק אדמין יכול לנהל הרשאות
+    const remover = await getUserById(removerUid);
+    if (!remover || remover.role !== UserRole.ADMIN) {
+      throw new Error('אין הרשאה לניהול הרשאות - רק אדמין יכול לבצע פעולה זו');
+    }
+
+    // הסרת המדיניות מהמשתמש
+    await removePolicyFromUserService(userId, policyId);
+    
+    console.log(`מדיניות הרשאות ${policyId} הוסרה ממשתמש ${userId}`);
+  } catch (error) {
+    console.error('שגיאה בהסרת מדיניות הרשאות:', error);
+    throw error;
+  }
+};
+
+export const canUserManagePermissions = (user: User): boolean => {
+  return user.role === UserRole.ADMIN;
+};
+
+export const canUserPerformAction = async (
+  user: User, 
+  action: string, 
+  resource: string, 
+  context?: Record<string, any>
+): Promise<boolean> => {
+  try {
+    // אם המשתמש הוא אדמין, יש לו הרשאות מלאות
+    if (user.role === UserRole.ADMIN) {
+      return true;
+    }
+
+    // טעינת מדיניויות ההרשאות של המשתמש
+    const policies = await getUserPermissionPolicies(user);
+    
+    if (policies.length === 0) {
+      // אם אין מדיניויות מותאמות, משתמש במערכת הישנה
+      return checkLegacyPermissions(user, action, resource);
+    }
+
+    // יצירת מעריך הרשאות
+    const evaluator = new PermissionEvaluator(policies);
+    
+    // בדיקת ההרשאה
+    return evaluator.canPerformAction(user, action, resource, context);
+  } catch (error) {
+    console.error('שגיאה בבדיקת הרשאות:', error);
+    // במקרה של שגיאה, משתמש במערכת הישנה
+    return checkLegacyPermissions(user, action, resource);
+  }
+};
+
+// פונקציה לבדיקת הרשאות לפי המערכת הישנה (לשמירה על תאימות)
+const checkLegacyPermissions = (user: User, action: string, resource: string): boolean => {
+  // מיפוי פעולות למשאבים במערכת הישנה
+  const actionResourceMap: Record<string, string> = {
+    'read:soldiers': 'soldiers',
+    'read:teams': 'teams',
+    'read:trips': 'trips',
+    'read:missions': 'missions',
+    'read:activities': 'activities',
+    'read:activity_statistics': 'activityStatistics',
+    'read:duties': 'duties',
+    'read:referrals': 'referrals',
+    'read:forms': 'forms',
+    'read:hamal': 'hamal',
+    'read:framework_management': 'frameworkManagement',
+    'read:soldier_linking': 'soldierLinking',
+    'read:user_management': 'userManagement',
+    'read:data_seeder': 'dataSeeder',
+    'create': 'canCreate',
+    'update': 'canEdit',
+    'delete': 'canDelete',
+    'assign_roles': 'canAssignRoles',
+    'view_sensitive_data': 'canViewSensitiveData',
+
+    'remove_users': 'canRemoveUsers',
+  };
+
+  const legacyResource = actionResourceMap[action] || action;
+  
+  // בדיקה לפי התפקיד במערכת הישנה
+  switch (user.role) {
+    case UserRole.ADMIN:
+      return true;
+    case UserRole.MEFAKED_PLUGA:
+      return legacyResource !== 'dataSeeder';
+    case UserRole.SAMAL_PLUGA:
+      return !['frameworkManagement', 'userManagement', 'dataSeeder', 'canDelete', 'canAssignRoles', 'canRemoveUsers'].includes(legacyResource);
+    case UserRole.MEFAKED_PELAGA:
+    case UserRole.RASP:
+    case UserRole.SARASP:
+    case UserRole.KATZIN_NIHUL:
+    case UserRole.MANIP:
+    case UserRole.HOFPAL:
+    case UserRole.PAP:
+      return !['hamal', 'frameworkManagement', 'soldierLinking', 'userManagement', 'dataSeeder', 'canDelete', 'canAssignRoles', 'canViewSensitiveData', 'canRemoveUsers'].includes(legacyResource);
+    case UserRole.MEFAKED_TZEVET:
+    case UserRole.SAMAL:
+    case UserRole.MEFAKED_CHAYAL:
+      return !['activityStatistics', 'forms', 'hamal', 'frameworkManagement', 'soldierLinking', 'userManagement', 'dataSeeder', 'canDelete', 'canAssignRoles', 'canViewSensitiveData', 'canRemoveUsers'].includes(legacyResource);
+    case UserRole.CHAYAL:
+      return ['read:soldiers', 'read:trips', 'read:missions', 'read:activities', 'read:duties', 'read:referrals'].includes(action);
+    case UserRole.HAMAL:
+      return !['frameworkManagement', 'soldierLinking', 'userManagement', 'dataSeeder', 'create', 'update', 'delete', 'assign_roles', 'remove_users'].includes(legacyResource);
+    default:
+      return false;
+  }
 }; 

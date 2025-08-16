@@ -104,6 +104,13 @@ const Trips: React.FC = () => {
     seats: 0,
     status: 'available' as 'available' | 'on_mission' | 'maintenance'
   });
+  
+  // דיאלוג היתרי נהיגה
+  const [openLicenseDialog, setOpenLicenseDialog] = useState(false);
+  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
+  const [licenseFormData, setLicenseFormData] = useState({
+    drivingLicenses: ''
+  });
 
   const loadData = useCallback(async () => {
     try {
@@ -457,6 +464,55 @@ const Trips: React.FC = () => {
       ...prev,
       [name]: value
     }));
+  };
+
+  // פונקציות לטיפול בהיתרי נהיגה
+  const handleOpenLicenseDialog = (driver: Driver) => {
+    setSelectedDriver(driver);
+    setLicenseFormData({
+      drivingLicenses: (driver.drivingLicenses || []).join(', ')
+    });
+    setOpenLicenseDialog(true);
+  };
+
+  const handleCloseLicenseDialog = () => {
+    setOpenLicenseDialog(false);
+    setSelectedDriver(null);
+    setLicenseFormData({
+      drivingLicenses: ''
+    });
+  };
+
+  const handleLicenseChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setLicenseFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleLicenseSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedDriver) return;
+    
+    try {
+      const drivingLicenses = licenseFormData.drivingLicenses
+        .split(',')
+        .map(license => license.trim())
+        .filter(license => license.length > 0);
+      
+      await updateSoldier(selectedDriver.id, {
+        drivingLicenses
+      });
+      
+      handleCloseLicenseDialog();
+      loadData(); // רענון הנתונים
+      alert('היתרי הנהיגה עודכנו בהצלחה!');
+    } catch (error) {
+      console.error('שגיאה בעדכון היתרי נהיגה:', error);
+      alert('שגיאה בעדכון היתרי נהיגה');
+    }
   };
 
   // פונקציה לעדכון פעילויות שמקושרות לנסיעה
@@ -957,14 +1013,23 @@ const Trips: React.FC = () => {
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
             {drivers.map(driver => (
               <Box key={driver.id} sx={{ flex: '1 1 300px', maxWidth: '400px' }}>
-                <Card 
-                  sx={{ cursor: 'pointer' }}
-                  onClick={() => navigate(`/soldiers/${driver.id}`)}
-                >
+                <Card>
                   <CardContent>
-                    <Typography variant="h6">
-                      {driver.name}
-                    </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                      <Typography variant="h6" sx={{ cursor: 'pointer' }} onClick={() => navigate(`/soldiers/${driver.id}`)}>
+                        {driver.name}
+                      </Typography>
+                      <IconButton 
+                        size="small" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenLicenseDialog(driver);
+                        }}
+                        sx={{ color: 'primary.main' }}
+                      >
+                        <EditIcon />
+                      </IconButton>
+                    </Box>
                     <Typography variant="body2" color="textSecondary">
                       מספר אישי: {driver.personalNumber}
                     </Typography>
@@ -975,6 +1040,24 @@ const Trips: React.FC = () => {
                       <Typography variant="body2" color="textSecondary">
                         ניסיון נהיגה: {driver.drivingExperience} שנים
                       </Typography>
+                    )}
+                    {driver.drivingLicenses && driver.drivingLicenses.length > 0 && (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="body2" color="textSecondary" sx={{ mb: 0.5 }}>
+                          היתרים לנהיגה:
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {driver.drivingLicenses.map((license, index) => (
+                            <Chip
+                              key={index}
+                              label={license}
+                              size="small"
+                              color="secondary"
+                              variant="outlined"
+                            />
+                          ))}
+                        </Box>
+                      </Box>
                     )}
                   </CardContent>
                 </Card>
@@ -1198,6 +1281,35 @@ const Trips: React.FC = () => {
             <Button onClick={handleCloseVehicleForm}>ביטול</Button>
             <Button type="submit" variant="contained">
               {editVehicleId ? 'עדכן' : 'הוסף'}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
+
+      {/* דיאלוג עריכת היתרי נהיגה */}
+      <Dialog open={openLicenseDialog} onClose={handleCloseLicenseDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          עריכת היתרי נהיגה - {selectedDriver?.name}
+        </DialogTitle>
+        <form onSubmit={handleLicenseSubmit}>
+          <DialogContent>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <TextField
+                fullWidth
+                label="היתרים לנהיגה (מופרד בפסיקים)"
+                name="drivingLicenses"
+                value={licenseFormData.drivingLicenses}
+                onChange={handleLicenseChange}
+                multiline
+                rows={3}
+                helperText="לדוגמה: B, C, D, E"
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseLicenseDialog}>ביטול</Button>
+            <Button type="submit" variant="contained">
+              עדכן היתרים
             </Button>
           </DialogActions>
         </form>

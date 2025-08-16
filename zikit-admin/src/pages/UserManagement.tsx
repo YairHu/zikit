@@ -27,8 +27,10 @@ import {
   Security as SecurityIcon,
   Group as GroupIcon,
   AdminPanelSettings as AdminIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  Policy as PolicyIcon
 } from '@mui/icons-material';
+import UserPermissionManager from '../components/UserPermissionManager';
 import { useUser } from '../contexts/UserContext';
 import { User } from '../models/User';
 import { UserRole, getRoleDisplayName } from '../models/UserRole';
@@ -65,6 +67,7 @@ const UserManagement: React.FC = () => {
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [permissionDialogOpen, setPermissionDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedRole, setSelectedRole] = useState<UserRole>(UserRole.CHAYAL);
   const [frameworks, setFrameworks] = useState<any[]>([]);
@@ -193,6 +196,11 @@ const UserManagement: React.FC = () => {
   const openDeleteDialog = (user: User) => {
     setSelectedUser(user);
     setDeleteDialogOpen(true);
+  };
+
+  const openPermissionDialog = (user: User) => {
+    setSelectedUser(user);
+    setPermissionDialogOpen(true);
   };
 
   const getRoleColor = (role: UserRole): string => {
@@ -357,6 +365,17 @@ const UserManagement: React.FC = () => {
                    >
                      שבץ לצוות
                    </Button>
+                   {currentUser?.role === UserRole.ADMIN && (
+                     <Button
+                       size="small"
+                       startIcon={<PolicyIcon />}
+                       onClick={() => openPermissionDialog(userData)}
+                       variant="outlined"
+                       color="primary"
+                     >
+                       ניהול הרשאות
+                     </Button>
+                   )}
                    {canRemoveUsers && userData.uid !== currentUser?.uid && (
                      <Button
                        size="small"
@@ -567,6 +586,33 @@ const UserManagement: React.FC = () => {
           </Button>
           <Button onClick={handleDeleteUser} variant="contained" color="error">
             הסר מהמערכת
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog for Permission Management */}
+      <Dialog 
+        open={permissionDialogOpen} 
+        onClose={() => setPermissionDialogOpen(false)} 
+        maxWidth="lg" 
+        fullWidth
+        sx={{ '& .MuiDialog-paper': { height: '90vh' } }}
+      >
+        <DialogTitle>
+          ניהול הרשאות משתמש
+        </DialogTitle>
+        <DialogContent sx={{ p: 0 }}>
+          {selectedUser && (
+            <UserPermissionManager
+              selectedUser={selectedUser}
+              onClose={() => setPermissionDialogOpen(false)}
+              onUserUpdated={loadUsers}
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPermissionDialogOpen(false)}>
+            סגור
           </Button>
         </DialogActions>
       </Dialog>

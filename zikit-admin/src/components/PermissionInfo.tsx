@@ -1,8 +1,10 @@
-import React from 'react';
-import { Box, Typography, Alert, Chip } from '@mui/material';
-import { Info as InfoIcon, Security as SecurityIcon } from '@mui/icons-material';
+import React, { useState, useEffect } from 'react';
+import { Box, Typography, Alert, Chip, Button, Collapse } from '@mui/material';
+import { Info as InfoIcon, Security as SecurityIcon, ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
 import { getUserPermissions, getRoleDisplayName } from '../models/UserRole';
+import { PermissionPolicy } from '../models/PermissionPolicy';
+import { getUserPermissionPolicies } from '../services/userService';
 
 interface PermissionInfoProps {
   showDetails?: boolean;
@@ -14,6 +16,27 @@ const PermissionInfo: React.FC<PermissionInfoProps> = ({
   variant = 'info' 
 }) => {
   const { user } = useUser();
+  const [customPolicies, setCustomPolicies] = useState<PermissionPolicy[]>([]);
+  const [showCustomPolicies, setShowCustomPolicies] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (user && user.permissionPolicies && user.permissionPolicies.length > 0) {
+      loadCustomPolicies();
+    }
+  }, [user]);
+
+  const loadCustomPolicies = async () => {
+    try {
+      setLoading(true);
+      const policies = await getUserPermissionPolicies(user!);
+      setCustomPolicies(policies);
+    } catch (error) {
+      console.error('שגיאה בטעינת מדיניויות מותאמות:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!user) return null;
 
@@ -87,6 +110,44 @@ const PermissionInfo: React.FC<PermissionInfoProps> = ({
               פלגה: {user.pelaga || 'לא מוגדר'} | 
               יחידה: {user.unit || 'לא מוגדר'}
             </Typography>
+          </Box>
+        )}
+
+        {/* Custom Policies */}
+        {customPolicies.length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            <Button
+              size="small"
+              onClick={() => setShowCustomPolicies(!showCustomPolicies)}
+              endIcon={<ExpandMoreIcon sx={{ 
+                transform: showCustomPolicies ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.3s'
+              }} />}
+            >
+              מדיניויות מותאמות אישית ({customPolicies.length})
+            </Button>
+            
+            <Collapse in={showCustomPolicies}>
+              <Box sx={{ mt: 1, pl: 2 }}>
+                {customPolicies.map((policy) => (
+                  <Box key={policy.id} sx={{ mb: 1 }}>
+                    <Typography variant="body2" fontWeight={600}>
+                      {policy.name}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {policy.description}
+                    </Typography>
+                    <Box sx={{ mt: 0.5 }}>
+                      <Chip 
+                        label={`${policy.Statement.length} הצהרות`} 
+                        size="small" 
+                        variant="outlined"
+                      />
+                    </Box>
+                  </Box>
+                ))}
+              </Box>
+            </Collapse>
           </Box>
         )}
       </Alert>

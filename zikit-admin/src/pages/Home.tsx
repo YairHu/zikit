@@ -31,12 +31,12 @@ import { useUser } from '../contexts/UserContext';
 import { getUserPermissions, hasPermission, UserRole } from '../models/UserRole';
 import { filterByPermissions, canViewActivity, canViewMission, canViewTrip, canViewDuty, canViewReferral } from '../utils/permissions';
 import PermissionInfo from '../components/PermissionInfo';
-import { useViewMode } from '../contexts/ViewModeContext';
-import { getAllSoldiers } from '../services/soldierService';
+
+import { getAllSoldiers, getSoldierById } from '../services/soldierService';
 import { getAllVehicles } from '../services/vehicleService';
 import { getAllActivities } from '../services/activityService';
-import { getAllDuties } from '../services/dutyService';
-import { getAllMissions } from '../services/missionService';
+import { getAllDuties, getDutiesBySoldier } from '../services/dutyService';
+import { getAllMissions, getMissionsBySoldier } from '../services/missionService';
 import { getAllReferrals } from '../services/referralService';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -44,7 +44,7 @@ import { db } from '../firebase';
 const Home: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useUser();
-  const { selectedSoldierId, isViewModeActive } = useViewMode();
+
   const [stats, setStats] = useState({
     soldiers: 0,
     teams: 0,
@@ -63,6 +63,12 @@ const Home: React.FC = () => {
   useEffect(() => {
     const loadStats = async () => {
       if (!user) return;
+      
+      // אם זה חייל, העבר אותו ישירות לעמוד האישי שלו
+      if ((user.role as UserRole) === UserRole.CHAYAL && user.soldierDocId) {
+        navigate(`/soldiers/${user.soldierDocId}`);
+        return;
+      }
       
       // בדיקה אם המשתמש חדש (אין לו soldierDocId)
       if (!user.soldierDocId) {
@@ -86,13 +92,7 @@ const Home: React.FC = () => {
         }
       }
       
-      // השתמש בנקודת המבט הפעילה אם יש
-      const currentUser = selectedSoldierId ? {
-        ...user,
-        role: UserRole.CHAYAL,
-        team: selectedSoldierId,
-        uid: selectedSoldierId
-      } : user;
+      const currentUser = user;
       
       try {
         console.log('מתחיל טעינת סטטיסטיקות...');
@@ -129,7 +129,27 @@ const Home: React.FC = () => {
         // טעינת פעילויות - רק אם יש הרשאה
         if (userPermissions.navigation.activities) {
           try {
-            allActivities = await getAllActivities();
+            if (userPermissions.content.viewOwnDataOnly) {
+              // עבור חייל - נטען רק את הפעילויות שהוא משתתף בהן
+              if (currentUser.soldierDocId) {
+                const soldierData = await getSoldierById(currentUser.soldierDocId);
+                if (soldierData?.activities && soldierData.activities.length > 0) {
+                  // נטען רק את הפעילויות הספציפיות
+                  const activityPromises = soldierData.activities.map(activityId => 
+                    import('../services/activityService').then(({ getActivityById }) => getActivityById(activityId))
+                  );
+                  const activitiesResults = await Promise.all(activityPromises);
+                  allActivities = activitiesResults.filter((activity): activity is any => activity !== null);
+                } else {
+                  allActivities = [];
+                }
+              } else {
+                allActivities = [];
+              }
+            } else {
+              // עבור מפקדים - נטען את כל הפעילויות
+              allActivities = await getAllActivities();
+            }
           } catch (error) {
             console.warn('לא ניתן לטעון נתוני פעילויות:', error);
             allActivities = [];
@@ -139,7 +159,17 @@ const Home: React.FC = () => {
         // טעינת תורנויות - רק אם יש הרשאה
         if (userPermissions.navigation.duties) {
           try {
-            allDuties = await getAllDuties();
+            if (userPermissions.content.viewOwnDataOnly) {
+              // עבור חייל - נטען רק את התורנויות שהוא משתתף בהן
+              if (currentUser.soldierDocId) {
+                allDuties = await getDutiesBySoldier(currentUser.soldierDocId);
+              } else {
+                allDuties = [];
+              }
+            } else {
+              // עבור מפקדים - נטען את כל התורנויות
+              allDuties = await getAllDuties();
+            }
           } catch (error) {
             console.warn('לא ניתן לטעון נתוני תורנויות:', error);
             allDuties = [];
@@ -149,7 +179,17 @@ const Home: React.FC = () => {
         // טעינת משימות - רק אם יש הרשאה
         if (userPermissions.navigation.missions) {
           try {
-            allMissions = await getAllMissions();
+            if (userPermissions.content.viewOwnDataOnly) {
+              // עבור חייל - נטען רק את המשימות שהוא מוקצה אליהן
+              if (currentUser.soldierDocId) {
+                allMissions = await getMissionsBySoldier(currentUser.soldierDocId);
+              } else {
+                allMissions = [];
+              }
+            } else {
+              // עבור מפקדים - נטען את כל המשימות
+              allMissions = await getAllMissions();
+            }
           } catch (error) {
             console.warn('לא ניתן לטעון נתוני משימות:', error);
             allMissions = [];
@@ -159,7 +199,21 @@ const Home: React.FC = () => {
         // טעינת הפניות - רק אם יש הרשאה
         if (userPermissions.navigation.referrals) {
           try {
-            allReferrals = await getAllReferrals();
+            if (userPermissions.content.viewOwnDataOnly) {
+              // עבור חייל - נטען רק את ההפניות שלו
+              if (currentUser.soldierDocId) {
+                // נטען את כל ההפניות ונסנן לפי soldierId
+                const allReferralsData = await getAllReferrals();
+                allReferrals = allReferralsData.filter(referral => 
+                  referral.soldierId === currentUser.soldierDocId
+                );
+              } else {
+                allReferrals = [];
+              }
+            } else {
+              // עבור מפקדים - נטען את כל ההפניות
+              allReferrals = await getAllReferrals();
+            }
           } catch (error) {
             console.warn('לא ניתן לטעון נתוני הפניות:', error);
             allReferrals = [];
@@ -185,23 +239,30 @@ const Home: React.FC = () => {
         }
         // אם רואה כל הנתונים - לא מסנן
 
-        // פעילויות - לפי הרשאות
-        const visibleActivities = filterByPermissions(currentUser, allActivities, canViewActivity);
+        // עבור חייל - הנתונים כבר מסוננים, עבור מפקדים - נסנן לפי הרשאות
+        const visibleActivities = userPermissions.content.viewOwnDataOnly ? allActivities : filterByPermissions(currentUser, allActivities, canViewActivity);
+        const visibleMissions = userPermissions.content.viewOwnDataOnly ? allMissions : filterByPermissions(currentUser, allMissions, canViewMission);
+        const visibleDuties = userPermissions.content.viewOwnDataOnly ? allDuties : filterByPermissions(currentUser, allDuties, canViewDuty);
+        const visibleReferrals = userPermissions.content.viewOwnDataOnly ? allReferrals : filterByPermissions(currentUser, allReferrals, canViewReferral);
         
-        // משימות - לפי הרשאות
-        const visibleMissions = filterByPermissions(currentUser, allMissions, canViewMission);
-        
-        // נסיעות - לפי הרשאות
-        const visibleTrips = filterByPermissions(currentUser, allReferrals, canViewTrip); // נסיעות נשמרות ב-referrals
-        
-        // תורנויות - לפי הרשאות
-        const visibleDuties = filterByPermissions(currentUser, allDuties, canViewDuty);
-        
-        // הפניות - לפי הרשאות
-        const visibleReferrals = filterByPermissions(currentUser, allReferrals, canViewReferral);
+        // לוגים לבדיקת סינון
+        if (currentUser.role === UserRole.CHAYAL) {
+          console.log('נתונים עבור חייל:', {
+            userUid: currentUser.uid,
+            userTeam: currentUser.team,
+            soldierDocId: currentUser.soldierDocId,
+            activitiesCount: allActivities.length,
+            missionsCount: allMissions.length,
+            dutiesCount: allDuties.length,
+            referralsCount: allReferrals.length
+          });
+        }
 
         // חישוב נהגים (חיילים עם כשירות נהג) - רק מהחיילים הנראים
-        const drivers = visibleSoldiers.filter(s => s.qualifications?.includes('נהג')).length;
+        // חייל לא צריך לראות מידע על נהגים
+        const drivers = userPermissions.content.viewAllData || userPermissions.content.viewTeamData || userPermissions.content.viewPlagaData 
+          ? visibleSoldiers.filter(s => s.qualifications?.includes('נהג')).length 
+          : 0;
 
         // חישוב צוותים - לפי הרשאות
         let teamsCount = 0;
@@ -223,11 +284,25 @@ const Home: React.FC = () => {
           missions: visibleMissions.length,
           referrals: visibleReferrals.length
         });
+        
+        console.log('פירוט סינון עבור חייל:', {
+          userRole: currentUser.role,
+          userUid: currentUser.uid,
+          userTeam: currentUser.team,
+          totalActivities: allActivities.length,
+          totalDuties: allDuties.length,
+          totalMissions: allMissions.length,
+          totalReferrals: allReferrals.length,
+          visibleActivities: visibleActivities.length,
+          visibleDuties: visibleDuties.length,
+          visibleMissions: visibleMissions.length,
+          visibleReferrals: visibleReferrals.length
+        });
 
         setStats({
           soldiers: visibleSoldiers.length,
           teams: teamsCount,
-          vehicles: allVehicles.length,
+          vehicles: userPermissions.content.viewAllData || userPermissions.content.viewTeamData || userPermissions.content.viewPlagaData ? allVehicles.length : 0,
           drivers,
           activities: visibleActivities.length,
           duties: visibleDuties.length,
@@ -265,15 +340,7 @@ const Home: React.FC = () => {
     );
   }
 
-  // קבלת הרשאות המשתמש - עם נקודת מבט פעילה אם יש
-  const effectiveUser = selectedSoldierId ? {
-    ...user,
-    role: UserRole.CHAYAL,
-    team: selectedSoldierId,
-    uid: selectedSoldierId
-  } : user;
-  
-  const userPermissions = getUserPermissions(effectiveUser.role as UserRole);
+  const userPermissions = getUserPermissions(user.role as UserRole);
 
   // מערכות עם סטטיסטיקות - רק מה שהמשתמש יכול לראות
   const systemItems = [
@@ -285,13 +352,13 @@ const Home: React.FC = () => {
       path: '/soldiers'
     }] : []),
     ...(userPermissions.navigation.teams ? [{
-      title: user.role === 'chayal' ? 'צוות' : 'צוותים',
-      subtitle: `${stats.teams} צוותים פעילים`,
+      title: 'מסגרות',
+      subtitle: `${stats.teams} מסגרות פעילות`,
       icon: <PeopleIcon sx={{ fontSize: 32 }} />,
       color: '#4caf50',
-      path: user.role === 'chayal' ? `/teams/${user.team}` : '/teams'
+      path: '/frameworks'
     }] : []),
-    ...(userPermissions.navigation.trips ? [{
+    ...(userPermissions.navigation.trips && (userPermissions.content.viewAllData || userPermissions.content.viewTeamData || userPermissions.content.viewPlagaData) ? [{
       title: 'נסיעות ורכבים',
       subtitle: `${stats.vehicles} רכבים, ${stats.drivers} נהגים`,
       icon: <DirectionsCarIcon sx={{ fontSize: 32 }} />,
@@ -361,6 +428,28 @@ const Home: React.FC = () => {
     );
   }
 
+  // אם זה חייל, הצג הודעה במקום את כל הכרטיסים
+  if ((user?.role as UserRole) === UserRole.CHAYAL) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 3, direction: 'rtl' }}>
+        <Box sx={{ textAlign: 'center', mb: 4 }}>
+          <Typography variant="h3" component="h1" sx={{ fontWeight: 700, mb: 2 }}>
+            ברוך הבא, {user.displayName}
+          </Typography>
+          <Typography variant="h6" sx={{ color: 'text.secondary' }}>
+            מערכת ניהול כוח אדם - פלוגה לוחמת
+          </Typography>
+        </Box>
+        
+        <Alert severity="info" sx={{ mb: 3 }}>
+          <Typography variant="body2">
+            <strong>העברה אוטומטית:</strong> אתה מועבר לעמוד האישי שלך...
+          </Typography>
+        </Alert>
+      </Container>
+    );
+  }
+
   return (
     <Container maxWidth="lg" sx={{ py: 3, direction: 'rtl' }}>
       {/* Header */}
@@ -371,9 +460,9 @@ const Home: React.FC = () => {
         <Typography variant="h6" sx={{ color: 'text.secondary' }}>
           מערכת ניהול כוח אדם - פלוגה לוחמת
         </Typography>
-        {(user.role === 'chayal' || isViewModeActive) && (
+        {(user.role as UserRole) === UserRole.CHAYAL && (
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>
-            {isViewModeActive ? 'תצוגה מותאמת אישית - נקודת מבט של חייל' : 'תצוגה מותאמת אישית - רק הנתונים הרלוונטיים לך'}
+            תצוגה מותאמת אישית - רק הנתונים הרלוונטיים לך
           </Typography>
         )}
       </Box>
@@ -459,27 +548,7 @@ const Home: React.FC = () => {
         )}
       </Box>
       
-      {/* הודעה על נקודת מבט פעילה */}
-      {isViewModeActive && (
-        <Box sx={{ 
-          position: 'fixed', 
-          bottom: 20, 
-          right: 20, 
-          backgroundColor: 'warning.main', 
-          color: 'warning.contrastText',
-          padding: 2,
-          borderRadius: 2,
-          boxShadow: 3,
-          zIndex: 1000
-        }}>
-          <Typography variant="body2" fontWeight={600}>
-            🔍 מצב בדיקה: צפייה מנקודת מבט של חייל
-          </Typography>
-          <Typography variant="caption">
-            לחץ על "שנה נקודת מבט" בסרגל הצד כדי לחזור לתצוגה הרגילה
-          </Typography>
-        </Box>
-      )}
+
 
       {/* דיאלוג למשתמשים חדשים */}
       <Dialog open={showNewUserDialog} onClose={() => setShowNewUserDialog(false)} maxWidth="sm" fullWidth>

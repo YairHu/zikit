@@ -9,7 +9,8 @@ export interface ActivityParticipant {
 export interface Activity {
   id: string;
   name: string;
-  frameworkId?: string; // מזהה המסגרת שמבצעת את הפעילות
+  frameworkId?: string; // מזהה המסגרת שמבצעת את הפעילות (לתאימות לאחור)
+  frameworkIds?: string[]; // מזהי המסגרות שמבצעות את הפעילות
   team?: string; // לתאימות לאחור - יוסר בעתיד
   location: string;
   region: 'מנשה' | 'אפרים' | 'שומרון' | 'יהודה' | 'בנימין' | 'עציון' | 'הבקעה והעמקים';

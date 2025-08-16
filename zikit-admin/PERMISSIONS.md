@@ -82,7 +82,6 @@ navigation: {
   forms: boolean; // טפסים
   hamal: boolean; // מסך חמ"ל
   frameworkManagement: boolean; // ניהול מבנה פלוגה
-  pendingSoldiers: boolean; // חיילים ממתינים
   soldierLinking: boolean; // קישור חיילים
   userManagement: boolean; // ניהול משתמשים
   dataSeeder: boolean; // הכנסת נתונים
@@ -179,36 +178,9 @@ import PermissionInfo from '../components/PermissionInfo';
 
 ## שימוש בפיתוח
 
-### 1. שינוי נקודת מבט (View Mode)
 
-המערכת מאפשרת למנהלים (אדמין, מ"פ, סמ"פ) לשנות את נקודת המבט שלהם לחייל אחר כדי לבדוק את מערכת ההרשאות:
 
-#### איך להשתמש:
-1. **פתיחת תפריט**: בסרגל הצד, לחץ על "שנה נקודת מבט"
-2. **בחירת חייל**: בחר חייל מהרשימה או "נקודת מבט אישית" לחזרה לתצוגה הרגילה
-3. **בדיקת הרשאות**: המערכת תציג את התצוגה וההרשאות של החייל הנבחר
-4. **חזרה**: לחץ על "נקודת מבט אישית" או על כפתור הסגירה באינדיקטור
-
-#### רכיבים:
-- `ViewModeContext`: ניהול מצב נקודת המבט
-- `ViewModeIndicator`: אינדיקטור ויזואלי של נקודת המבט הפעילה
-- `SideDrawer`: תפריט בחירת חייל
-
-#### דוגמאות קוד:
-```typescript
-import { useViewMode } from '../contexts/ViewModeContext';
-
-const MyComponent = () => {
-  const { selectedSoldierId, isViewModeActive, resetViewMode } = useViewMode();
-  
-  // בדיקה אם יש נקודת מבט פעילה
-  if (isViewModeActive) {
-    // הצג תצוגה מותאמת לחייל
-  }
-};
-```
-
-### 2. הוספת הרשאה חדשה
+### 1. הוספת הרשאה חדשה
 ```typescript
 // ב-UserRole.ts
 navigation: {

@@ -81,7 +81,12 @@ export const canViewActivity = (user: User, activity: any): boolean => {
   
   // אם רואה רק נתונים אישיים
   if (permissions.content.viewOwnDataOnly) {
-    return activity.participants?.includes(user.uid) || 
+    // בודק אם המשתמש משובץ בפעילות
+    const isParticipant = activity.participants?.some((participant: any) => 
+      participant.soldierId === user.uid
+    );
+    
+    return isParticipant || 
            activity.creatorUid === user.uid ||
            activity.teamId === user.team;
   }
@@ -100,6 +105,31 @@ export const canViewActivity = (user: User, activity: any): boolean => {
 };
 
 /**
+ * בודק אם משתמש יכול לערוך פעילות
+ */
+export const canEditActivity = (user: User, activity: any): boolean => {
+  const permissions = getUserPermissions(user.role as UserRole);
+  
+  // חייל לא יכול לערוך פעילויות
+  if (user.role === UserRole.CHAYAL) {
+    return false;
+  }
+  
+  // חמ"ל לא יכול לערוך
+  if (user.role === UserRole.HAMAL) {
+    return false;
+  }
+  
+  // אם אין הרשאת עריכה, לא יכול לערוך
+  if (!permissions.actions.canEdit) {
+    return false;
+  }
+  
+  // בודק אם יכול לראות את הפעילות
+  return canViewActivity(user, activity);
+};
+
+/**
  * בודק אם משתמש יכול לראות משימה
  */
 export const canViewMission = (user: User, mission: any): boolean => {
@@ -112,10 +142,15 @@ export const canViewMission = (user: User, mission: any): boolean => {
   
   // אם רואה רק נתונים אישיים
   if (permissions.content.viewOwnDataOnly) {
-    return mission.assignedTo?.includes(user.uid) || 
-           mission.assignedBy === user.uid ||
-           mission.frameworkId === user.team ||
-           mission.team === user.team;
+    // בודק אם המשתמש מוקצה למשימה
+    const isAssigned = mission.assignedTo?.includes(user.uid) || 
+                      mission.assignedBy === user.uid;
+    
+    // בודק אם המשימה שייכת לצוות של המשתמש
+    const isTeamMission = mission.frameworkId === user.team ||
+                         mission.team === user.team;
+    
+    return isAssigned || isTeamMission;
   }
   
   // אם רואה נתוני צוות
@@ -175,9 +210,14 @@ export const canViewDuty = (user: User, duty: any): boolean => {
   
   // אם רואה רק נתונים אישיים
   if (permissions.content.viewOwnDataOnly) {
-    return duty.participants?.some((p: any) => p.soldierId === user.uid) || 
-           duty.frameworkId === user.team ||
-           duty.team === user.team;
+    // בודק אם המשתמש משתתף בתורנות
+    const isParticipant = duty.participants?.some((p: any) => p.soldierId === user.uid);
+    
+    // בודק אם התורנות שייכת לצוות של המשתמש
+    const isTeamDuty = duty.frameworkId === user.team ||
+                      duty.team === user.team;
+    
+    return isParticipant || isTeamDuty;
   }
   
   // אם רואה נתוני צוות
@@ -206,9 +246,14 @@ export const canViewReferral = (user: User, referral: any): boolean => {
   
   // אם רואה רק נתונים אישיים
   if (permissions.content.viewOwnDataOnly) {
-    return referral.soldierId === user.uid || 
-           referral.frameworkId === user.team ||
-           referral.team === user.team;
+    // בודק אם ההפניה שייכת למשתמש
+    const isOwnReferral = referral.soldierId === user.uid;
+    
+    // בודק אם ההפניה שייכת לצוות של המשתמש
+    const isTeamReferral = referral.frameworkId === user.team ||
+                          referral.team === user.team;
+    
+    return isOwnReferral || isTeamReferral;
   }
   
   // אם רואה נתוני צוות

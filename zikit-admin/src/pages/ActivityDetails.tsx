@@ -5,6 +5,8 @@ import { Activity, ActivityDeliverable } from '../models/Activity';
 import { Trip } from '../models/Trip';
 import { getActivityById, addActivityDeliverable, updateActivityStatus } from '../services/activityService';
 import { getAllTrips } from '../services/tripService';
+import { getAllFrameworks } from '../services/frameworkService';
+import { canEditActivity, canDeleteItem, canViewActivity } from '../utils/permissions';
 
 import TripManagement from '../components/TripManagement';
 import {
@@ -59,6 +61,7 @@ const ActivityDetails: React.FC = () => {
   const [showDeliverablesDialog, setShowDeliverablesDialog] = useState(false);
   const [showTripManagement, setShowTripManagement] = useState(false);
   const [trips, setTrips] = useState<Trip[]>([]);
+  const [frameworks, setFrameworks] = useState<any[]>([]);
   const [newDeliverable, setNewDeliverable] = useState<{
     type: 'text' | 'image';
     title: string;
@@ -72,23 +75,35 @@ const ActivityDetails: React.FC = () => {
   useEffect(() => {
     if (id) {
       getActivityById(id).then((activityData) => {
+        // בדיקת הרשאות לפני הצגת הפעילות
+        if (activityData && user) {
+          if (!canViewActivity(user, activityData)) {
+            // אם אין הרשאה, חזרה לעמוד הפעילויות
+            navigate('/activities');
+            return;
+          }
+        }
         setActivity(activityData);
         setLoading(false);
       });
     }
-  }, [id]);
+  }, [id, user, navigate]);
 
   useEffect(() => {
-    // Load trips for mobility display
-    const loadTrips = async () => {
+    // Load trips and frameworks for display
+    const loadData = async () => {
       try {
-        const tripsData = await getAllTrips();
+        const [tripsData, frameworksData] = await Promise.all([
+          getAllTrips(),
+          getAllFrameworks()
+        ]);
         setTrips(tripsData);
+        setFrameworks(frameworksData);
       } catch (error) {
-        console.error('Error loading trips:', error);
+        console.error('Error loading data:', error);
       }
     };
-    loadTrips();
+    loadData();
   }, []);
 
 
@@ -237,12 +252,16 @@ const ActivityDetails: React.FC = () => {
           >
             תוצרים
           </Button>
-          <IconButton onClick={handleEdit}>
-            <EditIcon />
-          </IconButton>
-          <IconButton color="error" onClick={handleDelete}>
-            <DeleteIcon />
-          </IconButton>
+          {user && canEditActivity(user, activity) && (
+            <IconButton onClick={handleEdit}>
+              <EditIcon />
+            </IconButton>
+          )}
+          {user && canDeleteItem(user, activity, 'activity') && (
+            <IconButton color="error" onClick={handleDelete}>
+              <DeleteIcon />
+            </IconButton>
+          )}
         </Box>
       </Box>
 
@@ -379,11 +398,48 @@ const ActivityDetails: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Team Info */}
+          {/* Framework Info */}
           <Card>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 2 }}>צוות</Typography>
-              <Typography variant="body1">{activity.team}</Typography>
+              <Typography variant="h6" sx={{ mb: 2 }}>מסגרות</Typography>
+              {activity.frameworkIds && activity.frameworkIds.length > 0 ? (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {activity.frameworkIds.map((frameworkId, index) => {
+                    const framework = frameworks.find(f => f.id === frameworkId);
+                    return (
+                      <Chip 
+                        key={index}
+                        label={framework ? framework.name : `מסגרת: ${frameworkId}`}
+                        variant="outlined"
+                        color="primary"
+                        clickable
+                        onClick={() => navigate(`/frameworks/${frameworkId}`)}
+                        sx={{ cursor: 'pointer' }}
+                      />
+                    );
+                  })}
+                </Box>
+              ) : activity.frameworkId ? (
+                <Box>
+                  {(() => {
+                    const framework = frameworks.find(f => f.id === activity.frameworkId);
+                    return (
+                      <Chip 
+                        label={framework ? framework.name : `מסגרת: ${activity.frameworkId}`}
+                        variant="outlined"
+                        color="primary"
+                        clickable
+                        onClick={() => navigate(`/frameworks/${activity.frameworkId}`)}
+                        sx={{ cursor: 'pointer' }}
+                      />
+                    );
+                  })()}
+                </Box>
+              ) : (
+                <Typography variant="body1" color="text.secondary">
+                  לא נבחרו מסגרות
+                </Typography>
+              )}
             </CardContent>
           </Card>
 

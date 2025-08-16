@@ -26,12 +26,14 @@ interface BasePersonFormProps {
 const emptyPerson: Omit<BasePerson, 'id'> = {
   name: '',
   personalNumber: '',
+  rank: '',
   frameworkId: '',
   role: '',
   profile: '',
   qualifications: [],
   licenses: [],
   certifications: [],
+  drivingLicenses: [],
   presence: 'בבסיס',
   presenceOther: '',
   family: '',
@@ -75,7 +77,8 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
         ...rest,
         qualifications: rest.qualifications || [],
         licenses: rest.licenses || [],
-        certifications: rest.certifications || []
+        certifications: rest.certifications || [],
+        drivingLicenses: rest.drivingLicenses || []
       });
     } else {
       setFormData(emptyPerson);
@@ -193,6 +196,14 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
             />
             <TextField
               fullWidth
+              label="דרגה"
+              name="rank"
+              value={formData.rank || ''}
+              onChange={handleChange}
+              helperText="לדוגמה: רב טוראי, סמל, רס״ל"
+            />
+            <TextField
+              fullWidth
               label="מסגרת"
               name="frameworkId"
               value={formData.frameworkId}
@@ -246,6 +257,18 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
                 onChange={handleArrayChange}
                 multiline
                 rows={2}
+              />
+            </Box>
+            <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
+              <TextField
+                fullWidth
+                label="היתרים לנהיגה (מופרד בפסיקים)"
+                name="drivingLicenses"
+                value={(formData.drivingLicenses || []).join(', ')}
+                onChange={handleArrayChange}
+                multiline
+                rows={2}
+                helperText="לדוגמה: B, C, D, E"
               />
             </Box>
             <TextField
