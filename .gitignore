@@ -7,7 +7,8 @@ yarn-error.log*
 # Production builds
 build/
 dist/
-lib/
+.next/
+out/
 
 # Environment variables
 .env
@@ -19,7 +20,7 @@ lib/
 # Firebase
 .firebase/
 firebase-debug.log
-firebase-debug.*.log
+firestore-debug.log
 ui-debug.log
 
 # IDE
@@ -27,9 +28,15 @@ ui-debug.log
 .idea/
 *.swp
 *.swo
+*~
 
 # OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
 # Logs
@@ -44,6 +51,7 @@ pids
 
 # Coverage directory used by tools like istanbul
 coverage/
+*.lcov
 
 # nyc test coverage
 .nyc_output
@@ -53,6 +61,15 @@ jspm_packages/
 
 # Optional npm cache directory
 .npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
 
 # Optional REPL history
 .node_repl_history
@@ -67,32 +84,18 @@ jspm_packages/
 .cache
 .parcel-cache
 
-# next.js build output
-.next
+# TypeScript cache
+*.tsbuildinfo
 
-# nuxt.js build output
-.nuxt
+# Optional stylelint cache
+.stylelintcache
 
-# vuepress build output
-.vuepress/dist
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
 
-# Serverless directories
-.serverless
+# Temporary folders
+tmp/
+temp/
 
-# FuseBox cache
-.fusebox/
-
-# DynamoDB Local files
-.dynamodb/
-
-# TernJS port file
-.tern-port
-
-# Firebase service account keys (sensitive)
-serviceAccountKey.json
-*-service-account.json
-
-# Local Firebase emulator data
-firebase-debug.log
-ui-debug.log
-firebase-debug.*.log 
+# Local development
+.local/ 
