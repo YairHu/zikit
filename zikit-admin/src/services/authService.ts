@@ -172,17 +172,7 @@ export const getCurrentUser = async (uid: string): Promise<User | null> => {
   }
 };
 
-// פונקציה לעדכון הרשאות משתמש
-export const updateUserPermissions = async (
-  uid: string, 
-  permissions: { canAssignRoles?: boolean; canViewSensitiveData?: boolean }
-): Promise<void> => {
-  const userRef = doc(db, 'users', uid);
-  await updateDoc(userRef, {
-    ...permissions,
-    updatedAt: new Date()
-  });
-};
+
 
 // פונקציה להאזנה לשינויי אימות
 export const onAuthChange = (callback: (user: User | null) => void) => {

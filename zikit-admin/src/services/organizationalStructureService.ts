@@ -28,20 +28,7 @@ export const getUsersByTeam = async (teamId: string): Promise<User[]> => {
   return users.sort((a, b) => {
     const roleOrder = {
       [UserRole.ADMIN]: 0,
-      [UserRole.MEFAKED_PLUGA]: 1,
-      [UserRole.SAMAL_PLUGA]: 2,
-      [UserRole.MEFAKED_PELAGA]: 3,
-      [UserRole.RASP]: 4,
-      [UserRole.SARASP]: 5,
-      [UserRole.KATZIN_NIHUL]: 6,
-      [UserRole.MANIP]: 7,
-      [UserRole.HOFPAL]: 8,
-      [UserRole.PAP]: 9,
-      [UserRole.MEFAKED_TZEVET]: 10,
-      [UserRole.SAMAL]: 11,
-      [UserRole.MEFAKED_CHAYAL]: 12,
-      [UserRole.CHAYAL]: 13,
-      [UserRole.HAMAL]: 14
+      [UserRole.CHAYAL]: 1
     };
     return (roleOrder[b.role] || 0) - (roleOrder[a.role] || 0);
   });

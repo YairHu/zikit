@@ -10,8 +10,7 @@ import { getAllSoldiers, updateSoldier, getSoldierById } from '../services/soldi
 import { getAllVehicles } from '../services/vehicleService';
 import { getAllTrips, updateTrip } from '../services/tripService';
 import { getAllFrameworks } from '../services/frameworkService';
-import { getUserPermissions, UserRole } from '../models/UserRole';
-import { filterByPermissions, canViewActivity, canEditActivity, canDeleteItem } from '../utils/permissions';
+import { UserRole, isAdmin } from '../models/UserRole';
 
 import {
   Container,
@@ -73,7 +72,6 @@ import {
 const emptyActivity: Omit<Activity, 'id' | 'createdAt' | 'updatedAt'> = {
   name: '',
   frameworkId: '',
-  frameworkIds: [],
   location: '',
   region: 'מנשה',
   activityType: 'מארב ירי',
@@ -117,12 +115,12 @@ const Activities: React.FC = () => {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const userPermissions = getUserPermissions(user?.role as UserRole);
+      // טעינת כל הפעילויות
+      const allActivitiesData = await getAllActivities();
+      let activitiesData = allActivitiesData;
       
-      let activitiesData: Activity[] = [];
-      
-      if (userPermissions.content.viewOwnDataOnly && user?.soldierDocId) {
-        // עבור חייל - נטען רק את הפעילויות שהוא משתתף בהן
+      // אם המשתמש הוא חייל, נציג רק פעילויות רלוונטיות לו
+      if (user?.role === UserRole.CHAYAL && user?.soldierDocId) {
         const soldierData = await getSoldierById(user.soldierDocId);
         if (soldierData?.activities && soldierData.activities.length > 0) {
           // נטען רק את הפעילויות הספציפיות
@@ -130,10 +128,6 @@ const Activities: React.FC = () => {
           const activitiesResults = await Promise.all(activityPromises);
           activitiesData = activitiesResults.filter((activity): activity is Activity => activity !== null);
         }
-      } else {
-        // עבור מפקדים - נטען את כל הפעילויות ונסנן לפי הרשאות
-        const allActivitiesData = await getAllActivities();
-        activitiesData = user ? filterByPermissions(user, allActivitiesData, canViewActivity) : allActivitiesData;
       }
       
       const [soldiersData, vehiclesData, tripsData, frameworksData] = await Promise.all([
@@ -177,7 +171,6 @@ const Activities: React.FC = () => {
       setFormData({
         name: activity.name,
         frameworkId: activity.frameworkId || '',
-        frameworkIds: activity.frameworkIds || (activity.frameworkId ? [activity.frameworkId] : []),
         location: activity.location,
         region: activity.region,
         activityType: activity.activityType,
@@ -573,11 +566,6 @@ const Activities: React.FC = () => {
       // רענון הנתונים ואז סגירת החלונית
       await refresh();
       handleCloseForm();
-      
-      // ניקוי פרמטר edit מה-URL כדי למנוע פתיחה מחדש של הטופס
-      const url = new URL(window.location.href);
-      url.searchParams.delete('edit');
-      window.history.replaceState({}, '', url.toString());
     } catch (error) {
       console.error('Error saving activity:', error);
       // גם במקרה של שגיאה, נסגור את החלונית
@@ -674,8 +662,8 @@ const Activities: React.FC = () => {
   };
 
   // בדיקת הרשאות למשתמש
-  const userPermissions = getUserPermissions(user?.role as UserRole);
-  const canCreate = userPermissions.actions.canCreate;
+        const userRole = user?.role as UserRole;
+      const canCreate = isAdmin(userRole);
 
   const isActivityComplete = (activity: Activity) => {
     const missingFields: string[] = [];
@@ -868,9 +856,9 @@ const Activities: React.FC = () => {
                   }}>
                     {activity.name}
                   </Typography>
-                  {user && (canEditActivity(user, activity) || canDeleteItem(user, activity, 'activity')) && (
+                  {user && isAdmin(user.role as UserRole) && (
                     <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 1 } }}>
-                      {user && canEditActivity(user, activity) && (
+                      {isAdmin(user.role as UserRole) && (
                         <IconButton
                           size="small"
                           color="primary"
@@ -883,7 +871,7 @@ const Activities: React.FC = () => {
                           <EditIcon fontSize="small" />
                         </IconButton>
                       )}
-                      {user && canDeleteItem(user, activity, 'activity') && (
+                      {isAdmin(user.role as UserRole) && (
                         <IconButton
                           size="small"
                           color="error"
@@ -1177,9 +1165,9 @@ const Activities: React.FC = () => {
                     />
                   </TableCell>
                   <TableCell>
-                    {user && (canEditActivity(user, activity) || canDeleteItem(user, activity, 'activity')) && (
+                    {user && isAdmin(user.role as UserRole) && (
                       <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 1 } }}>
-                        {user && canEditActivity(user, activity) && (
+                        {isAdmin(user.role as UserRole) && (
                           <IconButton
                             size="small"
                             color="primary"
@@ -1192,7 +1180,7 @@ const Activities: React.FC = () => {
                             <EditIcon fontSize="small" />
                           </IconButton>
                         )}
-                        {user && canDeleteItem(user, activity, 'activity') && (
+                        {isAdmin(user.role as UserRole) && (
                           <IconButton
                             size="small"
                             color="error"
@@ -1258,24 +1246,15 @@ const Activities: React.FC = () => {
               </Box>
               <Box>
                 <FormControl fullWidth>
-                  <InputLabel sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>מסגרות</InputLabel>
+                  <InputLabel sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>מסגרת</InputLabel>
                   <Select
-                    multiple
-                    name="frameworkIds"
-                    value={formData.frameworkIds || []}
-                    onChange={(e) => {
-                      const value = e.target.value as string[];
-                      handleSelectChange('frameworkIds', value);
-                      // שמירה על תאימות לאחור עם frameworkId
-                      if (value.length > 0) {
-                        handleSelectChange('frameworkId', value[0]);
-                      } else {
-                        handleSelectChange('frameworkId', '');
-                      }
-                    }}
-                    label="מסגרות"
+                    name="frameworkId"
+                    value={formData.frameworkId}
+                    onChange={(e) => handleSelectChange('frameworkId', e.target.value)}
+                    label="מסגרת"
                     sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
                   >
+                    <MenuItem value="" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>בחר מסגרת</MenuItem>
                     {frameworks.map(framework => (
                       <MenuItem key={framework.id} value={framework.id} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                         {framework.name}

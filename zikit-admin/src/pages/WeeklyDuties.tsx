@@ -5,8 +5,7 @@ import { getAllDuties, addDuty, updateDuty, deleteDuty, getDutiesBySoldier } fro
 import { getAllSoldiers } from '../services/soldierService';
 import { getAllFrameworks } from '../services/frameworkService';
 import { useUser } from '../contexts/UserContext';
-import { getUserPermissions, UserRole } from '../models/UserRole';
-import { filterByPermissions, canViewDuty } from '../utils/permissions';
+import { UserRole, isAdmin } from '../models/UserRole';
 import {
   Container,
   Typography,
@@ -267,15 +266,12 @@ const WeeklyDuties: React.FC = () => {
       // טעינת תורנויות לפי הרשאות המשתמש
       let dutiesData: Duty[] = [];
       if (user) {
-        const userPermissions = getUserPermissions(user.role as UserRole);
-        
         // אם המשתמש הוא חייל - רואה רק את התורנויות שלו
         if (user.role === UserRole.CHAYAL) {
           dutiesData = await getDutiesBySoldier(user.uid);
         } else {
-          // משתמשים אחרים - קבלת כל התורנויות וסינון לפי הרשאות
-          const allDuties = await getAllDuties();
-          dutiesData = filterByPermissions(user, allDuties, canViewDuty);
+          // משתמשים אחרים - רואים את כל התורנויות
+          dutiesData = await getAllDuties();
         }
       }
 

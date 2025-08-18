@@ -16,8 +16,7 @@ import { Referral } from '../models/Referral';
 import { Soldier } from '../models/Soldier';
 import { getAllReferrals, addReferral, updateReferral, deleteReferral, getReferralsBySoldier } from '../services/referralService';
 import { getAllSoldiers } from '../services/soldierService';
-import { getUserPermissions, UserRole } from '../models/UserRole';
-import { filterByPermissions, canViewReferral, canEditItem, canDeleteItem } from '../utils/permissions';
+import { UserRole, isAdmin } from '../models/UserRole';
 
 const Referrals: React.FC = () => {
   const navigate = useNavigate();
@@ -61,15 +60,12 @@ const Referrals: React.FC = () => {
       // טעינת הפניות לפי הרשאות המשתמש
       let referralsData: Referral[] = [];
       if (user) {
-        const userPermissions = getUserPermissions(user.role as UserRole);
-        
         // אם המשתמש הוא חייל - רואה רק את ההפניות שלו
         if (user.role === UserRole.CHAYAL) {
           referralsData = await getReferralsBySoldier(user.uid);
         } else {
-          // משתמשים אחרים - קבלת כל ההפניות וסינון לפי הרשאות
-          const allReferrals = await getAllReferrals();
-          referralsData = filterByPermissions(user, allReferrals, canViewReferral);
+          // משתמשים אחרים - רואים את כל ההפניות
+          referralsData = await getAllReferrals();
         }
       }
 
@@ -228,7 +224,7 @@ const Referrals: React.FC = () => {
             ניהול הפניות של חיילים
           </Typography>
         </Box>
-        {user && getUserPermissions(user.role as UserRole).actions.canCreate && (
+        {user && isAdmin(user.role as UserRole) && (
           <Fab
             color="primary"
             onClick={() => handleOpenForm()}
@@ -328,7 +324,7 @@ const Referrals: React.FC = () => {
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2, gap: 1 }}>
-                  {user && canEditItem(user, referral, 'referral') && (
+                  {user && isAdmin(user.role as UserRole) && (
                     <IconButton 
                       size="small" 
                       onClick={(e) => {
@@ -339,7 +335,7 @@ const Referrals: React.FC = () => {
                       <EditIcon />
                     </IconButton>
                   )}
-                  {user && canDeleteItem(user, referral, 'referral') && (
+                  {user && isAdmin(user.role as UserRole) && (
                     <IconButton 
                       size="small" 
                       color="error"
@@ -370,7 +366,7 @@ const Referrals: React.FC = () => {
                 <TableCell>מיקום</TableCell>
                 <TableCell>סיבה</TableCell>
                 <TableCell>סטטוס</TableCell>
-                {user && (user.role === 'mefaked_tzevet' || user.role === 'mefaked_pluga' || user.role === 'admin') && (
+                {user && (user.role === 'admin') && (
                   <TableCell>פעולות</TableCell>
                 )}
               </TableRow>
@@ -399,10 +395,10 @@ const Referrals: React.FC = () => {
                       size="small"
                     />
                   </TableCell>
-                  {user && (canEditItem(user, referral, 'referral') || canDeleteItem(user, referral, 'referral')) && (
+                  {user && isAdmin(user.role as UserRole) && (
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
-                        {user && canEditItem(user, referral, 'referral') && (
+                        {isAdmin(user.role as UserRole) && (
                           <IconButton 
                             size="small" 
                             onClick={(e) => {
@@ -413,7 +409,7 @@ const Referrals: React.FC = () => {
                             <EditIcon />
                           </IconButton>
                         )}
-                        {user && canDeleteItem(user, referral, 'referral') && (
+                        {isAdmin(user.role as UserRole) && (
                           <IconButton 
                             size="small" 
                             color="error"

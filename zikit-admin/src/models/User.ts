@@ -1,5 +1,4 @@
 import { UserRole } from './UserRole';
-import { PermissionPolicy } from './PermissionPolicy';
 
 export interface User {
   uid: string;
@@ -13,7 +12,6 @@ export interface User {
   
   // מבנה ארגוני
   team?: string; // צוות (למפקד צוות/חייל) - "10", "20", "30" וכו'
-  frameworkId?: string; // מזהה המסגרת שאליה שייך המשתמש
   pelaga?: string; // פלגה (A, B, C וכו') 
   unit?: string; // יחידה/חטיבה
   
@@ -21,14 +19,10 @@ export interface User {
   commanderUid?: string; // UID של הממונה הישיר
   subordinatesUids?: string[]; // רשימת UIDs של הכפופים
   
-  // הרשאות מיוחדות (לשמירה על תאימות לאחור)
+  // הרשאות מיוחדות
   canAssignRoles?: boolean; // האם יכול לשבץ תפקידים (מ"פ, סמ"פ, אדמין)
   canViewSensitiveData?: boolean; // האם יכול לראות מידע רגיש (מ"פ, סמ"פ)
   canRemoveUsers?: boolean; // האם יכול להסיר משתמשים מהמערכת (אדמין, מ"פ)
-  
-  // מערכת ההרשאות החדשה
-  permissionPolicies?: string[]; // רשימת מזההי מדיניויות הרשאות
-  customPermissions?: PermissionPolicy[]; // מדיניויות הרשאות מותאמות אישית
   
   // קישור לרשומת החייל
   soldierDocId?: string;
@@ -60,43 +54,18 @@ export interface TeamStructure {
 
 // פונקציות עזר למבנה ההיררכיה
 export const getUserHierarchyLevel = (user: User): number => {
-  const { ROLE_HIERARCHY } = require('./UserRole');
-  return ROLE_HIERARCHY[user.role] || 0;
+  // Simplified hierarchy
+  return user.role === UserRole.ADMIN ? 100 : 0;
 };
 
 export const canUserSeeOtherUser = (viewer: User, target: User): boolean => {
   // אדמין רואה הכל
   if (viewer.role === UserRole.ADMIN) return true;
   
-  // מ"פ וסמ"פ רואים את כל הפלוגה
-  if (viewer.role === UserRole.MEFAKED_PLUGA || viewer.role === UserRole.SAMAL_PLUGA) {
-    return true;
-  }
-  
-  // מפקד פלגה רואה את הפלגה שלו
-  if (viewer.role === UserRole.MEFAKED_PELAGA) {
-    return viewer.pelaga === target.pelaga;
-  }
-  
-  // מפקד צוות רואה את הצוות שלו
-  if (viewer.role === UserRole.MEFAKED_TZEVET) {
-    return viewer.team === target.team;
-  }
-  
-  // סמל ומפקד חיילים רואים את הצוות שלהם
-  if (viewer.role === UserRole.SAMAL || viewer.role === UserRole.MEFAKED_CHAYAL) {
-    return viewer.team === target.team;
-  }
-  
   // חייל רואה רק את עצמו
   if (viewer.role === UserRole.CHAYAL) {
     return viewer.uid === target.uid;
   }
-  
-  // חמ"ל רואה את כל הפלוגה (לצורכי תצוגה)
-  if (viewer.role === UserRole.HAMAL) {
-    return true;
-  }
-  
+
   return false;
 }; 

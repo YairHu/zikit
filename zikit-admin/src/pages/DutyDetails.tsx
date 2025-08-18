@@ -3,8 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
 import { Duty } from '../models/Duty';
 import { getDutyById } from '../services/dutyService';
-import { getUserPermissions, UserRole } from '../models/UserRole';
-import { canViewDuty, canEditItem, canDeleteItem } from '../utils/permissions';
+import { UserRole, isAdmin, canViewAllData, canEditData, canDeleteData } from '../models/UserRole';
 import {
   Container,
   Typography,
@@ -43,11 +42,8 @@ const DutyDetails: React.FC = () => {
   useEffect(() => {
     if (id) {
       getDutyById(id).then((dutyData) => {
-        // בדיקת הרשאות צפייה
-        if (dutyData && user && !canViewDuty(user, dutyData)) {
-          navigate('/duties');
-          return;
-        }
+        // בדיקת הרשאות צפייה - לא נדרשת יותר
+        setDuty(dutyData);
         setDuty(dutyData);
         setLoading(false);
       });
@@ -110,12 +106,12 @@ const DutyDetails: React.FC = () => {
             label={duty.status} 
             color={getStatusColor(duty.status) as any}
           />
-          {user && canEditItem(user, duty, 'duty') && (
+          {user && isAdmin(user.role as UserRole) && (
             <IconButton onClick={handleEdit}>
               <EditIcon />
             </IconButton>
           )}
-          {user && canDeleteItem(user, duty, 'duty') && (
+          {user && isAdmin(user.role as UserRole) && (
             <IconButton color="error" onClick={handleDelete}>
               <DeleteIcon />
             </IconButton>

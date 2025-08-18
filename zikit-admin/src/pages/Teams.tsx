@@ -43,8 +43,7 @@ import {
   AccountTree as AccountTreeIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
-import { getUserPermissions } from '../models/UserRole';
-import { filterByPermissions, canViewTeam } from '../utils/permissions';
+import { UserRole, isAdmin } from '../models/UserRole';
 import { Soldier } from '../models/Soldier';
 import { Activity } from '../models/Activity';
 import { Duty } from '../models/Duty';
@@ -83,26 +82,13 @@ const Teams: React.FC = () => {
       let validFrameworks = frameworksWithDetails.filter(f => f !== null) as FrameworkWithDetails[];
       
       // סינון לפי הרשאות המשתמש
-      const userPermissions = getUserPermissions(user.role);
-      
-      if (userPermissions.content.viewOwnDataOnly) {
+      if (user.role === UserRole.CHAYAL) {
         // חייל רואה רק את הצוות שלו
         if (teamId) {
           validFrameworks = validFrameworks.filter(f => f.id === teamId);
         } else {
           validFrameworks = validFrameworks.filter(f => f.id === user.team);
         }
-      } else if (userPermissions.content.viewTeamData) {
-        // מפקד צוות רואה את הצוות שלו
-        validFrameworks = validFrameworks.filter(f => f.id === user.team);
-      } else if (userPermissions.content.viewPlagaData) {
-        // מפקד פלגה רואה את הפלגה שלו
-        // נשתמש בשם המסגרת כדי לזהות פלגות (A, B, C וכו')
-        validFrameworks = validFrameworks.filter(f => {
-          const frameworkName = f.name.toLowerCase();
-          const userPelaga = user.pelaga?.toLowerCase();
-          return frameworkName.includes(userPelaga || '');
-        });
       }
       // אם רואה כל הנתונים - לא מסנן
       
@@ -144,7 +130,7 @@ const Teams: React.FC = () => {
         <Typography variant="h4" component="h1">
           {isPersonalTeam ? 'הצוות שלי' : 'מסגרות'}
         </Typography>
-        {user && getUserPermissions(user.role).navigation.frameworkManagement && (
+        {user && isAdmin(user.role as UserRole) && (
           <Button
             variant="outlined"
             startIcon={<AccountTreeIcon />}

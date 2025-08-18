@@ -5,8 +5,7 @@ import { Soldier } from '../models/Soldier';
 import { getAllDuties, addDuty, updateDuty, deleteDuty, getDutiesBySoldier } from '../services/dutyService';
 import { getAllSoldiers } from '../services/soldierService';
 import { getAllFrameworks } from '../services/frameworkService';
-import { getUserPermissions, UserRole } from '../models/UserRole';
-import { filterByPermissions, canViewDuty, canEditItem, canDeleteItem } from '../utils/permissions';
+import { UserRole, isAdmin } from '../models/UserRole';
 import {
   Container,
   Typography,
@@ -97,15 +96,12 @@ const Duties: React.FC = () => {
       // טעינת תורנויות לפי הרשאות המשתמש
       let dutiesData: Duty[] = [];
       if (user) {
-        const userPermissions = getUserPermissions(user.role as UserRole);
-        
         // אם המשתמש הוא חייל - רואה רק את התורנויות שלו
         if (user.role === UserRole.CHAYAL) {
           dutiesData = await getDutiesBySoldier(user.uid);
         } else {
-          // משתמשים אחרים - קבלת כל התורנויות וסינון לפי הרשאות
-          const allDuties = await getAllDuties();
-          dutiesData = filterByPermissions(user, allDuties, canViewDuty);
+          // משתמשים אחרים - רואים את כל התורנויות
+          dutiesData = await getAllDuties();
         }
       }
 
@@ -249,7 +245,7 @@ const Duties: React.FC = () => {
           >
             תצוגה שבועית
           </Button>
-          {user && getUserPermissions(user.role as UserRole).actions.canCreate && (
+          {user && isAdmin(user.role as UserRole) && (
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -316,7 +312,7 @@ const Duties: React.FC = () => {
                       color={getStatusColor(duty.status) as any}
                       size="small"
                     />
-                    {user && canEditItem(user, duty, 'duty') && (
+                    {user && isAdmin(user.role as UserRole) && (
                       <IconButton
                         size="small"
                         onClick={(e) => {
@@ -327,7 +323,7 @@ const Duties: React.FC = () => {
                         <EditIcon />
                       </IconButton>
                     )}
-                    {user && canDeleteItem(user, duty, 'duty') && (
+                    {user && isAdmin(user.role as UserRole) && (
                       <IconButton
                         size="small"
                         color="error"
@@ -455,7 +451,7 @@ const Duties: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <Box sx={{ display: 'flex', gap: 0.5 }}>
-                      {user && canEditItem(user, duty, 'duty') && (
+                      {user && isAdmin(user.role as UserRole) && (
                         <IconButton
                           size="small"
                           onClick={(e) => {
@@ -466,7 +462,7 @@ const Duties: React.FC = () => {
                           <EditIcon />
                         </IconButton>
                       )}
-                      {user && canDeleteItem(user, duty, 'duty') && (
+                      {user && isAdmin(user.role as UserRole) && (
                         <IconButton
                           size="small"
                           color="error"

@@ -13,8 +13,7 @@ import {
 import { useUser } from '../contexts/UserContext';
 import { Mission } from '../models/Mission';
 import { getAllMissions, addMission, updateMission, deleteMission, getMissionsBySoldier } from '../services/missionService';
-import { getUserPermissions, UserRole } from '../models/UserRole';
-import { filterByPermissions, canViewMission, canEditItem, canDeleteItem } from '../utils/permissions';
+import { UserRole, isAdmin } from '../models/UserRole';
 
 const Missions: React.FC = () => {
   const navigate = useNavigate();
@@ -50,15 +49,12 @@ const Missions: React.FC = () => {
       // טעינת משימות לפי הרשאות המשתמש
       let data: Mission[] = [];
       if (user) {
-        const userPermissions = getUserPermissions(user.role as UserRole);
-        
         // אם המשתמש הוא חייל - רואה רק את המשימות שלו
         if (user.role === UserRole.CHAYAL) {
           data = await getMissionsBySoldier(user.uid);
         } else {
-          // משתמשים אחרים - קבלת כל המשימות וסינון לפי הרשאות
-          const allMissions = await getAllMissions();
-          data = filterByPermissions(user, allMissions, canViewMission);
+          // משתמשים אחרים - רואים את כל המשימות
+          data = await getAllMissions();
         }
       }
       
@@ -184,7 +180,7 @@ const Missions: React.FC = () => {
         <Typography variant="h4" component="h1" fontWeight="bold">
           משימות
         </Typography>
-        {user && getUserPermissions(user.role as UserRole).actions.canCreate && (
+                  {user && (isAdmin(user.role as UserRole)) && (
           <Button
             variant="contained"
             startIcon={<AddIcon />}
@@ -241,7 +237,7 @@ const Missions: React.FC = () => {
                     {mission.name}
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 1 }}>
-                    {user && canEditItem(user, mission, 'mission') && (
+                    {user && (isAdmin(user.role as UserRole)) && (
                       <IconButton
                         size="small"
                         color="primary"
@@ -250,7 +246,7 @@ const Missions: React.FC = () => {
                         <EditIcon />
                       </IconButton>
                     )}
-                    {user && canDeleteItem(user, mission, 'mission') && (
+                    {user && (isAdmin(user.role as UserRole)) && (
                       <IconButton
                         size="small"
                         color="error"
@@ -328,7 +324,7 @@ const Missions: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <Box sx={{ display: 'flex', gap: 1 }}>
-                      {user && canEditItem(user, mission, 'mission') && (
+                      {user && (isAdmin(user.role as UserRole)) && (
                         <IconButton
                           size="small"
                           color="primary"
@@ -337,7 +333,7 @@ const Missions: React.FC = () => {
                           <EditIcon />
                         </IconButton>
                       )}
-                      {user && canDeleteItem(user, mission, 'mission') && (
+                      {user && (isAdmin(user.role as UserRole)) && (
                         <IconButton
                           size="small"
                           color="error"

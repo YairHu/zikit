@@ -66,8 +66,7 @@ import { getAllTrips, addTrip, updateTrip, deleteTrip, checkAvailability } from 
 import { getAllVehicles, addVehicle, updateVehicle } from '../services/vehicleService';
 import { getAllSoldiers, updateSoldier } from '../services/soldierService';
 import { getAllActivities, updateActivity } from '../services/activityService';
-import { getUserPermissions, UserRole } from '../models/UserRole';
-import { filterByPermissions, canViewTrip } from '../utils/permissions';
+import { UserRole, isAdmin } from '../models/UserRole';
 
 const Trips: React.FC = () => {
   const navigate = useNavigate();
@@ -123,7 +122,7 @@ const Trips: React.FC = () => {
       ]);
       
       // סינון נסיעות לפי הרשאות המשתמש
-      const filteredTrips = user ? filterByPermissions(user, tripsData, canViewTrip) : tripsData;
+      const filteredTrips = tripsData;
       
       setTrips(filteredTrips);
       setVehicles(vehiclesData);
@@ -725,10 +724,10 @@ const Trips: React.FC = () => {
   };
 
   // בדיקת הרשאות למשתמש
-  const userPermissions = getUserPermissions(user?.role as UserRole);
-  const canEdit = userPermissions.actions.canEdit;
-  const canDelete = userPermissions.actions.canDelete;
-  const canCreate = userPermissions.actions.canCreate;
+        const userRole = user?.role as UserRole;
+      const canEdit = isAdmin(userRole);
+      const canDelete = isAdmin(userRole);
+      const canCreate = isAdmin(userRole);
 
   const isTripComplete = (trip: Trip) => {
     const missingFields: string[] = [];

@@ -8,7 +8,7 @@ import {
   MoreVert as MoreIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
-import { canEditItem, canDeleteItem, canCreateItem } from '../utils/permissions';
+import { UserRole, isAdmin } from '../models/UserRole';
 
 interface ActionButtonsProps {
   item?: any;
@@ -45,9 +45,10 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
 
   if (!user) return null;
 
-  const canEdit = item ? canEditItem(user, item, itemType) : false;
-  const canDelete = item ? canDeleteItem(user, item, itemType) : false;
-  const canCreate = canCreateItem(user, itemType);
+  const userRole = user.role as UserRole;
+  const canEdit = item ? isAdmin(userRole) : false;
+  const canDelete = item ? isAdmin(userRole) : false;
+  const canCreate = isAdmin(userRole);
 
   if (compact) {
     return (

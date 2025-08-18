@@ -5,8 +5,7 @@ import { Activity, ActivityDeliverable } from '../models/Activity';
 import { Trip } from '../models/Trip';
 import { getActivityById, addActivityDeliverable, updateActivityStatus } from '../services/activityService';
 import { getAllTrips } from '../services/tripService';
-import { getAllFrameworks } from '../services/frameworkService';
-import { canEditActivity, canDeleteItem, canViewActivity } from '../utils/permissions';
+import { UserRole, isAdmin } from '../models/UserRole';
 
 import TripManagement from '../components/TripManagement';
 import {
@@ -61,7 +60,6 @@ const ActivityDetails: React.FC = () => {
   const [showDeliverablesDialog, setShowDeliverablesDialog] = useState(false);
   const [showTripManagement, setShowTripManagement] = useState(false);
   const [trips, setTrips] = useState<Trip[]>([]);
-  const [frameworks, setFrameworks] = useState<any[]>([]);
   const [newDeliverable, setNewDeliverable] = useState<{
     type: 'text' | 'image';
     title: string;
@@ -75,35 +73,23 @@ const ActivityDetails: React.FC = () => {
   useEffect(() => {
     if (id) {
       getActivityById(id).then((activityData) => {
-        // בדיקת הרשאות לפני הצגת הפעילות
-        if (activityData && user) {
-          if (!canViewActivity(user, activityData)) {
-            // אם אין הרשאה, חזרה לעמוד הפעילויות
-            navigate('/activities');
-            return;
-          }
-        }
         setActivity(activityData);
         setLoading(false);
       });
     }
-  }, [id, user, navigate]);
+  }, [id]);
 
   useEffect(() => {
-    // Load trips and frameworks for display
-    const loadData = async () => {
+    // Load trips for mobility display
+    const loadTrips = async () => {
       try {
-        const [tripsData, frameworksData] = await Promise.all([
-          getAllTrips(),
-          getAllFrameworks()
-        ]);
+        const tripsData = await getAllTrips();
         setTrips(tripsData);
-        setFrameworks(frameworksData);
       } catch (error) {
-        console.error('Error loading data:', error);
+        console.error('Error loading trips:', error);
       }
     };
-    loadData();
+    loadTrips();
   }, []);
 
 
@@ -252,12 +238,12 @@ const ActivityDetails: React.FC = () => {
           >
             תוצרים
           </Button>
-          {user && canEditActivity(user, activity) && (
+          {user && isAdmin(user.role as UserRole) && (
             <IconButton onClick={handleEdit}>
               <EditIcon />
             </IconButton>
           )}
-          {user && canDeleteItem(user, activity, 'activity') && (
+          {user && isAdmin(user.role as UserRole) && (
             <IconButton color="error" onClick={handleDelete}>
               <DeleteIcon />
             </IconButton>
@@ -293,256 +279,123 @@ const ActivityDetails: React.FC = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
                   <AssignmentIcon sx={{ mr: 1, color: 'text.secondary' }} />
                   <Box>
-                    <Typography variant="body2" color="text.secondary">אזור</Typography>
-                    <Typography variant="body1">{activity.region}</Typography>
-                  </Box>
-                </Box>
-
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <ScheduleIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                  <Box>
-                    <Typography variant="body2" color="text.secondary">משך</Typography>
-                    <Typography variant="body1">{activity.duration} שעות</Typography>
-                  </Box>
-                </Box>
-
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <AssignmentIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                  <Box>
                     <Typography variant="body2" color="text.secondary">סוג פעילות</Typography>
-                    <Typography variant="body1">
-                      {activity.activityType === 'אחר' && activity.activityTypeOther 
-                        ? activity.activityTypeOther 
-                        : activity.activityType}
-                    </Typography>
+                    <Typography variant="body1">{activity.activityType}</Typography>
                   </Box>
                 </Box>
               </Box>
-
-              {/* Mobility Section */}
-              <Box sx={{ mt: 3, p: 2, border: '1px solid #e0e0e0', borderRadius: 1, bgcolor: '#fafafa' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                  <DirectionsCarIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                  <Typography variant="h6">ניוד</Typography>
-                </Box>
-                
-                {activity.mobility ? (
-                  <Typography variant="body1">{formatMobilityDisplay(activity.mobility)}</Typography>
-                ) : (
-                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                    לא הוגדר ניוד לפעילות זו
-                  </Typography>
-                )}
-              </Box>
-            </CardContent>
-          </Card>
-
-          {/* Participants */}
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2 }}>משתתפים ({activity.participants.length})</Typography>
-              <List>
-                {activity.participants.map((participant, index) => (
-                  <React.Fragment key={participant.soldierId}>
-                    <ListItem>
-                      <ListItemAvatar>
-                        <Avatar>
-                          <PersonIcon />
-                        </Avatar>
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={
-                          <Button
-                            onClick={() => navigate(`/soldiers/${participant.soldierId}`)}
-                            sx={{ textTransform: 'none', p: 0, minWidth: 'auto' }}
-                          >
-                            {participant.soldierName}
-                          </Button>
-                        }
-                        secondary={`${participant.personalNumber} - ${participant.role}`}
-                      />
-                    </ListItem>
-                    {index < activity.participants.length - 1 && <Divider />}
-                  </React.Fragment>
-                ))}
-              </List>
-            </CardContent>
-          </Card>
-        </Box>
-
-        {/* Right Column - Commanders */}
-        <Box>
-          <Card sx={{ mb: 3 }}>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2 }}>מפקדים</Typography>
-              
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" color="text.secondary">מפקד הפעילות</Typography>
-                <Button
-                  onClick={() => navigate(`/soldiers/${activity.commanderId}`)}
-                  sx={{ textTransform: 'none', p: 0, minWidth: 'auto' }}
-                >
-                  {activity.commanderName}
-                </Button>
-              </Box>
-
-              <Box>
-                <Typography variant="body2" color="text.secondary">מוביל משימה</Typography>
-                <Button
-                  onClick={() => navigate(`/soldiers/${activity.taskLeaderId}`)}
-                  sx={{ textTransform: 'none', p: 0, minWidth: 'auto' }}
-                >
-                  {activity.taskLeaderName}
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
-
-          {/* Framework Info */}
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2 }}>מסגרות</Typography>
-              {activity.frameworkIds && activity.frameworkIds.length > 0 ? (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  {activity.frameworkIds.map((frameworkId, index) => {
-                    const framework = frameworks.find(f => f.id === frameworkId);
-                    return (
-                      <Chip 
-                        key={index}
-                        label={framework ? framework.name : `מסגרת: ${frameworkId}`}
-                        variant="outlined"
-                        color="primary"
-                        clickable
-                        onClick={() => navigate(`/frameworks/${frameworkId}`)}
-                        sx={{ cursor: 'pointer' }}
-                      />
-                    );
-                  })}
-                </Box>
-              ) : activity.frameworkId ? (
-                <Box>
-                  {(() => {
-                    const framework = frameworks.find(f => f.id === activity.frameworkId);
-                    return (
-                      <Chip 
-                        label={framework ? framework.name : `מסגרת: ${activity.frameworkId}`}
-                        variant="outlined"
-                        color="primary"
-                        clickable
-                        onClick={() => navigate(`/frameworks/${activity.frameworkId}`)}
-                        sx={{ cursor: 'pointer' }}
-                      />
-                    );
-                  })()}
-                </Box>
-              ) : (
-                <Typography variant="body1" color="text.secondary">
-                  לא נבחרו מסגרות
-                </Typography>
-              )}
             </CardContent>
           </Card>
 
           {/* Deliverables */}
-          {activity.deliverables && activity.deliverables.length > 0 && (
-            <Card>
-              <CardContent>
-                <Typography variant="h6" sx={{ mb: 2 }}>תוצרים ({activity.deliverables.length})</Typography>
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">תוצרים</Typography>
+                <Button
+                  variant="outlined"
+                  startIcon={<AddIcon />}
+                  onClick={() => setShowDeliverablesDialog(true)}
+                >
+                  הוסף תוצר
+                </Button>
+              </Box>
+
+              {activity.deliverables && activity.deliverables.length > 0 ? (
                 <List>
-                  {activity.deliverables.map((deliverable, index) => (
-                    <React.Fragment key={deliverable.id}>
-                      <ListItem>
+                  {activity.deliverables.map((deliv: ActivityDeliverable, idx: number) => (
+                    <React.Fragment key={idx}>
+                      <ListItem alignItems="flex-start">
                         <ListItemAvatar>
                           <Avatar>
-                            {deliverable.type === 'text' ? <DescriptionIcon /> : <ImageIcon />}
+                            {deliv.type === 'image' ? <ImageIcon /> : <DescriptionIcon />}
                           </Avatar>
                         </ListItemAvatar>
                         <ListItemText
-                          primary={deliverable.title}
-                          secondary={
-                            <Box>
-                              <Typography variant="body2" color="text.secondary">
-                                {deliverable.content}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                נוצר על ידי: {deliverable.createdBy} | {new Date(deliverable.createdAt).toLocaleDateString('he-IL')}
-                              </Typography>
-                            </Box>
-                          }
+                          primary={deliv.title}
+                          secondary={deliv.content}
                         />
                       </ListItem>
-                      {activity.deliverables && index < activity.deliverables.length - 1 && <Divider />}
+                      {idx < (activity.deliverables?.length || 0) - 1 && <Divider component="li" />}
                     </React.Fragment>
                   ))}
                 </List>
-              </CardContent>
-            </Card>
-          )}
+              ) : (
+                <Typography variant="body2" color="text.secondary">אין תוצרים</Typography>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Trip Management */}
+          <TripManagement
+            open={showTripManagement}
+            onClose={() => setShowTripManagement(false)}
+            activity={activity}
+            onActivityUpdate={handleActivityUpdate}
+          />
+        </Box>
+
+        {/* Right Column - Actions */}
+        <Box>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2 }}>פעולות</Typography>
+              <Box sx={{ display: 'grid', gap: 1 }}>
+                <Button variant="outlined" onClick={() => setShowTripManagement(true)} startIcon={<DirectionsCarIcon />}>
+                  ניהול נסיעות
+                </Button>
+                <Button variant="outlined" onClick={() => handleStatusChange('בביצוע')}>
+                  סמן כ'בביצוע'
+                </Button>
+                <Button variant="outlined" onClick={() => handleStatusChange('הסתיימה')}>
+                  סמן כ'הסתיימה'
+                </Button>
+                <Button variant="outlined" color="error" onClick={() => handleStatusChange('בוטלה')}>
+                  סמן כ'בוטלה'
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
         </Box>
       </Box>
 
-      {/* Dialog for adding deliverables */}
-      <Dialog 
-        open={showDeliverablesDialog} 
-        onClose={() => setShowDeliverablesDialog(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>הוספת תוצר לפעילות</DialogTitle>
+      {/* Add Deliverable Dialog */}
+      <Dialog open={showDeliverablesDialog} onClose={() => setShowDeliverablesDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>הוסף תוצר</DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
-            <FormControl fullWidth>
-              <InputLabel>סוג תוצר</InputLabel>
-              <Select
-                value={newDeliverable.type}
-                label="סוג תוצר"
-                onChange={(e) => setNewDeliverable(prev => ({ ...prev, type: e.target.value as 'text' | 'image' }))}
-              >
-                <MenuItem value="text">טקסט</MenuItem>
-                <MenuItem value="image">תמונה</MenuItem>
-              </Select>
-            </FormControl>
-
-            <TextField
-              label="כותרת"
-              value={newDeliverable.title}
-              onChange={(e) => setNewDeliverable(prev => ({ ...prev, title: e.target.value }))}
-              fullWidth
-            />
-
-            <TextField
-              label={newDeliverable.type === 'text' ? 'תוכן' : 'URL של תמונה'}
-              value={newDeliverable.content}
-              onChange={(e) => setNewDeliverable(prev => ({ ...prev, content: e.target.value }))}
-              multiline={newDeliverable.type === 'text'}
-              rows={newDeliverable.type === 'text' ? 4 : 1}
-              fullWidth
-            />
-          </Box>
+          <FormControl fullWidth sx={{ mt: 2 }}>
+            <InputLabel>סוג תוצר</InputLabel>
+            <Select
+              value={newDeliverable.type}
+              label="סוג תוצר"
+              onChange={(e) => setNewDeliverable(prev => ({ ...prev, type: e.target.value as 'text' | 'image' }))}
+            >
+              <MenuItem value="text">טקסט</MenuItem>
+              <MenuItem value="image">תמונה</MenuItem>
+            </Select>
+          </FormControl>
+          <TextField
+            label="כותרת"
+            fullWidth
+            sx={{ mt: 2 }}
+            value={newDeliverable.title}
+            onChange={(e) => setNewDeliverable(prev => ({ ...prev, title: e.target.value }))}
+          />
+          <TextField
+            label="תוכן"
+            fullWidth
+            multiline
+            minRows={3}
+            sx={{ mt: 2 }}
+            value={newDeliverable.content}
+            onChange={(e) => setNewDeliverable(prev => ({ ...prev, content: e.target.value }))}
+          />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setShowDeliverablesDialog(false)}>ביטול</Button>
-          <Button 
-            onClick={handleAddDeliverable}
-            variant="contained"
-            disabled={!newDeliverable.title || !newDeliverable.content}
-          >
-            הוסף תוצר
-          </Button>
+          <Button variant="contained" onClick={handleAddDeliverable}>הוסף</Button>
         </DialogActions>
       </Dialog>
-
-
-
-      {/* Trip Management Dialog */}
-      {activity && (
-        <TripManagement
-          open={showTripManagement}
-          onClose={() => setShowTripManagement(false)}
-          activity={activity}
-          onActivityUpdate={handleActivityUpdate}
-        />
-      )}
     </Container>
   );
 };

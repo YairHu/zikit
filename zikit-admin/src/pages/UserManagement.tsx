@@ -27,13 +27,11 @@ import {
   Security as SecurityIcon,
   Group as GroupIcon,
   AdminPanelSettings as AdminIcon,
-  Delete as DeleteIcon,
-  Policy as PolicyIcon
+  Delete as DeleteIcon
 } from '@mui/icons-material';
-import UserPermissionManager from '../components/UserPermissionManager';
 import { useUser } from '../contexts/UserContext';
 import { User } from '../models/User';
-import { UserRole, getRoleDisplayName } from '../models/UserRole';
+import { UserRole } from '../models/UserRole';
 import { 
   getAllUsers, 
   assignRole, 
@@ -67,7 +65,6 @@ const UserManagement: React.FC = () => {
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [permissionDialogOpen, setPermissionDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedRole, setSelectedRole] = useState<UserRole>(UserRole.CHAYAL);
   const [frameworks, setFrameworks] = useState<any[]>([]);
@@ -198,30 +195,24 @@ const UserManagement: React.FC = () => {
     setDeleteDialogOpen(true);
   };
 
-  const openPermissionDialog = (user: User) => {
-    setSelectedUser(user);
-    setPermissionDialogOpen(true);
-  };
-
   const getRoleColor = (role: UserRole): string => {
     const colors: Record<UserRole, string> = {
       [UserRole.ADMIN]: '#f44336',
-      [UserRole.MEFAKED_PLUGA]: '#9c27b0',
-      [UserRole.SAMAL_PLUGA]: '#673ab7',
-      [UserRole.MEFAKED_PELAGA]: '#3f51b5',
-      [UserRole.RASP]: '#5c6bc0',
-      [UserRole.SARASP]: '#7986cb',
-      [UserRole.KATZIN_NIHUL]: '#9575cd',
-      [UserRole.MANIP]: '#ba68c8',
-      [UserRole.HOFPAL]: '#ce93d8',
-      [UserRole.PAP]: '#e1bee7',
-      [UserRole.MEFAKED_TZEVET]: '#2196f3',
-      [UserRole.SAMAL]: '#03a9f4',
-      [UserRole.MEFAKED_CHAYAL]: '#00bcd4',
+      
       [UserRole.CHAYAL]: '#4caf50',
-      [UserRole.HAMAL]: '#ff9800',
     };
     return colors[role] || '#9e9e9e';
+  };
+
+  const getRoleDisplayName = (role: UserRole): string => {
+    switch (role) {
+      case UserRole.ADMIN:
+        return 'אדמין';
+      case UserRole.CHAYAL:
+        return 'חייל';
+      default:
+        return role;
+    }
   };
 
   // בדיקת הרשאות
@@ -368,8 +359,8 @@ const UserManagement: React.FC = () => {
                    {currentUser?.role === UserRole.ADMIN && (
                      <Button
                        size="small"
-                       startIcon={<PolicyIcon />}
-                       onClick={() => openPermissionDialog(userData)}
+                       startIcon={<DeleteIcon />}
+                       onClick={() => openDeleteDialog(userData)}
                        variant="outlined"
                        color="primary"
                      >
@@ -586,33 +577,6 @@ const UserManagement: React.FC = () => {
           </Button>
           <Button onClick={handleDeleteUser} variant="contained" color="error">
             הסר מהמערכת
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Dialog for Permission Management */}
-      <Dialog 
-        open={permissionDialogOpen} 
-        onClose={() => setPermissionDialogOpen(false)} 
-        maxWidth="lg" 
-        fullWidth
-        sx={{ '& .MuiDialog-paper': { height: '90vh' } }}
-      >
-        <DialogTitle>
-          ניהול הרשאות משתמש
-        </DialogTitle>
-        <DialogContent sx={{ p: 0 }}>
-          {selectedUser && (
-            <UserPermissionManager
-              selectedUser={selectedUser}
-              onClose={() => setPermissionDialogOpen(false)}
-              onUserUpdated={loadUsers}
-            />
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPermissionDialogOpen(false)}>
-            סגור
           </Button>
         </DialogActions>
       </Dialog>
