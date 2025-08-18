@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import mermaid from 'mermaid';
 import {
   Container,
   Typography,
@@ -6,307 +8,327 @@ import {
   CardContent,
   Box,
   Avatar,
-  Chip,
   Alert,
-  LinearProgress,
+  CircularProgress,
   IconButton,
   Tooltip,
   Switch,
-  FormControlLabel
+  FormControlLabel,
+  Button,
+  Chip,
+  Divider
 } from '@mui/material';
 import {
-  Tv as HamalIcon,
-  DirectionsCar as VehicleIcon,
-  Person as PersonIcon,
-  Assignment as MissionIcon,
-  Schedule as DutyIcon,
-  Build as MaintenanceIcon,
-  LocalGasStation as FuelIcon,
+  AccountTree as TreeIcon,
   Refresh as RefreshIcon,
   Fullscreen as FullscreenIcon,
   FullscreenExit as ExitFullscreenIcon,
+  ZoomIn as ZoomInIcon,
+  ZoomOut as ZoomOutIcon,
+  Settings as SettingsIcon,
   Visibility as ViewIcon,
-  Warning as WarningIcon,
-  CheckCircle as CheckIcon,
-  RadioButtonUnchecked as PendingIcon
+  VisibilityOff as ViewOffIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
-import { collection, query, getDocs, where, orderBy, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase';
+import { getAllFrameworks } from '../services/frameworkService';
+import { getAllSoldiers, getAllSoldiersWithFrameworkNames } from '../services/soldierService';
+import { Framework } from '../models/Framework';
+import { Soldier } from '../models/Soldier';
+import { getPresenceColor } from '../utils/colors';
+import { canUserAccessPath, getUserPermissions } from '../services/permissionService';
+import { SystemPath, PermissionLevel, DataScope } from '../models/UserRole';
 
-interface HamalData {
-  vehicles: VehicleStatus[];
-  personnel: PersonnelStatus[];
-  missions: MissionStatus[];
-  duties: DutyStatus[];
-  alerts: SystemAlert[];
+interface OrganizationalStructure {
+  frameworks: Framework[];
+  soldiers: (Soldier & { frameworkName?: string })[];
+  loading: boolean;
   lastUpdated: Date;
 }
 
-interface VehicleStatus {
-  id: string;
-  vehicleNumber: string;
-  type: string;
-  status: 'available' | 'in_use' | 'maintenance' | 'unavailable';
-  fuelLevel: number;
-  currentMission?: string;
-  driverName?: string;
-  expectedReturn?: Date;
-  location?: string;
-  issues: number;
-}
-
-interface PersonnelStatus {
-  id: string;
-  name: string;
-  role: string;
-  team?: string;
-  status: 'available' | 'on_mission' | 'on_duty' | 'resting' | 'unavailable';
-  currentActivity?: string;
-  endTime?: Date;
-}
-
-interface MissionStatus {
-  id: string;
-  name: string;
-  status: 'planning' | 'active' | 'completed';
-  priority: 'low' | 'medium' | 'high' | 'critical';
-  progress: number;
-  participants: number;
-  startTime: Date;
-  estimatedEnd?: Date;
-  commander: string;
-}
-
-interface DutyStatus {
-  id: string;
-  name: string;
-  type: string;
-  date: Date;
-  shift: string;
-  assigned: number;
-  required: number;
-  status: 'scheduled' | 'active' | 'completed';
-  location: string;
-}
-
-interface SystemAlert {
-  id: string;
-  type: 'critical' | 'warning' | 'info';
-  category: 'vehicle' | 'personnel' | 'mission' | 'duty' | 'system';
-  message: string;
-  timestamp: Date;
-  isResolved: boolean;
-}
-
 const Hamal: React.FC = () => {
+  const navigate = useNavigate();
   const { user } = useUser();
-  const [data, setData] = useState<HamalData | null>(null);
+  const [data, setData] = useState<OrganizationalStructure | null>(null);
   const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [zoom, setZoom] = useState(1);
+  const [showSoldiers, setShowSoldiers] = useState(true);
+  const [showPresence, setShowPresence] = useState(true);
+  const [permissions, setPermissions] = useState({
+    canView: false,
+    canViewFrameworks: false,
+    canViewSoldiers: false
+  });
+  const mermaidRef = useRef<HTMLDivElement>(null);
 
-  // Real-time data loading
-  const loadHamalData = useCallback(async () => {
+  // אתחול Mermaid
+  useEffect(() => {
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'default',
+      flowchart: {
+        useMaxWidth: false,
+        htmlLabels: true,
+        curve: 'basis'
+      },
+      securityLevel: 'loose'
+    } as any);
+  }, []);
+
+  // טעינת נתוני המבנה הארגוני
+  const loadOrganizationalData = useCallback(async () => {
+    if (!user) return;
+    
     try {
       setLoading(true);
       
-      // Load vehicles
-      const vehiclesQuery = query(collection(db, 'vehicles'));
-      const vehiclesSnapshot = await getDocs(vehiclesQuery);
-      const vehicles: VehicleStatus[] = [];
-      vehiclesSnapshot.forEach((doc) => {
-        const data = doc.data();
-        vehicles.push({
-          id: doc.id,
-          vehicleNumber: data.vehicleNumber,
-          type: data.type,
-          status: data.status,
-          fuelLevel: data.fuelLevel || 0,
-          currentMission: data.currentMission,
-          driverName: data.assignedDriver,
-          expectedReturn: data.expectedReturn?.toDate(),
-          location: data.location,
-          issues: data.currentIssues?.length || 0
-        });
-      });
-
-      // Load personnel (simplified for Hamal view)
-      const usersQuery = query(
-        collection(db, 'users'),
-        where('isActive', '==', true)
-      );
-      const usersSnapshot = await getDocs(usersQuery);
-      const personnel: PersonnelStatus[] = [];
-      usersSnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.role !== 'admin') {
-          personnel.push({
-            id: doc.id,
-            name: data.displayName,
-            role: data.role,
-            team: data.team,
-            status: determinePersonnelStatus(data),
-            currentActivity: data.currentActivity,
-            endTime: data.activityEndTime?.toDate()
-          });
-        }
-      });
-
-      // Load missions
-      const missionsQuery = query(
-        collection(db, 'missions'),
-        where('status', 'in', ['planning', 'active']),
-        orderBy('plannedStart', 'desc')
-      );
-      const missionsSnapshot = await getDocs(missionsQuery);
-      const missions: MissionStatus[] = [];
-      missionsSnapshot.forEach((doc) => {
-        const data = doc.data();
-        missions.push({
-          id: doc.id,
-          name: data.name,
-          status: data.status,
-          priority: data.priority,
-          progress: data.progressPercentage || 0,
-          participants: data.participants?.length || 0,
-          startTime: data.plannedStart?.toDate() || new Date(),
-          estimatedEnd: data.plannedEnd?.toDate(),
-          commander: data.commanderName
-        });
-      });
-
-      // Load duties
-      const today = new Date();
-      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+      // בדיקת הרשאות המשתמש
+      const canViewFrameworks = await canUserAccessPath(user.uid, SystemPath.FRAMEWORKS, PermissionLevel.VIEW);
+      const canViewSoldiers = await canUserAccessPath(user.uid, SystemPath.SOLDIERS, PermissionLevel.VIEW);
+      const canViewHamal = await canUserAccessPath(user.uid, SystemPath.HAMAL, PermissionLevel.VIEW);
       
-      const dutiesQuery = query(
-        collection(db, 'duties'),
-        where('date', '>=', startOfDay),
-        where('date', '<', endOfDay)
-      );
-      const dutiesSnapshot = await getDocs(dutiesQuery);
-      const duties: DutyStatus[] = [];
-      dutiesSnapshot.forEach((doc) => {
-        const data = doc.data();
-        duties.push({
-          id: doc.id,
-          name: data.name,
-          type: data.type,
-          date: data.date?.toDate(),
-          shift: data.shift,
-          assigned: data.assignedPersonnel?.length || 0,
-          required: data.requiredPersonnel || 0,
-          status: data.status,
-          location: data.location
-        });
+      setPermissions({ 
+        canView: canViewHamal || (canViewFrameworks && canViewSoldiers),
+        canViewFrameworks,
+        canViewSoldiers
       });
-
-      // Generate alerts
-      const alerts = generateAlerts(vehicles, personnel, missions, duties);
+      
+      if (!canViewHamal && !(canViewFrameworks && canViewSoldiers)) {
+        setLoading(false);
+        return;
+      }
+      
+      // קבלת הרשאות המשתמש לסינון נתונים
+      const userPermissions = await getUserPermissions(user.uid);
+      const frameworksPolicy = userPermissions.policies.find(policy => 
+        policy.paths.includes(SystemPath.FRAMEWORKS)
+      );
+      const soldiersPolicy = userPermissions.policies.find(policy => 
+        policy.paths.includes(SystemPath.SOLDIERS)
+      );
+      
+      // טעינת כל הנתונים
+      const [allFrameworks, allSoldiers, allSoldiersWithNames] = await Promise.all([
+        getAllFrameworks(),
+        getAllSoldiers(),
+        getAllSoldiersWithFrameworkNames()
+      ]);
+      
+      let frameworksData = allFrameworks;
+      let soldiersData: (Soldier & { frameworkName?: string })[] = [];
+      
+      // סינון נתונים לפי מדיניות ההרשאות
+      if (soldiersPolicy) {
+        switch (soldiersPolicy.dataScope) {
+          case DataScope.USER_ONLY:
+            const userSoldier = allSoldiers.find(s => s.email === user.email);
+            if (userSoldier) {
+              soldiersData = [userSoldier as any];
+            }
+            break;
+            
+          case DataScope.FRAMEWORK_ONLY:
+            const userSoldierForFramework = allSoldiers.find(s => s.email === user.email);
+            if (userSoldierForFramework?.frameworkId) {
+              const getAllSoldiersInHierarchy = (frameworkId: string): string[] => {
+                const directSoldiers = allSoldiers.filter(s => s.frameworkId === frameworkId).map(s => s.id);
+                const childFrameworks = frameworksData.filter(f => f.parentFrameworkId === frameworkId);
+                const childSoldiers = childFrameworks.flatMap(child => getAllSoldiersInHierarchy(child.id));
+                return [...directSoldiers, ...childSoldiers];
+              };
+              
+              const allSoldiersInHierarchy = getAllSoldiersInHierarchy(userSoldierForFramework.frameworkId);
+              soldiersData = allSoldiersWithNames.filter(s => allSoldiersInHierarchy.includes(s.id));
+            }
+            break;
+            
+          case DataScope.ALL_DATA:
+          default:
+            soldiersData = allSoldiersWithNames;
+            break;
+        }
+      } else {
+        soldiersData = allSoldiersWithNames;
+      }
 
       setData({
-        vehicles,
-        personnel,
-        missions,
-        duties,
-        alerts,
+        frameworks: frameworksData,
+        soldiers: soldiersData,
+        loading: false,
         lastUpdated: new Date()
       });
 
     } catch (error) {
-      console.error('שגיאה בטעינת נתוני חמ"ל:', error);
+      console.error('שגיאה בטעינת נתוני מבנה ארגוני:', error);
+      setData({
+        frameworks: [],
+        soldiers: [],
+        loading: false,
+        lastUpdated: new Date()
+      });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
-  const determinePersonnelStatus = (userData: any): PersonnelStatus['status'] => {
-    // Logic to determine personnel status based on current assignments
-    if (userData.currentMission) return 'on_mission';
-    if (userData.currentDuty) return 'on_duty';
-    if (userData.status === 'resting') return 'resting';
-    if (userData.isActive === false) return 'unavailable';
-    return 'available';
-  };
+  // יצירת תבנית Mermaid
+  const generateMermaidDiagram = useCallback(() => {
+    if (!data) return '';
+    
+    const { frameworks, soldiers } = data;
 
-  const generateAlerts = (
-    vehicles: VehicleStatus[],
-    personnel: PersonnelStatus[],
-    missions: MissionStatus[],
-    duties: DutyStatus[]
-  ): SystemAlert[] => {
-    const alerts: SystemAlert[] = [];
-
-    // Vehicle alerts
-    vehicles.forEach(vehicle => {
-      if (vehicle.fuelLevel < 25) {
-        alerts.push({
-          id: `fuel-${vehicle.id}`,
-          type: vehicle.fuelLevel < 10 ? 'critical' : 'warning',
-          category: 'vehicle',
-          message: `רכב ${vehicle.vehicleNumber} - דלק נמוך (${vehicle.fuelLevel}%)`,
-          timestamp: new Date(),
-          isResolved: false
-        });
+    const getFrameworkLevelLabel = (level: Framework['level']) => {
+      switch (level) {
+        case 'company': return 'פלוגה';
+        case 'platoon': return 'מחלקה';
+        case 'squad': return 'כיתה';
+        case 'team': return 'צוות';
+        default: return 'מסגרת';
       }
-      if (vehicle.issues > 0) {
-        alerts.push({
-          id: `issues-${vehicle.id}`,
-          type: 'warning',
-          category: 'vehicle',
-          message: `רכב ${vehicle.vehicleNumber} - ${vehicle.issues} תקלות פתוחות`,
-          timestamp: new Date(),
-          isResolved: false
-        });
-      }
+    };
+
+    // פונקציה לניקוי טקסט עבור Mermaid
+    const cleanTextForMermaid = (text: string) => {
+      if (!text) return 'לא מוגדר';
+      
+      // במקום לנקות תווים, נשתמש בפורמט פשוט יותר
+      return text
+        .replace(/["']/g, '') // הסרת גרשיים בלבד
+        .replace(/\s+/g, ' ') // החלפת רווחים מרובים ברווח אחד
+        .trim() || 'לא מוגדר';
+    };
+    
+    let mermaidCode = 'graph TD\n';
+    mermaidCode += '    classDef frameworkClass fill:#e3f2fd,stroke:#1976d2,stroke-width:2px\n';
+    mermaidCode += '    classDef soldierClass fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px\n';
+    mermaidCode += '    classDef presenceBase fill:#4caf50,stroke:#2e7d32,stroke-width:1px,color:#fff\n';
+    mermaidCode += '    classDef presenceActivity fill:#2196f3,stroke:#1565c0,stroke-width:1px,color:#fff\n';
+    mermaidCode += '    classDef presenceLeave fill:#ff9800,stroke:#e65100,stroke-width:1px,color:#fff\n';
+    mermaidCode += '    classDef presenceGimel fill:#9c27b0,stroke:#6a1b9a,stroke-width:1px,color:#fff\n';
+    mermaidCode += '    classDef presenceOther fill:#f44336,stroke:#c62828,stroke-width:1px,color:#fff\n';
+    mermaidCode += '    classDef presenceUnknown fill:#9e9e9e,stroke:#616161,stroke-width:1px,color:#fff\n';
+    
+    // יצירת מפה של מסגרות לפי ID
+    const frameworkMap = new Map<string, Framework>();
+    frameworks.forEach(framework => {
+      frameworkMap.set(framework.id, framework);
     });
-
-    // Mission alerts
-    missions.forEach(mission => {
-      if (mission.priority === 'critical' && mission.status === 'planning') {
-        alerts.push({
-          id: `mission-${mission.id}`,
-          type: 'critical',
-          category: 'mission',
-          message: `משימה קריטית ממתינה לאישור: ${mission.name}`,
-          timestamp: new Date(),
-          isResolved: false
-        });
-      }
-    });
-
-    // Duty alerts
-    duties.forEach(duty => {
-      if (duty.assigned < duty.required) {
-        alerts.push({
-          id: `duty-${duty.id}`,
-          type: 'warning',
-          category: 'duty',
-          message: `תורנות ${duty.name} - חסרים ${duty.required - duty.assigned} חיילים`,
-          timestamp: new Date(),
-          isResolved: false
-        });
+    
+    // יצירת מפה של חיילים לפי מסגרת
+    const soldiersByFramework = new Map<string, (Soldier & { frameworkName?: string })[]>();
+    soldiers.forEach(soldier => {
+      if (soldier.frameworkId) {
+        if (!soldiersByFramework.has(soldier.frameworkId)) {
+          soldiersByFramework.set(soldier.frameworkId, []);
+        }
+        soldiersByFramework.get(soldier.frameworkId)!.push(soldier);
       }
     });
-
-    return alerts.sort((a, b) => {
-      const priorityOrder = { critical: 3, warning: 2, info: 1 };
-      return priorityOrder[b.type] - priorityOrder[a.type];
+    
+    // פונקציה לקבלת צבע נוכחות
+    const getPresenceClass = (presence: string) => {
+      switch (presence) {
+        case 'בבסיס': return 'presenceBase';
+        case 'בפעילות': return 'presenceActivity';
+        case 'חופש': return 'presenceLeave';
+        case 'גימלים': return 'presenceGimel';
+        case 'אחר': return 'presenceOther';
+        default: return 'presenceUnknown';
+      }
+    };
+    
+    // יצירת הקשרים בין מסגרות
+    frameworks.forEach(framework => {
+      const frameworkId = `framework_${framework.id}`;
+      const frameworkLabel = cleanTextForMermaid(framework.name);
+      
+      mermaidCode += `    ${frameworkId}("${frameworkLabel}"):::frameworkClass\n`;
+      
+      if (framework.parentFrameworkId) {
+        const parentId = `framework_${framework.parentFrameworkId}`;
+        mermaidCode += `    ${parentId} --> ${frameworkId}\n`;
+      }
     });
-  };
+    
+    // הוספת חיילים למסגרות
+    if (showSoldiers) {
+      soldiers.forEach(soldier => {
+        if (soldier.frameworkId) {
+          const soldierId = `soldier_${soldier.id}`;
+          const presenceClass = showPresence ? getPresenceClass(soldier.presence || '') : 'soldierClass';
+          const soldierLabel = cleanTextForMermaid(soldier.name);
+          
+          mermaidCode += `    ${soldierId}("${soldierLabel}"):::${presenceClass}\n`;
+          
+          const frameworkId = `framework_${soldier.frameworkId}`;
+          mermaidCode += `    ${frameworkId} --> ${soldierId}\n`;
+        }
+      });
+    }
+    
+    return mermaidCode;
+  }, [data, showSoldiers, showPresence]);
 
-  // Auto-refresh every 30 seconds
+  // רנדור התרשים
+  const renderMermaidDiagram = useCallback(async () => {
+    if (!mermaidRef.current || !data) return;
+    
+    try {
+      const mermaidCode = generateMermaidDiagram();
+      mermaidRef.current.innerHTML = '';
+      
+      const { svg } = await mermaid.render('mermaid-diagram', mermaidCode);
+      mermaidRef.current.innerHTML = svg;
+      
+      // הוספת אירועי לחיצה
+      const frameworkNodes = mermaidRef.current.querySelectorAll('.frameworkClass');
+      const soldierNodes = mermaidRef.current.querySelectorAll('.soldierClass, .presenceBase, .presenceActivity, .presenceLeave, .presenceGimel, .presenceOther, .presenceUnknown');
+      
+      frameworkNodes.forEach((node) => {
+        (node as HTMLElement).style.cursor = 'pointer';
+        node.addEventListener('click', (e) => {
+          e.preventDefault();
+          const nodeId = node.getAttribute('id');
+          if (nodeId && nodeId.startsWith('framework_')) {
+            const frameworkId = nodeId.replace('framework_', '');
+            navigate(`/frameworks/${frameworkId}`);
+          }
+        });
+      });
+      
+      soldierNodes.forEach((node) => {
+        (node as HTMLElement).style.cursor = 'pointer';
+        node.addEventListener('click', (e) => {
+          e.preventDefault();
+          const nodeId = node.getAttribute('id');
+          if (nodeId && nodeId.startsWith('soldier_')) {
+            const soldierId = nodeId.replace('soldier_', '');
+            navigate(`/soldiers/${soldierId}`);
+          }
+        });
+      });
+      
+    } catch (error) {
+      console.error('שגיאה ברנדור התרשים:', error);
+    }
+  }, [data, generateMermaidDiagram, navigate]);
+
+  // רנדור התרשים כאשר הנתונים משתנים
   useEffect(() => {
-    loadHamalData();
+    renderMermaidDiagram();
+  }, [renderMermaidDiagram]);
+
+  // Auto-refresh every 60 seconds
+  useEffect(() => {
+    loadOrganizationalData();
     
     if (autoRefresh) {
-      const interval = setInterval(loadHamalData, 30000);
+      const interval = setInterval(loadOrganizationalData, 60000);
       return () => clearInterval(interval);
     }
-  }, [loadHamalData, autoRefresh]);
+  }, [loadOrganizationalData, autoRefresh]);
 
   // Update current time every second
   useEffect(() => {
@@ -327,46 +349,6 @@ const Hamal: React.FC = () => {
     setFullscreen(!fullscreen);
   };
 
-  const getVehicleStatusColor = (status: string) => {
-    switch (status) {
-      case 'available': return '#4caf50';
-      case 'in_use': return '#2196f3';
-      case 'maintenance': return '#ff9800';
-      case 'unavailable': return '#f44336';
-      default: return '#9e9e9e';
-    }
-  };
-
-  const getPersonnelStatusColor = (status: string) => {
-    switch (status) {
-      case 'available': return '#4caf50';
-      case 'on_mission': return '#2196f3';
-      case 'on_duty': return '#ff9800';
-      case 'resting': return '#9c27b0';
-      case 'unavailable': return '#f44336';
-      default: return '#9e9e9e';
-    }
-  };
-
-  const getMissionPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'critical': return '#f44336';
-      case 'high': return '#ff9800';
-      case 'medium': return '#ff5722';
-      case 'low': return '#4caf50';
-      default: return '#9e9e9e';
-    }
-  };
-
-  const getAlertIcon = (type: string) => {
-    switch (type) {
-      case 'critical': return <WarningIcon sx={{ color: '#f44336' }} />;
-      case 'warning': return <WarningIcon sx={{ color: '#ff9800' }} />;
-      case 'info': return <CheckIcon sx={{ color: '#2196f3' }} />;
-      default: return <PendingIcon />;
-    }
-  };
-
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('he-IL', { 
       hour: '2-digit', 
@@ -379,13 +361,48 @@ const Hamal: React.FC = () => {
     return date.toLocaleDateString('he-IL');
   };
 
+  // סטטיסטיקות
+  const getStatistics = () => {
+    if (!data) return null;
+    
+    const { frameworks, soldiers } = data;
+    const presenceStats = soldiers.reduce((acc, soldier) => {
+      const presence = soldier.presence || 'לא מוגדר';
+      acc[presence] = (acc[presence] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    return {
+      totalFrameworks: frameworks.length,
+      totalSoldiers: soldiers.length,
+      presenceStats
+    };
+  };
+
   if (loading && !data) {
     return (
       <Container maxWidth="xl" sx={{ py: 3, textAlign: 'center' }}>
-        <Typography variant="h4">טוען נתוני חמ"ל...</Typography>
+        <CircularProgress size={60} />
+        <Typography variant="h6" sx={{ mt: 2 }}>
+          טוען מבנה ארגוני...
+        </Typography>
       </Container>
     );
   }
+
+  // בדיקה אם למשתמש יש הרשאת צפייה
+  if (!permissions.canView) {
+    return (
+      <Container maxWidth="xl" sx={{ py: 3 }}>
+        <Alert severity="warning">
+          אין לך הרשאה לצפות במבנה הארגוני
+        </Alert>
+      </Container>
+    );
+  }
+
+  const mermaidCode = generateMermaidDiagram();
+  const stats = getStatistics();
 
   return (
     <Box sx={{ 
@@ -406,11 +423,11 @@ const Hamal: React.FC = () => {
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Avatar sx={{ bgcolor: 'primary.main', mr: 2, width: 56, height: 56 }}>
-              <HamalIcon sx={{ fontSize: 32 }} />
+              <TreeIcon sx={{ fontSize: 32 }} />
             </Avatar>
             <Box>
               <Typography variant={fullscreen ? "h3" : "h4"} component="h1" sx={{ fontWeight: 700 }}>
-                מסך חמ"ל - פלוגה לוחמת
+                מבנה ארגוני - חמ"ל
               </Typography>
               <Typography variant={fullscreen ? "h6" : "body1"} sx={{ color: 'text.secondary' }}>
                 {formatDate(currentTime)} | {formatTime(currentTime)}
@@ -430,7 +447,7 @@ const Hamal: React.FC = () => {
               label="רענון אוטומטי"
             />
             <Tooltip title="רענן נתונים">
-              <IconButton onClick={loadHamalData} size={fullscreen ? "large" : "medium"}>
+              <IconButton onClick={loadOrganizationalData} size={fullscreen ? "large" : "medium"}>
                 <RefreshIcon />
               </IconButton>
             </Tooltip>
@@ -442,293 +459,144 @@ const Hamal: React.FC = () => {
           </Box>
         </Box>
 
-        {data && (
-          <>
-            {/* Alerts Section */}
-            {data.alerts.length > 0 && (
-              <Box sx={{ mb: 3 }}>
-                <Typography variant={fullscreen ? "h5" : "h6"} sx={{ mb: 2, fontWeight: 600 }}>
-                  🚨 התראות מערכת ({data.alerts.length})
+        {/* Controls */}
+        <Card sx={{ mb: 3, bgcolor: fullscreen ? '#1a1a1a' : 'inherit' }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={showSoldiers}
+                      onChange={(e) => setShowSoldiers(e.target.checked)}
+                    />
+                  }
+                  label="הצג חיילים"
+                />
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={showPresence}
+                      onChange={(e) => setShowPresence(e.target.checked)}
+                      disabled={!showSoldiers}
+                    />
+                  }
+                  label="צבע לפי נוכחות"
+                />
+              </Box>
+              
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Tooltip title="הקטן">
+                  <IconButton 
+                    onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}
+                    disabled={zoom <= 0.5}
+                  >
+                    <ZoomOutIcon />
+                  </IconButton>
+                </Tooltip>
+                <Typography variant="body2" sx={{ minWidth: 60, textAlign: 'center' }}>
+                  {Math.round(zoom * 100)}%
                 </Typography>
-                <Box sx={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, 1fr)' }, 
-                  gap: 1 
-                }}>
-                  {data.alerts.slice(0, 4).map((alert) => (
-                    <Alert 
-                      key={alert.id} 
-                      severity={alert.type as any}
-                      icon={getAlertIcon(alert.type)}
-                      sx={{ fontSize: fullscreen ? '1.2rem' : 'inherit' }}
-                    >
-                      <strong>{alert.category.toUpperCase()}:</strong> {alert.message}
-                    </Alert>
-                  ))}
-                </Box>
-              </Box>
-            )}
-
-            {/* Main Dashboard Grid */}
-            <Box sx={{ 
-              display: 'grid', 
-              gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, 
-              gap: 2 
-            }}>
-              {/* Vehicles Status */}
-              <Box>
-                <Card sx={{ height: '100%', bgcolor: fullscreen ? '#1a1a1a' : 'inherit' }}>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <VehicleIcon sx={{ mr: 1, fontSize: fullscreen ? 32 : 24 }} />
-                      <Typography variant={fullscreen ? "h5" : "h6"} sx={{ fontWeight: 600 }}>
-                        רכבים ({data.vehicles.length})
-                      </Typography>
-                    </Box>
-                    
-                    <Box sx={{ 
-                      display: 'grid', 
-                      gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, 
-                      gap: 1 
-                    }}>
-                      {data.vehicles.map((vehicle) => (
-                        <Box
-                          key={vehicle.id}
-                          sx={{
-                            p: 1.5,
-                            border: `2px solid ${getVehicleStatusColor(vehicle.status)}`,
-                            borderRadius: 1,
-                            bgcolor: fullscreen ? '#2a2a2a' : 'background.paper'
-                          }}
-                        >
-                          <Typography variant={fullscreen ? "subtitle1" : "body2"} sx={{ fontWeight: 600 }}>
-                            {vehicle.vehicleNumber}
-                          </Typography>
-                          <Typography variant={fullscreen ? "body1" : "caption"} color="text.secondary">
-                            {vehicle.type} | {vehicle.status}
-                          </Typography>
-                          
-                          {/* Fuel level */}
-                          <Box sx={{ mt: 1 }}>
-                            <Typography variant="caption">דלק: {vehicle.fuelLevel}%</Typography>
-                            <LinearProgress 
-                              variant="determinate" 
-                              value={vehicle.fuelLevel}
-                              color={vehicle.fuelLevel > 50 ? 'success' : vehicle.fuelLevel > 25 ? 'warning' : 'error'}
-                              sx={{ height: 8, borderRadius: 4 }}
-                            />
-                          </Box>
-
-                          {vehicle.currentMission && (
-                            <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>
-                              📋 {vehicle.currentMission}
-                            </Typography>
-                          )}
-
-                          {vehicle.issues > 0 && (
-                            <Chip 
-                              label={`${vehicle.issues} תקלות`}
-                              color="error"
-                              size="small"
-                              sx={{ mt: 0.5 }}
-                            />
-                          )}
-                        </Box>
-                      ))}
-                    </Box>
-
-                    {/* Vehicle summary */}
-                    <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #ddd' }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-                        <Chip label={`זמינים: ${data.vehicles.filter(v => v.status === 'available').length}`} color="success" />
-                        <Chip label={`בשימוש: ${data.vehicles.filter(v => v.status === 'in_use').length}`} color="primary" />
-                        <Chip label={`תחזוקה: ${data.vehicles.filter(v => v.status === 'maintenance').length}`} color="warning" />
-                        <Chip label={`לא זמינים: ${data.vehicles.filter(v => v.status === 'unavailable').length}`} color="error" />
+                <Tooltip title="הגדל">
+                  <IconButton 
+                    onClick={() => setZoom(Math.min(2, zoom + 0.1))}
+                    disabled={zoom >= 2}
+                  >
+                    <ZoomInIcon />
+                  </IconButton>
+                </Tooltip>
                       </Box>
                     </Box>
                   </CardContent>
                 </Card>
-              </Box>
 
-              {/* Personnel Status */}
-              <Box>
-                <Card sx={{ height: '100%', bgcolor: fullscreen ? '#1a1a1a' : 'inherit' }}>
+        {/* Statistics */}
+        {stats && (
+          <Card sx={{ mb: 3, bgcolor: fullscreen ? '#1a1a1a' : 'inherit' }}>
                   <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <PersonIcon sx={{ mr: 1, fontSize: fullscreen ? 32 : 24 }} />
-                      <Typography variant={fullscreen ? "h5" : "h6"} sx={{ fontWeight: 600 }}>
-                        כוח אדם ({data.personnel.length})
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                סטטיסטיקות
                       </Typography>
-                    </Box>
-
-                    {/* Personnel summary */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', mb: 2 }}>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                <Chip label={`מסגרות: ${stats.totalFrameworks}`} color="primary" />
+                <Chip label={`חיילים: ${stats.totalSoldiers}`} color="secondary" />
+                {Object.entries(stats.presenceStats).map(([presence, count]) => (
                       <Chip 
-                        label={`זמינים: ${data.personnel.filter(p => p.status === 'available').length}`} 
-                        color="success" 
-                        sx={{ fontSize: fullscreen ? '1rem' : 'inherit' }}
-                      />
-                      <Chip 
-                        label={`במשימות: ${data.personnel.filter(p => p.status === 'on_mission').length}`} 
-                        color="primary" 
-                        sx={{ fontSize: fullscreen ? '1rem' : 'inherit' }}
-                      />
-                      <Chip 
-                        label={`בתורנות: ${data.personnel.filter(p => p.status === 'on_duty').length}`} 
-                        color="warning" 
-                        sx={{ fontSize: fullscreen ? '1rem' : 'inherit' }}
-                      />
-                      <Chip 
-                        label={`במנוחה: ${data.personnel.filter(p => p.status === 'resting').length}`} 
-                        color="secondary" 
-                        sx={{ fontSize: fullscreen ? '1rem' : 'inherit' }}
-                      />
-                    </Box>
-
-                    {/* Activity breakdown */}
-                    {data.personnel.filter(p => p.status !== 'available').slice(0, 8).map((person) => (
-                      <Box
-                        key={person.id}
+                    key={presence}
+                    label={`${presence}: ${count}`}
                         sx={{
-                          p: 1,
-                          mb: 1,
-                          border: `1px solid ${getPersonnelStatusColor(person.status)}`,
-                          borderRadius: 1,
-                          bgcolor: fullscreen ? '#2a2a2a' : 'background.paper'
-                        }}
-                      >
-                        <Typography variant={fullscreen ? "body1" : "body2"} sx={{ fontWeight: 600 }}>
-                          {person.name} ({person.role})
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {person.currentActivity || person.status}
-                          {person.endTime && ` עד ${formatTime(person.endTime)}`}
-                        </Typography>
-                      </Box>
-                    ))}
-                  </CardContent>
-                </Card>
+                      bgcolor: getPresenceColor(presence),
+                      color: 'white',
+                      fontWeight: 600
+                    }}
+                  />
+                ))}
               </Box>
+            </CardContent>
+          </Card>
+        )}
 
-              {/* Active Missions */}
-              <Box>
-                <Card sx={{ height: '100%', bgcolor: fullscreen ? '#1a1a1a' : 'inherit' }}>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <MissionIcon sx={{ mr: 1, fontSize: fullscreen ? 32 : 24 }} />
-                      <Typography variant={fullscreen ? "h5" : "h6"} sx={{ fontWeight: 600 }}>
-                        משימות פעילות ({data.missions.length})
-                      </Typography>
-                    </Box>
-
-                    {data.missions.map((mission) => (
-                      <Box
-                        key={mission.id}
+        {/* Mermaid Diagram */}
+        <Card sx={{ bgcolor: fullscreen ? '#1a1a1a' : 'inherit' }}>
+          <CardContent sx={{ p: 0, overflow: 'auto' }}>
+            <Box 
                         sx={{
-                          p: 2,
-                          mb: 2,
-                          border: `2px solid ${getMissionPriorityColor(mission.priority)}`,
-                          borderRadius: 1,
-                          bgcolor: fullscreen ? '#2a2a2a' : 'background.paper'
-                        }}
-                      >
-                        <Typography variant={fullscreen ? "subtitle1" : "body1"} sx={{ fontWeight: 600 }}>
-                          {mission.name}
-                        </Typography>
-                        <Typography variant={fullscreen ? "body1" : "body2"} color="text.secondary">
-                          מפקד: {mission.commander} | משתתפים: {mission.participants}
-                        </Typography>
-                        
-                        <Box sx={{ mt: 1 }}>
-                          <Typography variant="caption">התקדמות: {mission.progress}%</Typography>
-                          <LinearProgress 
-                            variant="determinate" 
-                            value={mission.progress}
-                            sx={{ height: 8, borderRadius: 4 }}
+                width: '100%',
+                minHeight: '600px',
+                transform: `scale(${zoom})`,
+                transformOrigin: 'top left',
+                transition: 'transform 0.3s ease'
+              }}
+            >
+              <div 
+                ref={mermaidRef}
+                style={{ 
+                  direction: 'ltr',
+                  textAlign: 'left',
+                  fontSize: fullscreen ? '16px' : '14px'
+                }}
                           />
                         </Box>
-
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
-                          <Chip 
-                            label={mission.status}
-                            color={mission.status === 'active' ? 'primary' : 'default'}
-                            size="small"
-                          />
-                          <Chip 
-                            label={mission.priority}
-                            sx={{ bgcolor: getMissionPriorityColor(mission.priority), color: '#fff' }}
-                            size="small"
-                          />
-                        </Box>
-                      </Box>
-                    ))}
-
-                    {data.missions.length === 0 && (
-                      <Alert severity="info" sx={{ fontSize: fullscreen ? '1.1rem' : 'inherit' }}>
-                        אין משימות פעילות כרגע
-                      </Alert>
-                    )}
                   </CardContent>
                 </Card>
+
+        {/* Legend */}
+        <Card sx={{ mt: 3, bgcolor: fullscreen ? '#1a1a1a' : 'inherit' }}>
+          <CardContent>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+              מקרא
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 20, height: 20, bgcolor: '#e3f2fd', border: '2px solid #1976d2', borderRadius: 1 }} />
+                <Typography variant="body2">מסגרות</Typography>
               </Box>
-
-              {/* Today's Duties */}
-              <Box>
-                <Card sx={{ height: '100%', bgcolor: fullscreen ? '#1a1a1a' : 'inherit' }}>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <DutyIcon sx={{ mr: 1, fontSize: fullscreen ? 32 : 24 }} />
-                      <Typography variant={fullscreen ? "h5" : "h6"} sx={{ fontWeight: 600 }}>
-                        תורנויות היום ({data.duties.length})
-                      </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 20, height: 20, bgcolor: '#4caf50', border: '1px solid #2e7d32', borderRadius: 1 }} />
+                <Typography variant="body2">בבסיס</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 20, height: 20, bgcolor: '#2196f3', border: '1px solid #1565c0', borderRadius: 1 }} />
+                <Typography variant="body2">בפעילות</Typography>
                     </Box>
-
-                    {data.duties.map((duty) => (
-                      <Box
-                        key={duty.id}
-                        sx={{
-                          p: 1.5,
-                          mb: 1.5,
-                          border: `1px solid ${duty.assigned >= duty.required ? '#4caf50' : '#ff9800'}`,
-                          borderRadius: 1,
-                          bgcolor: fullscreen ? '#2a2a2a' : 'background.paper'
-                        }}
-                      >
-                        <Typography variant={fullscreen ? "subtitle1" : "body2"} sx={{ fontWeight: 600 }}>
-                          {duty.name} - {duty.shift}
-                        </Typography>
-                        <Typography variant={fullscreen ? "body1" : "caption"} color="text.secondary">
-                          {duty.location} | {duty.type}
-                        </Typography>
-                        
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
-                          <Typography variant="caption">
-                            משובצים: {duty.assigned}/{duty.required}
-                          </Typography>
-                          <Chip 
-                            label={duty.status}
-                            color={duty.status === 'completed' ? 'success' : duty.status === 'active' ? 'primary' : 'default'}
-                            size="small"
-                          />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 20, height: 20, bgcolor: '#ff9800', border: '1px solid #e65100', borderRadius: 1 }} />
+                <Typography variant="body2">חופש</Typography>
                         </Box>
-
-                        {duty.assigned < duty.required && (
-                          <Alert severity="warning" sx={{ mt: 1, fontSize: '0.8rem' }}>
-                            חסרים {duty.required - duty.assigned} חיילים
-                          </Alert>
-                        )}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 20, height: 20, bgcolor: '#9c27b0', border: '1px solid #6a1b9a', borderRadius: 1 }} />
+                <Typography variant="body2">גימלים</Typography>
                       </Box>
-                    ))}
-
-                    {data.duties.length === 0 && (
-                      <Alert severity="info" sx={{ fontSize: fullscreen ? '1.1rem' : 'inherit' }}>
-                        אין תורנויות מתוכננות להיום
-                      </Alert>
-                    )}
-                  </CardContent>
-                </Card>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 20, height: 20, bgcolor: '#f44336', border: '1px solid #c62828', borderRadius: 1 }} />
+                <Typography variant="body2">אחר</Typography>
               </Box>
             </Box>
+            <Typography variant="caption" sx={{ mt: 2, display: 'block', color: 'text.secondary' }}>
+              הצבעים מייצגים את מיקום החייל - לחיצה על מסגרת או חייל תנווט לעמוד המתאים
+            </Typography>
+          </CardContent>
+        </Card>
 
             {/* Footer */}
             <Box sx={{ 
@@ -738,12 +606,10 @@ const Hamal: React.FC = () => {
               textAlign: 'center'
             }}>
               <Typography variant="caption" color="text.secondary">
-                מערכת ניהול פלוגה | עודכן אוטומטית כל 30 שניות | 
-                סה"כ: {data.vehicles.length} רכבים, {data.personnel.length} חיילים, {data.missions.length} משימות פעילות
+            מערכת ניהול פלוגה | מבנה ארגוני דינמי | 
+            {stats && ` סה"כ: ${stats.totalFrameworks} מסגרות, ${stats.totalSoldiers} חיילים`}
               </Typography>
             </Box>
-          </>
-        )}
       </Container>
     </Box>
   );

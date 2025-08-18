@@ -319,6 +319,26 @@ export const canUserAccessPath = async (
   }
 };
 
+// פונקציה לבדיקת הרשאת עריכת נוכחות חיילים
+export const canUserEditSoldierPresence = async (userId: string): Promise<boolean> => {
+  try {
+    return await canUserAccessPath(userId, SystemPath.SOLDIER_PRESENCE, PermissionLevel.EDIT);
+  } catch (error) {
+    console.error('שגיאה בבדיקת הרשאת עריכת נוכחות חיילים:', error);
+    return false;
+  }
+};
+
+// פונקציה לבדיקת הרשאת עריכת פרטי חיילים
+export const canUserEditSoldierDetails = async (userId: string): Promise<boolean> => {
+  try {
+    return await canUserAccessPath(userId, SystemPath.SOLDIER_DETAILS, PermissionLevel.EDIT);
+  } catch (error) {
+    console.error('שגיאה בבדיקת הרשאת עריכת פרטי חיילים:', error);
+    return false;
+  }
+};
+
 // ===== יצירת תפקידים ומדיניות ברירת מחדל =====
 
 // פונקציה ריקה - לא יוצרת שום דבר

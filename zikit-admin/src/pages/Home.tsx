@@ -176,7 +176,7 @@ const Home: React.FC = () => {
       subtitle: `${stats.teams} צוותים פעילים`,
       icon: <PeopleIcon sx={{ fontSize: 32 }} />,
       color: '#4caf50',
-      path: '/teams'
+              path: '/frameworks'
     },
     {
       title: 'נסיעות ורכבים',

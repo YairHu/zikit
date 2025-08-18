@@ -55,7 +55,6 @@ import { getAllMissions } from '../services/missionService';
 import { getAllActivities } from '../services/activityService';
 import { getAllDuties } from '../services/dutyService';
 import { getAllTrips } from '../services/tripService';
-import { getAllTeams } from '../services/teamService';
 import { 
   importSoldiers, 
   importVehicles, 

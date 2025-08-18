@@ -1,4 +1,5 @@
 import { Framework, FrameworkWithDetails, FrameworkTree } from '../models/Framework';
+import { Soldier } from '../models/Soldier';
 import { getAllSoldiers } from './soldierService';
 import { getAllActivities, getActivitiesByTeam } from './activityService';
 import { getAllDuties, getDutiesByTeam } from './dutyService';
@@ -209,7 +210,7 @@ export const getFrameworkWithDetails = async (id: string): Promise<FrameworkWith
   };
   
   // קבלת כל החיילים בהיררכיה כולל מסגרות בנות
-  const getAllSoldiersInHierarchyList = async (frameworkId: string): Promise<any[]> => {
+  const getAllSoldiersInHierarchyList = async (frameworkId: string): Promise<Soldier[]> => {
     const directSoldiers = allSoldiers.filter(s => s.frameworkId === frameworkId);
     const children = await getFrameworksByParent(frameworkId);
     const childrenSoldiers = await Promise.all(
@@ -560,14 +561,16 @@ export const getFrameworkWithDetails = async (id: string): Promise<FrameworkWith
       id: s.id,
       name: s.name,
       role: s.role,
-      personalNumber: s.personalNumber
+      personalNumber: s.personalNumber,
+      presence: s.presence
     })),
     allSoldiersInHierarchy: allSoldiersInHierarchy.map(s => ({
       id: s.id,
       name: s.name,
       role: s.role,
       personalNumber: s.personalNumber,
-      frameworkId: s.frameworkId
+      frameworkId: s.frameworkId || '',
+      presence: s.presence
     })),
     totalSoldiers,
     activities,

@@ -1,7 +1,7 @@
 import { db } from '../firebase';
 import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
 import { Soldier } from '../models/Soldier';
-
+import { getAuth } from 'firebase/auth';
 
 const soldiersCollection = collection(db, 'soldiers');
 
@@ -40,10 +40,18 @@ export const addSoldier = async (soldier: Omit<Soldier, 'id'>): Promise<string> 
 
 export const updateSoldier = async (id: string, soldier: Partial<Soldier>) => {
   try {
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+    
+    if (!currentUser) {
+      throw new Error('משתמש לא מחובר');
+    }
+
     const updateData = {
       ...soldier,
       updatedAt: new Date().toISOString()
     };
+    
     await updateDoc(doc(soldiersCollection, id), updateData);
     console.log(`חייל ${id} עודכן בהצלחה`);
   } catch (error) {

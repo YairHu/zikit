@@ -72,6 +72,7 @@ import { useUser } from '../contexts/UserContext';
 import SoldierForm from '../components/SoldierForm';
 import { getAllTrips } from '../services/tripService';
 import { getAllVehicles } from '../services/vehicleService';
+import { canUserEditSoldierDetails } from '../services/permissionService';
 
 const SoldierProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -88,9 +89,25 @@ const SoldierProfile: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [showEditForm, setShowEditForm] = useState(false);
+  const [canEditSoldier, setCanEditSoldier] = useState<boolean>(false);
 
   useEffect(() => {
     if (id) {
+      // בדיקת הרשאות עריכה
+      const checkPermissions = async () => {
+        if (user) {
+          try {
+            const canEdit = await canUserEditSoldierDetails(user.uid);
+            setCanEditSoldier(canEdit);
+          } catch (error) {
+            console.error('שגיאה בבדיקת הרשאות:', error);
+            setCanEditSoldier(false);
+          }
+        }
+      };
+      
+      checkPermissions();
+      
       Promise.all([
         getSoldierById(id),
         getActivitiesBySoldier(id),
@@ -115,7 +132,7 @@ const SoldierProfile: React.FC = () => {
         }
       }).finally(() => setLoading(false));
     }
-  }, [id]);
+  }, [id, user]);
 
 
 
@@ -212,7 +229,8 @@ const SoldierProfile: React.FC = () => {
           </Typography>
         </Box>
         {user && (
-          ( user.role === 'admin' || 
+          (canEditSoldier || 
+           user.role === 'admin' || 
            (user.role === 'chayal' && user.soldierDocId === soldier.id)) && (
             <IconButton 
               color="primary"

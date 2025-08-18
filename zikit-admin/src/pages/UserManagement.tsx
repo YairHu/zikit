@@ -687,7 +687,7 @@ const UserManagement: React.FC = () => {
                         cursor: userData.soldierDocId ? 'pointer' : 'default',
                         '&:hover': { textDecoration: userData.soldierDocId ? 'underline' : 'none' }
                       }}
-                      onClick={() => userData.soldierDocId && navigate(`/soldier-profile/${userData.soldierDocId}`)}
+                      onClick={() => userData.soldierDocId && navigate(`/soldiers/${userData.soldierDocId}`)}
                     >
                       {userData.displayName}
                     </Typography>

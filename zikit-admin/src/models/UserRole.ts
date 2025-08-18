@@ -22,6 +22,8 @@ export enum PermissionLevel {
 export enum SystemPath {
   HOME = 'home',                   // עמוד ראשי
   SOLDIERS = 'soldiers',           // כוח אדם
+  SOLDIER_PRESENCE = 'soldier_presence', // נוכחות חיילים
+  SOLDIER_DETAILS = 'soldier_details',   // פרטי חיילים
   TEAMS = 'teams',                 // צוותים
   MISSIONS = 'missions',           // משימות
   ACTIVITIES = 'activities',       // פעילויות
@@ -31,7 +33,8 @@ export enum SystemPath {
   FORMS = 'forms',                 // טפסים
   FRAMEWORKS = 'frameworks',       // מסגרות
   USERS = 'users',                 // משתמשים
-  VEHICLES = 'vehicles'            // רכבים
+  VEHICLES = 'vehicles',           // רכבים
+  HAMAL = 'hamal'                  // מסך חמ"ל
 }
 
 // מדיניות הרשאה
@@ -96,6 +99,10 @@ export const getSystemPathDisplayName = (path: SystemPath): string => {
       return 'עמוד ראשי';
     case SystemPath.SOLDIERS:
       return 'כוח אדם';
+    case SystemPath.SOLDIER_PRESENCE:
+      return 'נוכחות חיילים';
+    case SystemPath.SOLDIER_DETAILS:
+      return 'פרטי חיילים';
     case SystemPath.TEAMS:
       return 'מסגרות';
     case SystemPath.MISSIONS:
@@ -116,6 +123,8 @@ export const getSystemPathDisplayName = (path: SystemPath): string => {
       return 'משתמשים';
     case SystemPath.VEHICLES:
       return 'רכבים';
+    case SystemPath.HAMAL:
+      return 'מסך חמ"ל';
     default:
       return path;
   }

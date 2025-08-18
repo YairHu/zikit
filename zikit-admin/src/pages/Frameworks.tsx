@@ -28,7 +28,15 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper
+  Paper,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  FormControl,
+  Select,
+  MenuItem,
+  Snackbar
 } from '@mui/material';
 import {
   Group as GroupIcon,
@@ -40,7 +48,8 @@ import {
   Schedule as ScheduleIcon,
   ViewList as ViewListIcon,
   ViewModule as ViewModuleIcon,
-  AccountTree as AccountTreeIcon
+  AccountTree as AccountTreeIcon,
+  Print as PrintIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
 import { DataScope, PermissionLevel, SystemPath } from '../models/UserRole';
@@ -49,11 +58,11 @@ import { Activity } from '../models/Activity';
 import { Duty } from '../models/Duty';
 import { Framework, FrameworkWithDetails } from '../models/Framework';
 import { getAllSoldiers } from '../services/soldierService';
-import { getAllFrameworks, getFrameworkWithDetails } from '../services/frameworkService';
-import { getUserPermissions } from '../services/permissionService';
-import { getPresenceColor, getProfileColor } from '../utils/colors';
+import { getAllFrameworks, getFrameworkWithDetails, getFrameworkNamesByIds } from '../services/frameworkService';
+import { getUserPermissions, canUserEditSoldierPresence } from '../services/permissionService';
+import { getPresenceColor, getProfileColor, getRoleColor } from '../utils/colors';
 
-const Teams: React.FC = () => {
+const Frameworks: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useUser();
   const [frameworks, setFrameworks] = useState<FrameworkWithDetails[]>([]);
@@ -61,7 +70,14 @@ const Teams: React.FC = () => {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [error, setError] = useState<string>('');
   const [canManageFrameworks, setCanManageFrameworks] = useState<boolean>(false);
+  const [canEditPersonnel, setCanEditPersonnel] = useState<boolean>(false);
   const [isFrameworkScoped, setIsFrameworkScoped] = useState<boolean>(false);
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportData, setReportData] = useState<any[]>([]);
+  const [selectedFramework, setSelectedFramework] = useState<FrameworkWithDetails | null>(null);
+  const [frameworkNames, setFrameworkNames] = useState<{ [key: string]: string }>({});
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
 
   const loadData = useCallback(async () => {
     if (!user) return;
@@ -81,7 +97,7 @@ const Teams: React.FC = () => {
       // סינון רק המסגרות שנטענו בהצלחה
       let validFrameworks = frameworksWithDetails.filter(f => f !== null) as FrameworkWithDetails[];
 
-      // בדיקת הרשאות למסגרות
+      // בדיקת הרשאות למסגרות וכח אדם
       const { policies } = await getUserPermissions(user.uid);
       const frameworkPolicy = policies.find(p => (p.paths || []).includes(SystemPath.FRAMEWORKS));
 
@@ -91,6 +107,19 @@ const Teams: React.FC = () => {
         frameworkPolicy.permissions.includes(PermissionLevel.EDIT)
       );
       setCanManageFrameworks(canManage);
+
+      // בדיקת הרשאות עריכה נוכחות חיילים
+      const canEditPresence = await canUserEditSoldierPresence(user.uid);
+      setCanEditPersonnel(canEditPresence);
+
+      // קבלת שמות המסגרות עבור הדוחות
+      const allFrameworkIds = Array.from(new Set(
+        validFrameworks.flatMap(f => 
+          f.allSoldiersInHierarchy?.map(s => s.frameworkId) || []
+        )
+      ));
+      const names = await getFrameworkNamesByIds(allFrameworkIds);
+      setFrameworkNames(names);
 
       // סינון לפי היקף נתונים: מי שמוגבל למסגרת שלו בלבד רואה את ההיררכיה שלו
       if (frameworkPolicy?.dataScope === DataScope.FRAMEWORK_ONLY) {
@@ -138,6 +167,61 @@ const Teams: React.FC = () => {
 
   const handleFrameworkClick = (frameworkId: string) => {
     navigate(`/frameworks/${frameworkId}`);
+  };
+
+  const handleGenerateReport = (framework: FrameworkWithDetails) => {
+    if (!framework || !framework.allSoldiersInHierarchy) {
+      setSnackbarMessage('אין נתונים ליצירת דוח');
+      setSnackbarOpen(true);
+      return;
+    }
+    
+    const report = framework.allSoldiersInHierarchy.map(soldier => ({
+      id: soldier.id,
+      name: soldier.name,
+      role: soldier.role,
+      personalNumber: soldier.personalNumber,
+      frameworkName: frameworkNames[soldier.frameworkId] || soldier.frameworkId,
+      presence: soldier.presence || 'לא מוגדר',
+      editedPresence: soldier.presence || 'לא מוגדר' // עותק לעריכה
+    }));
+    
+    setReportData(report);
+    setSelectedFramework(framework);
+    setReportDialogOpen(true);
+  };
+
+  const handleUpdateReportPresence = (soldierId: string, newPresence: string) => {
+    setReportData(prev => prev.map(item => 
+      item.id === soldierId 
+        ? { ...item, editedPresence: newPresence }
+        : item
+    ));
+  };
+
+  const handlePrintReport = () => {
+    if (!selectedFramework) return;
+    
+    const reportText = reportData.map(soldier => 
+      `${soldier.name} - ${soldier.role} - ${soldier.personalNumber} - ${soldier.frameworkName} - ${soldier.editedPresence}`
+    ).join('\n');
+    
+    alert(`דוח 1 - סטטוס נוכחות חיילים במסגרת ${selectedFramework.name}:\n\n${reportText}`);
+    setReportDialogOpen(false);
+  };
+
+  // פונקציה לחישוב נוכחות במסגרת
+  const calculatePresence = (framework: FrameworkWithDetails) => {
+    if (!framework.allSoldiersInHierarchy || framework.allSoldiersInHierarchy.length === 0) {
+      return '0/0';
+    }
+    
+    const totalSoldiers = framework.allSoldiersInHierarchy.length;
+    const presentSoldiers = framework.allSoldiersInHierarchy.filter(soldier => 
+      soldier.presence === 'בבסיס'
+    ).length;
+    
+    return `${presentSoldiers}/${totalSoldiers}`;
   };
 
   if (loading) {
@@ -213,7 +297,7 @@ const Teams: React.FC = () => {
                         {framework.name}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        {framework.level} • {framework.totalSoldiers} חיילים • מפקד: {framework.commander?.name || 'לא מוגדר'}
+                        {framework.totalSoldiers} חיילים • מפקד: {framework.commander?.name || 'לא מוגדר'}
                       </Typography>
                     </Box>
                     <Badge badgeContent={framework.totalSoldiers} color="primary">
@@ -222,18 +306,34 @@ const Teams: React.FC = () => {
                   </Box>
                   
                   <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={() => handleFrameworkClick(framework.id)}
-                      sx={{ 
-                        borderRadius: 2,
-                        textTransform: 'none',
-                        fontWeight: 600
-                      }}
-                    >
-                      צפה בפרטי המסגרת
-                    </Button>
+                    {canEditPersonnel ? (
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<PrintIcon />}
+                        onClick={() => handleGenerateReport(framework)}
+                        sx={{ 
+                          borderRadius: 2,
+                          textTransform: 'none',
+                          fontWeight: 600
+                        }}
+                      >
+                        צור דוח 1
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => handleFrameworkClick(framework.id)}
+                        sx={{ 
+                          borderRadius: 2,
+                          textTransform: 'none',
+                          fontWeight: 600
+                        }}
+                      >
+                        צפה בפרטי המסגרת
+                      </Button>
+                    )}
                   </Box>
 
                   <Divider sx={{ my: 2 }} />
@@ -260,7 +360,7 @@ const Teams: React.FC = () => {
                                 <ListItemAvatar>
                                   <Avatar 
                                     sx={{ 
-                                      bgcolor: getProfileColor(soldier.role),
+                                      bgcolor: getRoleColor(soldier.role),
                                       width: 32,
                                       height: 32,
                                       fontSize: '0.75rem'
@@ -293,8 +393,7 @@ const Teams: React.FC = () => {
                 <TableHead>
                   <TableRow>
                     <TableCell>שם המסגרת</TableCell>
-                    <TableCell>רמה</TableCell>
-                    <TableCell>מספר חיילים</TableCell>
+                    <TableCell>נוכחות</TableCell>
                     <TableCell>מפקד</TableCell>
                     <TableCell>פעולות</TableCell>
                   </TableRow>
@@ -303,25 +402,49 @@ const Teams: React.FC = () => {
                   {frameworks.map((framework) => (
                     <TableRow key={framework.id}>
                       <TableCell>
-                        <Typography variant="subtitle1" fontWeight={600}>
+                        <Typography 
+                          variant="subtitle1" 
+                          fontWeight={600}
+                          sx={{ 
+                            cursor: 'pointer',
+                            '&:hover': { 
+                              color: 'primary.main',
+                              textDecoration: 'underline'
+                            }
+                          }}
+                          onClick={() => handleFrameworkClick(framework.id)}
+                        >
                           {framework.name}
                         </Typography>
                       </TableCell>
-                      <TableCell>{framework.level}</TableCell>
                       <TableCell>
-                        <Badge badgeContent={framework.totalSoldiers} color="primary">
-                          <GroupIcon />
-                        </Badge>
+                        <Chip 
+                          label={calculatePresence(framework)} 
+                          color="primary" 
+                          variant="outlined"
+                          size="small"
+                        />
                       </TableCell>
                       <TableCell>{framework.commander?.name || 'לא מוגדר'}</TableCell>
                       <TableCell>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          onClick={() => handleFrameworkClick(framework.id)}
-                        >
-                          צפה בפרטים
-                        </Button>
+                        {canEditPersonnel ? (
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<PrintIcon />}
+                            onClick={() => handleGenerateReport(framework)}
+                          >
+                            צור דוח 1
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => handleFrameworkClick(framework.id)}
+                          >
+                            צפה בפרטים
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -331,8 +454,87 @@ const Teams: React.FC = () => {
           )}
         </>
       )}
+
+      {/* Report Dialog */}
+      <Dialog 
+        open={reportDialogOpen} 
+        onClose={() => setReportDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          דוח 1 - סטטוס נוכחות חיילים במסגרת {selectedFramework?.name}
+        </DialogTitle>
+        <DialogContent>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>שם</TableCell>
+                  <TableCell>תפקיד</TableCell>
+                  <TableCell>מספר אישי</TableCell>
+                  <TableCell>מסגרת</TableCell>
+                  <TableCell>סטטוס נוכחות</TableCell>
+                  <TableCell>עריכת דוח</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {reportData.map((soldier) => (
+                  <TableRow key={soldier.id}>
+                    <TableCell>{soldier.name}</TableCell>
+                    <TableCell>{soldier.role}</TableCell>
+                    <TableCell>{soldier.personalNumber}</TableCell>
+                    <TableCell>{soldier.frameworkName}</TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={soldier.presence} 
+                        sx={{ 
+                          bgcolor: getPresenceColor(soldier.presence),
+                          color: 'white'
+                        }}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <FormControl size="small" sx={{ minWidth: 120 }}>
+                        <Select
+                          value={soldier.editedPresence}
+                          onChange={(e) => handleUpdateReportPresence(soldier.id, e.target.value)}
+                          size="small"
+                        >
+                          <MenuItem value="בבסיס">בבסיס</MenuItem>
+                          <MenuItem value="בפעילות">בפעילות</MenuItem>
+                          <MenuItem value="חופש">חופש</MenuItem>
+                          <MenuItem value="גימלים">גימלים</MenuItem>
+                          <MenuItem value="אחר">אחר</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReportDialogOpen(false)}>
+            ביטול
+          </Button>
+          <Button onClick={handlePrintReport} variant="contained" startIcon={<PrintIcon />}>
+            הפק דוח
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={3000}
+        onClose={() => setSnackbarOpen(false)}
+        message={snackbarMessage}
+      />
     </Container>
   );
 };
 
-export default Teams; 
+export default Frameworks; 

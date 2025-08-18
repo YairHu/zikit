@@ -29,7 +29,16 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Button
+  Button,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Snackbar
 } from '@mui/material';
 import {
   Group as GroupIcon,
@@ -41,14 +50,16 @@ import {
   AccountTree as AccountTreeIcon,
   Assignment as AssignmentIcon,
   CalendarMonth as CalendarMonthIcon,
-  DirectionsCar as CarIcon
+  DirectionsCar as CarIcon,
+  Print as PrintIcon,
+  Save as SaveIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
 import { FrameworkWithDetails } from '../models/Framework';
 import { getAllFrameworks, getFrameworkWithDetails, getFrameworkNamesByIds } from '../services/frameworkService';
-import { getAllSoldiers } from '../services/soldierService';
-import { getPresenceColor, getProfileColor } from '../utils/colors';
-import { getUserPermissions } from '../services/permissionService';
+import { getAllSoldiers, updateSoldier } from '../services/soldierService';
+import { getPresenceColor, getProfileColor, getRoleColor } from '../utils/colors';
+import { getUserPermissions, canUserEditSoldierPresence } from '../services/permissionService';
 import { PermissionLevel, SystemPath } from '../models/UserRole';
 
 const FrameworkDetails: React.FC = () => {
@@ -61,6 +72,13 @@ const FrameworkDetails: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [frameworkNames, setFrameworkNames] = useState<{ [key: string]: string }>({});
   const [canManageFrameworks, setCanManageFrameworks] = useState<boolean>(false);
+  const [canEditPersonnel, setCanEditPersonnel] = useState<boolean>(false);
+  const [editingSoldier, setEditingSoldier] = useState<string | null>(null);
+  const [editingPresence, setEditingPresence] = useState<string>('');
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportData, setReportData] = useState<any[]>([]);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -69,19 +87,24 @@ const FrameworkDetails: React.FC = () => {
       setLoading(true);
       setError('');
       
-      // בדיקת הרשאות לניהול מסגרות
+      // בדיקת הרשאות לניהול מסגרות וכח אדם
       if (user) {
         try {
           const { policies } = await getUserPermissions(user.uid);
-          const policy = policies.find(p => (p.paths || []).includes(SystemPath.FRAMEWORKS));
-          const canManage = !!policy && (
-            policy.permissions.includes(PermissionLevel.CREATE) ||
-            policy.permissions.includes(PermissionLevel.EDIT)
+          const frameworkPolicy = policies.find(p => (p.paths || []).includes(SystemPath.FRAMEWORKS));
+          
+          const canManage = !!frameworkPolicy && (
+            frameworkPolicy.permissions.includes(PermissionLevel.CREATE) ||
+            frameworkPolicy.permissions.includes(PermissionLevel.EDIT)
           );
           setCanManageFrameworks(canManage);
 
+          // בדיקת הרשאות עריכה נוכחות חיילים
+          const canEditPresence = await canUserEditSoldierPresence(user.uid);
+          setCanEditPersonnel(canEditPresence);
+
           // אם משתמש מוגבל למסגרת שלו בלבד, בחן גישה למסגרת המבוקשת
-          if (policy?.dataScope === 'framework_only') {
+          if (frameworkPolicy?.dataScope === 'framework_only') {
             const [frameworks, soldiers] = await Promise.all([
               getAllFrameworks(),
               getAllSoldiers()
@@ -110,8 +133,9 @@ const FrameworkDetails: React.FC = () => {
             }
           }
         } catch (e) {
-          // במקרה של שגיאה בהרשאות, נסתיר את הכפתור
+          // במקרה של שגיאה בהרשאות, נסתיר את הכפתורים
           setCanManageFrameworks(false);
+          setCanEditPersonnel(false);
         }
       }
 
@@ -135,7 +159,7 @@ const FrameworkDetails: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, user]);
 
   useEffect(() => {
     loadData();
@@ -147,6 +171,80 @@ const FrameworkDetails: React.FC = () => {
 
   const handleChildFrameworkClick = (frameworkId: string) => {
     navigate(`/frameworks/${frameworkId}`);
+  };
+
+  const handleEditPresence = (soldierId: string, currentPresence: string) => {
+    setEditingSoldier(soldierId);
+    setEditingPresence(currentPresence || '');
+  };
+
+  const handleSavePresence = async () => {
+    if (!editingSoldier || !framework) return;
+    
+    try {
+      await updateSoldier(editingSoldier, { presence: editingPresence });
+      
+      // רענון הנתונים מהשרת
+      await loadData();
+      
+      setSnackbarMessage('סטטוס הנוכחות עודכן בהצלחה');
+      setSnackbarOpen(true);
+    } catch (error) {
+      console.error('שגיאה בעדכון סטטוס נוכחות:', error);
+      setSnackbarMessage('שגיאה בעדכון סטטוס הנוכחות');
+      setSnackbarOpen(true);
+    } finally {
+      setEditingSoldier(null);
+      setEditingPresence('');
+    }
+  };
+
+  const handleGenerateReport = () => {
+    if (!framework || !framework.allSoldiersInHierarchy) return;
+    
+    const report = framework.allSoldiersInHierarchy.map(soldier => ({
+      id: soldier.id,
+      name: soldier.name,
+      role: soldier.role,
+      personalNumber: soldier.personalNumber,
+      frameworkName: frameworkNames[soldier.frameworkId] || soldier.frameworkId,
+      presence: soldier.presence || 'לא מוגדר',
+      editedPresence: soldier.presence || 'לא מוגדר' // עותק לעריכה
+    }));
+    
+    setReportData(report);
+    setReportDialogOpen(true);
+  };
+
+  const handleUpdateReportPresence = (soldierId: string, newPresence: string) => {
+    setReportData(prev => prev.map(item => 
+      item.id === soldierId 
+        ? { ...item, editedPresence: newPresence }
+        : item
+    ));
+  };
+
+  const handlePrintReport = () => {
+    const reportText = reportData.map(soldier => 
+      `${soldier.name} - ${soldier.role} - ${soldier.personalNumber} - ${soldier.frameworkName} - ${soldier.editedPresence}`
+    ).join('\n');
+    
+    alert(`דוח 1 - סטטוס נוכחות חיילים במסגרת ${framework?.name}:\n\n${reportText}`);
+    setReportDialogOpen(false);
+  };
+
+  // פונקציה לחישוב נוכחות במסגרת
+  const calculatePresence = () => {
+    if (!framework || !framework.allSoldiersInHierarchy || framework.allSoldiersInHierarchy.length === 0) {
+      return '0/0';
+    }
+    
+    const totalSoldiers = framework.allSoldiersInHierarchy.length;
+    const presentSoldiers = framework.allSoldiersInHierarchy.filter(soldier => 
+      soldier.presence === 'בבסיס'
+    ).length;
+    
+    return `${presentSoldiers}/${totalSoldiers}`;
   };
 
   if (loading) {
@@ -166,7 +264,7 @@ const FrameworkDetails: React.FC = () => {
         <Button
           variant="outlined"
           startIcon={<ArrowBackIcon />}
-          onClick={() => navigate('/teams')}
+          onClick={() => navigate('/frameworks')}
         >
           חזרה למסגרות
         </Button>
@@ -178,7 +276,7 @@ const FrameworkDetails: React.FC = () => {
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <IconButton onClick={() => navigate('/teams')} sx={{ mr: 2 }}>
+        <IconButton onClick={() => navigate('/frameworks')} sx={{ mr: 2 }}>
           <ArrowBackIcon />
         </IconButton>
         <Box sx={{ flex: 1 }}>
@@ -186,9 +284,19 @@ const FrameworkDetails: React.FC = () => {
             {framework.name}
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            רמה: {framework.level} • {framework.totalSoldiers} חיילים
+            {framework.totalSoldiers} חיילים • נוכחות: {calculatePresence()}
           </Typography>
         </Box>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          {canEditPersonnel && (
+            <Button
+              variant="outlined"
+              startIcon={<PrintIcon />}
+              onClick={handleGenerateReport}
+            >
+              הפק דוח 1
+            </Button>
+          )}
         {canManageFrameworks && (
           <Button
             variant="outlined"
@@ -198,6 +306,7 @@ const FrameworkDetails: React.FC = () => {
             ניהול מסגרות
           </Button>
         )}
+        </Box>
       </Box>
 
       {/* Framework Info Card */}
@@ -215,7 +324,6 @@ const FrameworkDetails: React.FC = () => {
                 {framework.description || 'אין תיאור'}
               </Typography>
             </Box>
-            <Chip label={framework.level} color="primary" variant="outlined" />
           </Box>
           
           <Divider sx={{ my: 2 }} />
@@ -258,6 +366,15 @@ const FrameworkDetails: React.FC = () => {
                 {framework.childFrameworks.length}
               </Typography>
             </Box>
+
+            <Box>
+              <Typography variant="subtitle2" color="text.secondary">
+                נוכחות
+              </Typography>
+              <Typography variant="body1" fontWeight={600}>
+                {calculatePresence()}
+              </Typography>
+            </Box>
           </Box>
         </CardContent>
       </Card>
@@ -282,24 +399,82 @@ const FrameworkDetails: React.FC = () => {
               חיילי המסגרת (ישירים)
             </Typography>
             {framework.soldiers.length > 0 ? (
-              <List>
+              <TableContainer component={Paper}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>שם</TableCell>
+                      <TableCell>תפקיד</TableCell>
+                      <TableCell>מספר אישי</TableCell>
+                      <TableCell>סטטוס נוכחות</TableCell>
+                      {canEditPersonnel && <TableCell>פעולות</TableCell>}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
                 {framework.soldiers.map((soldier) => (
-                  <ListItem key={soldier.id} disablePadding>
-                    <ListItemButton onClick={() => handleSoldierClick(soldier.id)}>
-                      <ListItemAvatar>
-                        <Avatar sx={{ bgcolor: 'primary.main' }}>
+                      <TableRow key={soldier.id}>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            <Avatar sx={{ bgcolor: getRoleColor(soldier.role), mr: 2, width: 32, height: 32 }}>
                           {soldier.name.charAt(0)}
                         </Avatar>
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={soldier.name}
-                        secondary={`${soldier.role} • ${soldier.personalNumber}`}
-                      />
-                      <ArrowBackIcon color="action" />
-                    </ListItemButton>
-                  </ListItem>
-                ))}
-              </List>
+                            <Typography 
+                              variant="body1" 
+                              sx={{ cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
+                              onClick={() => handleSoldierClick(soldier.id)}
+                            >
+                              {soldier.name}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell>{soldier.role}</TableCell>
+                        <TableCell>{soldier.personalNumber}</TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={soldier.presence || 'לא מוגדר'} 
+                            sx={{ 
+                              bgcolor: getPresenceColor(soldier.presence || ''),
+                              color: 'white'
+                            }}
+                            size="small"
+                          />
+                        </TableCell>
+                        {canEditPersonnel && (
+                          <TableCell>
+                            {editingSoldier === soldier.id ? (
+                              <Box sx={{ display: 'flex', gap: 1 }}>
+                                <FormControl size="small" sx={{ minWidth: 120 }}>
+                                  <Select
+                                    value={editingPresence}
+                                    onChange={(e) => setEditingPresence(e.target.value)}
+                                    size="small"
+                                  >
+                                    <MenuItem value="בבסיס">בבסיס</MenuItem>
+                                    <MenuItem value="בפעילות">בפעילות</MenuItem>
+                                    <MenuItem value="חופש">חופש</MenuItem>
+                                    <MenuItem value="גימלים">גימלים</MenuItem>
+                                    <MenuItem value="אחר">אחר</MenuItem>
+                                  </Select>
+                                </FormControl>
+                                <IconButton size="small" onClick={handleSavePresence} color="primary">
+                                  <SaveIcon />
+                                </IconButton>
+                              </Box>
+                            ) : (
+                              <IconButton 
+                                size="small" 
+                                onClick={() => handleEditPresence(soldier.id, soldier.presence || '')}
+                              >
+                                <EditIcon />
+                              </IconButton>
+                            )}
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
             ) : (
               <Typography color="text.secondary" align="center">
                 אין חיילים במסגרת זו
@@ -316,24 +491,84 @@ const FrameworkDetails: React.FC = () => {
               כל החיילים בהיררכיה (כולל מסגרות בנות)
             </Typography>
             {framework.allSoldiersInHierarchy && framework.allSoldiersInHierarchy.length > 0 ? (
-              <List>
+              <TableContainer component={Paper}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>שם</TableCell>
+                      <TableCell>תפקיד</TableCell>
+                      <TableCell>מספר אישי</TableCell>
+                      <TableCell>מסגרת</TableCell>
+                      <TableCell>סטטוס נוכחות</TableCell>
+                      {canEditPersonnel && <TableCell>פעולות</TableCell>}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
                 {framework.allSoldiersInHierarchy.map((soldier) => (
-                  <ListItem key={soldier.id} disablePadding>
-                    <ListItemButton onClick={() => handleSoldierClick(soldier.id)}>
-                      <ListItemAvatar>
-                        <Avatar sx={{ bgcolor: 'primary.main' }}>
+                      <TableRow key={soldier.id}>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            <Avatar sx={{ bgcolor: getRoleColor(soldier.role), mr: 2, width: 32, height: 32 }}>
                           {soldier.name.charAt(0)}
                         </Avatar>
-                      </ListItemAvatar>
-                                             <ListItemText
-                         primary={soldier.name}
-                         secondary={`${soldier.role} • ${soldier.personalNumber} • מסגרת: ${frameworkNames[soldier.frameworkId] || soldier.frameworkId}`}
-                       />
-                      <ArrowBackIcon color="action" />
-                    </ListItemButton>
-                  </ListItem>
-                ))}
-              </List>
+                            <Typography 
+                              variant="body1" 
+                              sx={{ cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
+                              onClick={() => handleSoldierClick(soldier.id)}
+                            >
+                              {soldier.name}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell>{soldier.role}</TableCell>
+                        <TableCell>{soldier.personalNumber}</TableCell>
+                        <TableCell>{frameworkNames[soldier.frameworkId] || soldier.frameworkId}</TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={soldier.presence || 'לא מוגדר'} 
+                            sx={{ 
+                              bgcolor: getPresenceColor(soldier.presence || ''),
+                              color: 'white'
+                            }}
+                            size="small"
+                          />
+                        </TableCell>
+                        {canEditPersonnel && (
+                          <TableCell>
+                            {editingSoldier === soldier.id ? (
+                              <Box sx={{ display: 'flex', gap: 1 }}>
+                                <FormControl size="small" sx={{ minWidth: 120 }}>
+                                  <Select
+                                    value={editingPresence}
+                                    onChange={(e) => setEditingPresence(e.target.value)}
+                                    size="small"
+                                  >
+                                    <MenuItem value="בבסיס">בבסיס</MenuItem>
+                                    <MenuItem value="בפעילות">בפעילות</MenuItem>
+                                    <MenuItem value="חופש">חופש</MenuItem>
+                                    <MenuItem value="גימלים">גימלים</MenuItem>
+                                    <MenuItem value="אחר">אחר</MenuItem>
+                                  </Select>
+                                </FormControl>
+                                <IconButton size="small" onClick={handleSavePresence} color="primary">
+                                  <SaveIcon />
+                                </IconButton>
+                              </Box>
+                            ) : (
+                              <IconButton 
+                                size="small" 
+                                onClick={() => handleEditPresence(soldier.id, soldier.presence || '')}
+                              >
+                                <EditIcon />
+                              </IconButton>
+                            )}
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
             ) : (
               <Typography color="text.secondary" align="center">
                 אין חיילים בהיררכיה זו
@@ -508,6 +743,85 @@ const FrameworkDetails: React.FC = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Report Dialog */}
+      <Dialog 
+        open={reportDialogOpen} 
+        onClose={() => setReportDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          דוח 1 - סטטוס נוכחות חיילים במסגרת {framework.name}
+        </DialogTitle>
+        <DialogContent>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>שם</TableCell>
+                  <TableCell>תפקיד</TableCell>
+                  <TableCell>מספר אישי</TableCell>
+                  <TableCell>מסגרת</TableCell>
+                  <TableCell>סטטוס נוכחות</TableCell>
+                  <TableCell>עריכת דוח</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {reportData.map((soldier) => (
+                  <TableRow key={soldier.id}>
+                    <TableCell>{soldier.name}</TableCell>
+                    <TableCell>{soldier.role}</TableCell>
+                    <TableCell>{soldier.personalNumber}</TableCell>
+                    <TableCell>{soldier.frameworkName}</TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={soldier.presence} 
+                        sx={{ 
+                          bgcolor: getPresenceColor(soldier.presence),
+                          color: 'white'
+                        }}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <FormControl size="small" sx={{ minWidth: 120 }}>
+                        <Select
+                          value={soldier.editedPresence}
+                          onChange={(e) => handleUpdateReportPresence(soldier.id, e.target.value)}
+                          size="small"
+                        >
+                          <MenuItem value="בבסיס">בבסיס</MenuItem>
+                          <MenuItem value="בפעילות">בפעילות</MenuItem>
+                          <MenuItem value="חופש">חופש</MenuItem>
+                          <MenuItem value="גימלים">גימלים</MenuItem>
+                          <MenuItem value="אחר">אחר</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReportDialogOpen(false)}>
+            ביטול
+          </Button>
+          <Button onClick={handlePrintReport} variant="contained" startIcon={<PrintIcon />}>
+            הפק דוח
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={3000}
+        onClose={() => setSnackbarOpen(false)}
+        message={snackbarMessage}
+      />
     </Container>
   );
 };

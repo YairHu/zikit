@@ -5,7 +5,7 @@ import { UserRole, SystemPath, PermissionLevel } from './models/UserRole';
 import { canUserAccessPath } from './services/permissionService';
 import Home from './pages/Home';
 import Soldiers from './pages/Soldiers';
-import Teams from './pages/Teams';
+import Frameworks from './pages/Frameworks';
 import Trips from './pages/Trips';
 import Missions from './pages/Missions';
 import Duties from './pages/Duties';
@@ -16,7 +16,6 @@ import Activities from './pages/Activities';
 import Referrals from './pages/Referrals';
 import Login from './pages/Login';
 import SoldierProfile from './pages/SoldierProfile';
-import TeamDetails from './pages/TeamDetails';
 import UserManagement from './pages/UserManagement';
 import ActivityDetails from './pages/ActivityDetails';
 import ActivityStatistics from './pages/ActivityStatistics';
@@ -89,10 +88,11 @@ const getMenuItems = async (user: any) => {
   const canViewReferrals = await canUserAccessPath(user.uid, SystemPath.REFERRALS, PermissionLevel.VIEW);
   const canViewForms = await canUserAccessPath(user.uid, SystemPath.FORMS, PermissionLevel.VIEW);
   const canViewUsers = await canUserAccessPath(user.uid, SystemPath.USERS, PermissionLevel.VIEW);
+  const canViewHamal = await canUserAccessPath(user.uid, SystemPath.HAMAL, PermissionLevel.VIEW);
 
   const managementItems = [
     ...(canViewSoldiers ? [{ text: 'כוח אדם', icon: <GroupsIcon />, path: '/soldiers' }] : []),
-    ...(canViewFrameworks ? [{ text: 'מסגרות', icon: <GroupsIcon />, path: '/teams' }] : []),
+    ...(canViewFrameworks ? [{ text: 'מסגרות', icon: <GroupsIcon />, path: '/frameworks' }] : []),
     ...(canViewTrips ? [{ text: 'נסיעות ורכבים', icon: <DirectionsCarIcon />, path: '/trips' }] : []),
     ...(canViewMissions ? [{ text: 'משימות', icon: <AssignmentIcon />, path: '/missions' }] : []),
     ...(canViewActivities ? [{ text: 'פעילויות מבצעיות', icon: <AssignmentIcon />, path: '/activities' }] : []),
@@ -100,7 +100,7 @@ const getMenuItems = async (user: any) => {
     ...(canViewReferrals ? [{ text: 'הפניות', icon: <LocalHospitalIcon />, path: '/referrals' }] : []),
     ...(canViewForms ? [{ text: 'טפסים', icon: <DescriptionIcon />, path: '/forms' }] : []),
     ...(canViewForms ? [{ text: 'ייבוא/ייצוא נתונים', icon: <FileUploadIcon />, path: '/data-import-export' }] : []),
-    ...(canViewMissions ? [{ text: 'מסך חמ"ל', icon: <MonitorIcon />, path: '/hamal' }] : []),
+    ...(canViewHamal ? [{ text: 'מסך חמ"ל', icon: <MonitorIcon />, path: '/hamal' }] : []),
     ...(canViewActivities ? [{ text: 'סטטיסטיקות פעילויות', icon: <BarChartIcon />, path: '/activity-statistics' }] : [])
   ];
 
@@ -287,14 +287,14 @@ const AppRoutes: React.FC = () => {
               <SoldierProfile />
             </ProtectedRoute>
           } />
-          <Route path="/teams" element={
+          <Route path="/frameworks" element={
             <ProtectedRoute userRole={user.role as UserRole}>
-              <Teams />
+              <Frameworks />
             </ProtectedRoute>
           } />
-          <Route path="/teams/:teamId" element={
+          <Route path="/frameworks/:id" element={
             <ProtectedRoute userRole={user.role as UserRole}>
-              <TeamDetails />
+              <FrameworkDetails />
             </ProtectedRoute>
           } />
           <Route path="/frameworks/:id" element={

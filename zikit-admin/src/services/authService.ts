@@ -9,6 +9,7 @@ import { doc, getDoc, setDoc, query, collection, where, getDocs, updateDoc } fro
 import { auth, db } from '../firebase';
 import { User } from '../models/User';
 import { UserRole } from '../models/UserRole';
+import { canUserEditSoldierPresence, canUserEditSoldierDetails } from './permissionService';
 
 // משתמשים עם הרשאות מיוחדות (ידוע מראש)
 const ADMIN_EMAILS = [
@@ -16,12 +17,39 @@ const ADMIN_EMAILS = [
   // ניתן להוסיף עוד מיילים של מנהלים
 ];
 
+// פונקציה לעדכון token עם הרשאות חדשות
+export const updateUserToken = async (uid: string): Promise<void> => {
+  try {
+    // בדיקת הרשאות
+    const canEditPresence = await canUserEditSoldierPresence(uid);
+    const canEditDetails = await canUserEditSoldierDetails(uid);
+    
+    // עדכון ה-token (זה ייעשה דרך Cloud Functions)
+    // כרגע נשמור את ההרשאות ב-localStorage כפתרון זמני
+    const tokenData = {
+      soldierPresenceEdit: canEditPresence,
+      soldierDetailsEdit: canEditDetails,
+      updatedAt: new Date().toISOString()
+    };
+    
+    localStorage.setItem('userPermissions', JSON.stringify(tokenData));
+    
+    console.log('הרשאות משתמש עודכנו:', tokenData);
+  } catch (error) {
+    console.error('שגיאה בעדכון הרשאות משתמש:', error);
+  }
+};
+
 // פונקציה לכניסה עם Google
 export const signInWithGoogle = async (): Promise<User> => {
   const provider = new GoogleAuthProvider();
   try {
     const result = await signInWithPopup(auth, provider);
     const userData = await initializeUser(result.user);
+    
+    // עדכון הרשאות לאחר התחברות
+    await updateUserToken(result.user.uid);
+    
     return userData;
   } catch (error) {
     console.error('שגיאה בהתחברות:', error);
