@@ -5,7 +5,8 @@ import { getAllDuties, addDuty, updateDuty, deleteDuty, getDutiesBySoldier } fro
 import { getAllSoldiers } from '../services/soldierService';
 import { getAllFrameworks } from '../services/frameworkService';
 import { useUser } from '../contexts/UserContext';
-import { UserRole, isAdmin } from '../models/UserRole';
+import { UserRole, SystemPath, PermissionLevel, DataScope } from '../models/UserRole';
+import { canUserAccessPath, getUserPermissions } from '../services/permissionService';
 import {
   Container,
   Typography,
@@ -84,6 +85,33 @@ const WeeklyDuties: React.FC = () => {
   const [filterPerson, setFilterPerson] = useState<string>('');
   const [filterDateRange, setFilterDateRange] = useState<[Date | null, Date | null]>([null, null]);
   const [showStatistics, setShowStatistics] = useState(false);
+  const [permissions, setPermissions] = useState({
+    canView: false,
+    canCreate: false,
+    canEdit: false,
+    canDelete: false
+  });
+
+  // פונקציה למציאת החייל של המשתמש
+  const findUserSoldier = (soldiers: Soldier[], user: any): Soldier | null => {
+    // חיפוש לפי email
+    let soldier = soldiers.find(s => s.email === user.email);
+    if (soldier) return soldier;
+    
+    // חיפוש לפי personalNumber אם יש
+    if (user.personalNumber) {
+      soldier = soldiers.find(s => s.personalNumber === user.personalNumber);
+      if (soldier) return soldier;
+    }
+    
+    // חיפוש לפי name
+    if (user.displayName) {
+      soldier = soldiers.find(s => s.name === user.displayName);
+      if (soldier) return soldier;
+    }
+    
+    return null;
+  };
 
   // יצירת שבוע התורנויות
   const generateWeeklySlots = useMemo(() => {
@@ -263,15 +291,96 @@ const WeeklyDuties: React.FC = () => {
         getAllFrameworks()
       ]);
 
+      // בדיקת הרשאות המשתמש
+      if (user) {
+        const canView = await canUserAccessPath(user.uid, SystemPath.DUTIES, PermissionLevel.VIEW);
+        const canCreate = await canUserAccessPath(user.uid, SystemPath.DUTIES, PermissionLevel.CREATE);
+        const canEdit = await canUserAccessPath(user.uid, SystemPath.DUTIES, PermissionLevel.EDIT);
+        const canDelete = await canUserAccessPath(user.uid, SystemPath.DUTIES, PermissionLevel.DELETE);
+        
+        setPermissions({ canView, canCreate, canEdit, canDelete });
+        
+        // אם אין הרשאת צפייה - לא טוען נתונים
+        if (!canView) {
+          setDuties([]);
+          setSoldiers(soldiersData);
+          setFrameworks(frameworksData);
+          return;
+        }
+      }
+
       // טעינת תורנויות לפי הרשאות המשתמש
       let dutiesData: Duty[] = [];
       if (user) {
-        // אם המשתמש הוא חייל - רואה רק את התורנויות שלו
-        if (user.role === UserRole.CHAYAL) {
-          dutiesData = await getDutiesBySoldier(user.uid);
+        // קבלת הרשאות המשתמש עם פרטי המדיניות
+        const userPermissions = await getUserPermissions(user.uid);
+        
+        // חיפוש מדיניות שמתאימה לתורנויות
+        const dutiesPolicy = userPermissions.policies.find(policy => 
+          policy.paths.includes(SystemPath.DUTIES)
+        );
+        
+        if (dutiesPolicy) {
+          // טעינת תורנויות לפי היקף הנתונים
+          switch (dutiesPolicy.dataScope) {
+            case DataScope.USER_ONLY:
+              // נתוני משתמש בלבד - רק תורנויות שהמשתמש משתתף בהן
+              const userSoldierForUserOnly = findUserSoldier(soldiersData, user);
+              if (userSoldierForUserOnly) {
+                dutiesData = await getDutiesBySoldier(userSoldierForUserOnly.id);
         } else {
-          // משתמשים אחרים - רואים את כל התורנויות
+                dutiesData = [];
+              }
+              break;
+              
+            case DataScope.FRAMEWORK_ONLY:
+              // נתוני המסגרת שלו - תורנויות שבהן יש משתתף מהמסגרת (כולל מסגרות-בנות)
+              // מציאת החייל של המשתמש
+              const userSoldier = findUserSoldier(soldiersData, user);
+              if (userSoldier?.frameworkId) {
+                // פונקציה למציאת כל החיילים בהיררכיה כולל מסגרות-בנות
+                const getAllSoldiersInHierarchy = (frameworkId: string): string[] => {
+                  const directSoldiers = soldiersData.filter(s => s.frameworkId === frameworkId).map(s => s.id);
+                  const childFrameworks = frameworksData.filter(f => f.parentFrameworkId === frameworkId);
+                  const childSoldiers = childFrameworks.flatMap(child => getAllSoldiersInHierarchy(child.id));
+                  return [...directSoldiers, ...childSoldiers];
+                };
+                
+                // קבלת כל החיילים בהיררכיה
+                const allSoldiersInHierarchy = getAllSoldiersInHierarchy(userSoldier.frameworkId);
+                
+                // טעינת כל התורנויות וסינון לפי המסגרת
+                const allDuties = await getAllDuties();
+                dutiesData = allDuties.filter(duty => {
+                  // בדיקה אם יש משתתף מהמסגרת או ממסגרות-בנות בתורנות
+                  return duty.participants.some(participant => {
+                    return allSoldiersInHierarchy.includes(participant.soldierId);
+                  });
+                });
+              } else {
+                // אם לא נמצאה מסגרת - רק התורנויות של המשתמש
+                if (userSoldier) {
+                  dutiesData = await getDutiesBySoldier(userSoldier.id);
+                } else {
+                  dutiesData = [];
+                }
+              }
+              break;
+              
+            case DataScope.ALL_DATA:
+            default:
+              // כלל הנתונים - כל התורנויות
           dutiesData = await getAllDuties();
+              break;
+          }
+        } else {
+          // אם אין מדיניות מתאימה - רק התורנויות של המשתמש
+          const userSoldierForDefault = findUserSoldier(soldiersData, user);
+          if (userSoldierForDefault) {
+            dutiesData = await getDutiesBySoldier(userSoldierForDefault.id);
+          } else {
+            dutiesData = [];
+          }
         }
       }
 
@@ -290,6 +399,16 @@ const WeeklyDuties: React.FC = () => {
   }, [refresh]);
 
   const handleSlotClick = (slot: WeeklyDutySlot) => {
+    // בדיקת הרשאות
+    if (slot.dutyId && !permissions.canEdit) {
+      alert('אין לך הרשאה לערוך תורנויות');
+      return;
+    }
+    if (!slot.dutyId && !permissions.canCreate) {
+      alert('אין לך הרשאה ליצור תורנויות');
+      return;
+    }
+    
     setSelectedSlot(slot);
     setShowForm(true);
   };
@@ -301,6 +420,16 @@ const WeeklyDuties: React.FC = () => {
 
   const handleSubmit = async (participants: DutyParticipant[]) => {
     if (!selectedSlot) return;
+
+    // בדיקת הרשאות
+    if (selectedSlot.dutyId && !permissions.canEdit) {
+      alert('אין לך הרשאה לערוך תורנויות');
+      return;
+    }
+    if (!selectedSlot.dutyId && !permissions.canCreate) {
+      alert('אין לך הרשאה ליצור תורנויות');
+      return;
+    }
 
     try {
       const dutyData = {
@@ -330,6 +459,12 @@ const WeeklyDuties: React.FC = () => {
 
   const handleDelete = async () => {
     if (!selectedSlot?.dutyId) return;
+
+    // בדיקת הרשאות
+    if (!permissions.canDelete) {
+      alert('אין לך הרשאה למחוק תורנויות');
+      return;
+    }
 
     try {
       await deleteDuty(selectedSlot.dutyId);
@@ -389,11 +524,19 @@ const WeeklyDuties: React.FC = () => {
 
   return (
     <Container maxWidth="xl" sx={{ py: 3 }}>
+      {/* הודעת שגיאה אם אין הרשאות */}
+      {!permissions.canView && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          אין לך הרשאה לצפות בתורנויות שבועיות
+        </Alert>
+      )}
+
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Typography variant="h4" component="h1">
           תורנויות שבועיות
         </Typography>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          {permissions.canView && (
           <Button
             variant="outlined"
             startIcon={<BarChartIcon />}
@@ -402,6 +545,7 @@ const WeeklyDuties: React.FC = () => {
           >
             סטטיסטיקות
           </Button>
+          )}
           <Button
             variant="outlined"
             onClick={() => navigate('/duties')}
@@ -688,13 +832,14 @@ const WeeklyDuties: React.FC = () => {
                            flexDirection: 'column',
                            justifyContent: 'center',
                            alignItems: 'center',
-                           cursor: 'pointer',
+                           cursor: (slot && ((slot.dutyId && permissions.canEdit) || (!slot.dutyId && permissions.canCreate))) ? 'pointer' : 'default',
                            bgcolor: slot ? getSlotColor(slot) : '#f5f5f5',
                            color: slot ? getSlotTextColor(slot) : 'black',
                            minWidth: 80,
                            px: 1,
                            '&:hover': {
-                             bgcolor: slot ? 'rgba(76, 175, 80, 0.8)' : '#e0e0e0'
+                             bgcolor: (slot && ((slot.dutyId && permissions.canEdit) || (!slot.dutyId && permissions.canCreate))) ? 
+                               (slot ? 'rgba(76, 175, 80, 0.8)' : '#e0e0e0') : 'inherit'
                            }
                          }}
                          onClick={() => slot && handleSlotClick(slot)}
@@ -750,13 +895,14 @@ const WeeklyDuties: React.FC = () => {
                          flexDirection: 'column',
                          justifyContent: 'center',
                          alignItems: 'center',
-                         cursor: slot ? 'pointer' : 'default',
+                         cursor: (slot && ((slot.dutyId && permissions.canEdit) || (!slot.dutyId && permissions.canCreate))) ? 'pointer' : 'default',
                          bgcolor: slot ? getSlotColor(slot) : 'transparent',
                          color: slot ? getSlotTextColor(slot) : 'transparent',
                          minWidth: 80,
                          px: 1,
                          '&:hover': {
-                           bgcolor: slot ? 'rgba(76, 175, 80, 0.8)' : 'transparent'
+                           bgcolor: (slot && ((slot.dutyId && permissions.canEdit) || (!slot.dutyId && permissions.canCreate))) ? 
+                             (slot ? 'rgba(76, 175, 80, 0.8)' : 'transparent') : 'transparent'
                          }
                        }}
                        onClick={() => slot && handleSlotClick(slot)}
@@ -814,13 +960,14 @@ const WeeklyDuties: React.FC = () => {
                          flexDirection: 'column',
                          justifyContent: 'center',
                          alignItems: 'center',
-                         cursor: 'pointer',
+                         cursor: (slot && ((slot.dutyId && permissions.canEdit) || (!slot.dutyId && permissions.canCreate))) ? 'pointer' : 'default',
                          bgcolor: slot ? getSlotColor(slot) : '#f5f5f5',
                          color: slot ? getSlotTextColor(slot) : 'black',
                          minWidth: 80,
                          px: 1,
                          '&:hover': {
-                           bgcolor: slot ? 'rgba(33, 150, 243, 0.8)' : '#e0e0e0'
+                           bgcolor: (slot && ((slot.dutyId && permissions.canEdit) || (!slot.dutyId && permissions.canCreate))) ? 
+                             (slot ? 'rgba(33, 150, 243, 0.8)' : '#e0e0e0') : 'inherit'
                          }
                        }}
                        onClick={() => slot && handleSlotClick(slot)}
@@ -859,7 +1006,7 @@ const WeeklyDuties: React.FC = () => {
         slot={selectedSlot}
         soldiers={soldiers}
         frameworks={frameworks}
-        canDelete={!!selectedSlot?.dutyId}
+        canDelete={!!selectedSlot?.dutyId && permissions.canDelete}
       />
     </Container>
   );

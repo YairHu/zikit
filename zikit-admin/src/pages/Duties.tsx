@@ -5,7 +5,8 @@ import { Soldier } from '../models/Soldier';
 import { getAllDuties, addDuty, updateDuty, deleteDuty, getDutiesBySoldier } from '../services/dutyService';
 import { getAllSoldiers } from '../services/soldierService';
 import { getAllFrameworks } from '../services/frameworkService';
-import { UserRole, isAdmin } from '../models/UserRole';
+import { SystemPath, PermissionLevel, DataScope } from '../models/UserRole';
+import { canUserAccessPath, getUserPermissions } from '../services/permissionService';
 import {
   Container,
   Typography,
@@ -76,6 +77,12 @@ const Duties: React.FC = () => {
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
   const [frameworks, setFrameworks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [permissions, setPermissions] = useState({
+    canView: false,
+    canCreate: false,
+    canEdit: false,
+    canDelete: false
+  });
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<Omit<Duty, 'id' | 'createdAt' | 'updatedAt'>>(emptyDuty);
   const [editId, setEditId] = useState<string | null>(null);
@@ -85,6 +92,27 @@ const Duties: React.FC = () => {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const navigate = useNavigate();
 
+  // פונקציה למציאת החייל של המשתמש
+  const findUserSoldier = (soldiers: Soldier[], user: any): Soldier | null => {
+    // חיפוש לפי email
+    let soldier = soldiers.find(s => s.email === user.email);
+    if (soldier) return soldier;
+    
+    // חיפוש לפי personalNumber אם יש
+    if (user.personalNumber) {
+      soldier = soldiers.find(s => s.personalNumber === user.personalNumber);
+      if (soldier) return soldier;
+    }
+    
+    // חיפוש לפי name
+    if (user.displayName) {
+      soldier = soldiers.find(s => s.name === user.displayName);
+      if (soldier) return soldier;
+    }
+    
+    return null;
+  };
+
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
@@ -93,15 +121,96 @@ const Duties: React.FC = () => {
         getAllFrameworks()
       ]);
 
+      // בדיקת הרשאות המשתמש
+      if (user) {
+        const canView = await canUserAccessPath(user.uid, SystemPath.DUTIES, PermissionLevel.VIEW);
+        const canCreate = await canUserAccessPath(user.uid, SystemPath.DUTIES, PermissionLevel.CREATE);
+        const canEdit = await canUserAccessPath(user.uid, SystemPath.DUTIES, PermissionLevel.EDIT);
+        const canDelete = await canUserAccessPath(user.uid, SystemPath.DUTIES, PermissionLevel.DELETE);
+        
+        setPermissions({ canView, canCreate, canEdit, canDelete });
+        
+        // אם אין הרשאת צפייה - לא טוען נתונים
+        if (!canView) {
+          setDuties([]);
+          setSoldiers(soldiersData);
+          setFrameworks(frameworksData);
+          return;
+        }
+      }
+
       // טעינת תורנויות לפי הרשאות המשתמש
       let dutiesData: Duty[] = [];
       if (user) {
-        // אם המשתמש הוא חייל - רואה רק את התורנויות שלו
-        if (user.role === UserRole.CHAYAL) {
-          dutiesData = await getDutiesBySoldier(user.uid);
+        // קבלת הרשאות המשתמש עם פרטי המדיניות
+        const userPermissions = await getUserPermissions(user.uid);
+        
+        // חיפוש מדיניות שמתאימה לתורנויות
+        const dutiesPolicy = userPermissions.policies.find(policy => 
+          policy.paths.includes(SystemPath.DUTIES)
+        );
+        
+        if (dutiesPolicy) {
+          // טעינת תורנויות לפי היקף הנתונים
+          switch (dutiesPolicy.dataScope) {
+            case DataScope.USER_ONLY:
+              // נתוני משתמש בלבד - רק תורנויות שהמשתמש משתתף בהן
+              const userSoldierForUserOnly = findUserSoldier(soldiersData, user);
+              if (userSoldierForUserOnly) {
+                dutiesData = await getDutiesBySoldier(userSoldierForUserOnly.id);
+              } else {
+                dutiesData = [];
+              }
+              break;
+              
+            case DataScope.FRAMEWORK_ONLY:
+              // נתוני המסגרת שלו - תורנויות שבהן יש משתתף מהמסגרת (כולל מסגרות-בנות)
+              // מציאת החייל של המשתמש
+              const userSoldier = findUserSoldier(soldiersData, user);
+              if (userSoldier?.frameworkId) {
+                // פונקציה למציאת כל החיילים בהיררכיה כולל מסגרות-בנות
+                const getAllSoldiersInHierarchy = (frameworkId: string): string[] => {
+                  const directSoldiers = soldiersData.filter(s => s.frameworkId === frameworkId).map(s => s.id);
+                  const childFrameworks = frameworksData.filter(f => f.parentFrameworkId === frameworkId);
+                  const childSoldiers = childFrameworks.flatMap(child => getAllSoldiersInHierarchy(child.id));
+                  return [...directSoldiers, ...childSoldiers];
+                };
+                
+                // קבלת כל החיילים בהיררכיה
+                const allSoldiersInHierarchy = getAllSoldiersInHierarchy(userSoldier.frameworkId);
+                
+                // טעינת כל התורנויות וסינון לפי המסגרת
+                const allDuties = await getAllDuties();
+                dutiesData = allDuties.filter(duty => {
+                  // בדיקה אם יש משתתף מהמסגרת או ממסגרות-בנות בתורנות
+                  return duty.participants.some(participant => {
+                    return allSoldiersInHierarchy.includes(participant.soldierId);
+                  });
+                });
+              } else {
+                // אם לא נמצאה מסגרת - רק התורנויות של המשתמש
+                if (userSoldier) {
+                  dutiesData = await getDutiesBySoldier(userSoldier.id);
+                } else {
+                  dutiesData = [];
+                }
+              }
+              break;
+              
+            case DataScope.ALL_DATA:
+            default:
+              // כלל הנתונים - כל התורנויות
+              dutiesData = await getAllDuties();
+              break;
+          }
         } else {
-          // משתמשים אחרים - רואים את כל התורנויות
-          dutiesData = await getAllDuties();
+          // אם אין מדיניות מתאימה - רק התורנויות של המשתמש
+          const userSoldierForDefault = findUserSoldier(soldiersData, user);
+          if (userSoldierForDefault) {
+            dutiesData = await getDutiesBySoldier(userSoldierForDefault.id);
+          } else {
+            dutiesData = [];
+          }
         }
       }
 
@@ -179,6 +288,20 @@ const Duties: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!user) return;
+    
+    // בדיקת הרשאות
+    if (editId && !permissions.canEdit) {
+      alert('אין לך הרשאה לערוך תורנויות');
+      return;
+    }
+    
+    if (!editId && !permissions.canCreate) {
+      alert('אין לך הרשאה ליצור תורנויות חדשות');
+      return;
+    }
+    
     try {
       if (editId) {
         await updateDuty(editId, formData);
@@ -189,17 +312,24 @@ const Duties: React.FC = () => {
       refresh();
     } catch (error) {
       console.error('Error saving duty:', error);
+      alert('שגיאה בשמירת תורנות');
     }
   };
 
   const handleDelete = async () => {
     if (deleteId) {
+      if (!permissions.canDelete) {
+        alert('אין לך הרשאה למחוק תורנויות');
+        return;
+      }
+      
       try {
         await deleteDuty(deleteId);
         setDeleteId(null);
         refresh();
       } catch (error) {
         console.error('Error deleting duty:', error);
+        alert('שגיאה במחיקת תורנות');
       }
     }
   };
@@ -232,6 +362,17 @@ const Duties: React.FC = () => {
     );
   }
 
+  // בדיקה אם למשתמש יש הרשאת צפייה
+  if (!permissions.canView) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Alert severity="warning" sx={{ mt: 3 }}>
+          אין לך הרשאה לצפות בתורנויות
+        </Alert>
+      </Container>
+    );
+  }
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -245,7 +386,7 @@ const Duties: React.FC = () => {
           >
             תצוגה שבועית
           </Button>
-          {user && isAdmin(user.role as UserRole) && (
+          {user && permissions.canCreate && (
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -312,7 +453,7 @@ const Duties: React.FC = () => {
                       color={getStatusColor(duty.status) as any}
                       size="small"
                     />
-                    {user && isAdmin(user.role as UserRole) && (
+                    {user && permissions.canEdit && (
                       <IconButton
                         size="small"
                         onClick={(e) => {
@@ -323,7 +464,7 @@ const Duties: React.FC = () => {
                         <EditIcon />
                       </IconButton>
                     )}
-                    {user && isAdmin(user.role as UserRole) && (
+                    {user && permissions.canDelete && (
                       <IconButton
                         size="small"
                         color="error"
@@ -451,7 +592,7 @@ const Duties: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <Box sx={{ display: 'flex', gap: 0.5 }}>
-                      {user && isAdmin(user.role as UserRole) && (
+                      {user && permissions.canEdit && (
                         <IconButton
                           size="small"
                           onClick={(e) => {
@@ -462,7 +603,7 @@ const Duties: React.FC = () => {
                           <EditIcon />
                         </IconButton>
                       )}
-                      {user && isAdmin(user.role as UserRole) && (
+                      {user && permissions.canDelete && (
                         <IconButton
                           size="small"
                           color="error"

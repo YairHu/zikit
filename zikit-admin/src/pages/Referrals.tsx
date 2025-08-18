@@ -16,13 +16,16 @@ import { Referral } from '../models/Referral';
 import { Soldier } from '../models/Soldier';
 import { getAllReferrals, addReferral, updateReferral, deleteReferral, getReferralsBySoldier } from '../services/referralService';
 import { getAllSoldiers } from '../services/soldierService';
-import { UserRole, isAdmin } from '../models/UserRole';
+import { getAllFrameworks } from '../services/frameworkService';
+import { UserRole, SystemPath, PermissionLevel, DataScope } from '../models/UserRole';
+import { canUserAccessPath, getUserPermissions } from '../services/permissionService';
 
 const Referrals: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useUser();
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
+  const [frameworks, setFrameworks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [openForm, setOpenForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -31,6 +34,12 @@ const Referrals: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterTeam, setFilterTeam] = useState('');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [permissions, setPermissions] = useState({
+    canView: false,
+    canCreate: false,
+    canEdit: false,
+    canDelete: false
+  });
   const [formData, setFormData] = useState({
     soldierId: '',
     soldierName: '',
@@ -51,26 +60,83 @@ const Referrals: React.FC = () => {
   };
 
   const loadData = useCallback(async () => {
+    if (!user) return;
+    
     try {
       setLoading(true);
-      const [soldiersData] = await Promise.all([
-        getAllSoldiers()
+      
+      // בדיקת הרשאות המשתמש
+      const canView = await canUserAccessPath(user.uid, SystemPath.REFERRALS, PermissionLevel.VIEW);
+      const canCreate = await canUserAccessPath(user.uid, SystemPath.REFERRALS, PermissionLevel.CREATE);
+      const canEdit = await canUserAccessPath(user.uid, SystemPath.REFERRALS, PermissionLevel.EDIT);
+      const canDelete = await canUserAccessPath(user.uid, SystemPath.REFERRALS, PermissionLevel.DELETE);
+      
+      setPermissions({ canView, canCreate, canEdit, canDelete });
+      
+      // אם אין הרשאת צפייה - לא טוען נתונים
+      if (!canView) {
+        setLoading(false);
+        return;
+      }
+      
+      // קבלת הרשאות המשתמש
+      const userPermissions = await getUserPermissions(user.uid);
+      const referralsPolicy = userPermissions.policies.find(policy => 
+        policy.paths.includes(SystemPath.REFERRALS)
+      );
+      
+      // טעינת כל הנתונים קודם
+      const [allSoldiers, allFrameworks] = await Promise.all([
+        getAllSoldiers(),
+        getAllFrameworks()
       ]);
-
-      // טעינת הפניות לפי הרשאות המשתמש
+      
       let referralsData: Referral[] = [];
-      if (user) {
-        // אם המשתמש הוא חייל - רואה רק את ההפניות שלו
-        if (user.role === UserRole.CHAYAL) {
-          referralsData = await getReferralsBySoldier(user.uid);
-        } else {
-          // משתמשים אחרים - רואים את כל ההפניות
-          referralsData = await getAllReferrals();
+      
+      if (referralsPolicy) {
+        // סינון נתונים לפי מדיניות ההרשאות
+        switch (referralsPolicy.dataScope) {
+          case DataScope.USER_ONLY:
+            // משתמש רואה רק את ההפניות שלו
+            referralsData = await getReferralsBySoldier(user.uid);
+            break;
+            
+          case DataScope.FRAMEWORK_ONLY:
+            // משתמש רואה את ההפניות של המסגרת שלו (כולל מסגרות-בנות)
+            const userSoldier = allSoldiers.find(s => s.email === user.email);
+            if (userSoldier?.frameworkId) {
+              // פונקציה למציאת כל החיילים בהיררכיה כולל מסגרות-בנות
+              const getAllSoldiersInHierarchy = (frameworkId: string): string[] => {
+                const directSoldiers = allSoldiers.filter(s => s.frameworkId === frameworkId).map(s => s.id);
+                const childFrameworks = allFrameworks.filter(f => f.parentFrameworkId === frameworkId);
+                const childSoldiers = childFrameworks.flatMap(child => getAllSoldiersInHierarchy(child.id));
+                return [...directSoldiers, ...childSoldiers];
+              };
+              
+              // קבלת כל החיילים בהיררכיה
+              const allSoldiersInHierarchy = getAllSoldiersInHierarchy(userSoldier.frameworkId);
+              
+              const allReferrals = await getAllReferrals();
+              referralsData = allReferrals.filter(referral => {
+                return allSoldiersInHierarchy.includes(referral.soldierId);
+              });
+            }
+            break;
+            
+          case DataScope.ALL_DATA:
+          default:
+            // משתמש רואה את כל ההפניות
+            referralsData = await getAllReferrals();
+            break;
         }
+      } else {
+        // אם אין מדיניות - טוען את כל ההפניות
+        referralsData = await getAllReferrals();
       }
 
       setReferrals(referralsData);
-      setSoldiers(soldiersData);
+      setSoldiers(allSoldiers);
+      setFrameworks(allFrameworks);
     } catch (error) {
       console.error('שגיאה בטעינת נתונים:', error);
     } finally {
@@ -83,6 +149,15 @@ const Referrals: React.FC = () => {
   }, [loadData]);
 
   const handleOpenForm = (referral?: Referral) => {
+    if (referral && !permissions.canEdit) {
+      alert('אין לך הרשאה לערוך הפניות');
+      return;
+    }
+    if (!referral && !permissions.canCreate) {
+      alert('אין לך הרשאה להוסיף הפניות');
+      return;
+    }
+    
     if (referral) {
       setEditId(referral.id);
       setFormData({
@@ -156,8 +231,16 @@ const Referrals: React.FC = () => {
     e.preventDefault();
     try {
       if (editId) {
+        if (!permissions.canEdit) {
+          alert('אין לך הרשאה לערוך הפניות');
+          return;
+        }
         await updateReferral(editId, formData);
       } else {
+        if (!permissions.canCreate) {
+          alert('אין לך הרשאה להוסיף הפניות');
+          return;
+        }
         await addReferral(formData);
       }
       handleCloseForm();
@@ -168,6 +251,10 @@ const Referrals: React.FC = () => {
   };
 
   const handleDelete = async () => {
+    if (!permissions.canDelete) {
+      alert('אין לך הרשאה למחוק הפניות');
+      return;
+    }
     if (!deleteId) return;
     try {
       await deleteReferral(deleteId);
@@ -209,6 +296,17 @@ const Referrals: React.FC = () => {
     );
   }
 
+  // בדיקה אם למשתמש יש הרשאת צפייה
+  if (!permissions.canView) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Alert severity="warning">
+          אין לך הרשאה לצפות בהפניות
+        </Alert>
+      </Container>
+    );
+  }
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Header */}
@@ -224,7 +322,7 @@ const Referrals: React.FC = () => {
             ניהול הפניות של חיילים
           </Typography>
         </Box>
-        {user && isAdmin(user.role as UserRole) && (
+        {permissions.canCreate && (
           <Fab
             color="primary"
             onClick={() => handleOpenForm()}
@@ -324,7 +422,7 @@ const Referrals: React.FC = () => {
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2, gap: 1 }}>
-                  {user && isAdmin(user.role as UserRole) && (
+                  {permissions.canEdit && (
                     <IconButton 
                       size="small" 
                       onClick={(e) => {
@@ -335,7 +433,7 @@ const Referrals: React.FC = () => {
                       <EditIcon />
                     </IconButton>
                   )}
-                  {user && isAdmin(user.role as UserRole) && (
+                  {permissions.canDelete && (
                     <IconButton 
                       size="small" 
                       color="error"
@@ -366,7 +464,7 @@ const Referrals: React.FC = () => {
                 <TableCell>מיקום</TableCell>
                 <TableCell>סיבה</TableCell>
                 <TableCell>סטטוס</TableCell>
-                {user && (user.role === 'admin') && (
+                {(permissions.canEdit || permissions.canDelete) && (
                   <TableCell>פעולות</TableCell>
                 )}
               </TableRow>
@@ -395,10 +493,10 @@ const Referrals: React.FC = () => {
                       size="small"
                     />
                   </TableCell>
-                  {user && isAdmin(user.role as UserRole) && (
+                  {(permissions.canEdit || permissions.canDelete) && (
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
-                        {isAdmin(user.role as UserRole) && (
+                        {permissions.canEdit && (
                           <IconButton 
                             size="small" 
                             onClick={(e) => {
@@ -409,7 +507,7 @@ const Referrals: React.FC = () => {
                             <EditIcon />
                           </IconButton>
                         )}
-                        {isAdmin(user.role as UserRole) && (
+                        {permissions.canDelete && (
                           <IconButton 
                             size="small" 
                             color="error"

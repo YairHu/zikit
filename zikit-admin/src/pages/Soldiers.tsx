@@ -7,6 +7,9 @@ import { getPresenceColor, getProfileColor } from '../utils/colors';
 import { Link } from 'react-router-dom';
 import SoldierForm from '../components/SoldierForm';
 import HierarchicalChart from '../components/HierarchicalChart';
+import { useUser } from '../contexts/UserContext';
+import { UserRole, SystemPath, PermissionLevel, DataScope } from '../models/UserRole';
+import { canUserAccessPath, getUserPermissions } from '../services/permissionService';
 import {
   Box,
   Container,
@@ -74,6 +77,7 @@ import {
 
 const Soldiers: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useUser();
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
   const [soldiersWithFrameworkNames, setSoldiersWithFrameworkNames] = useState<(Soldier & { frameworkName?: string })[]>([]);
   const [frameworks, setFrameworks] = useState<any[]>([]);
@@ -88,6 +92,12 @@ const Soldiers: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'cards' | 'table' | 'hierarchy'>('cards');
   const [showColumnSettings, setShowColumnSettings] = useState(false);
+  const [permissions, setPermissions] = useState({
+    canView: false,
+    canCreate: false,
+    canEdit: false,
+    canDelete: false
+  });
   
   // הגדרת השדות הזמינים לתצוגה טבלאית
   const availableColumns = [
@@ -106,29 +116,104 @@ const Soldiers: React.FC = () => {
   
   const [visibleColumns, setVisibleColumns] = useState(availableColumns);
 
-  const refresh = useCallback(() => {
-    setLoading(true);
-    Promise.all([
-      getAllSoldiers(),
-      getAllSoldiersWithFrameworkNames(),
-      getAllFrameworks()
-    ])
-      .then(([soldiersData, soldiersWithNamesData, frameworksData]) => {
-        console.log('Loaded soldiers from Firebase:', soldiersData.length);
-        console.log('Loaded frameworks from Firebase:', frameworksData.length);
-        
-        setSoldiers(soldiersData);
-        setSoldiersWithFrameworkNames(soldiersWithNamesData);
-        setFrameworks(frameworksData);
-      })
-      .catch((error) => {
-        console.error('Error loading data from Firebase:', error);
-        setSoldiers([]);
-        setSoldiersWithFrameworkNames([]);
-        setFrameworks([]);
-      })
-      .finally(() => setLoading(false));
-  }, []);
+  const refresh = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      setLoading(true);
+      
+      // בדיקת הרשאות המשתמש
+      const canView = await canUserAccessPath(user.uid, SystemPath.SOLDIERS, PermissionLevel.VIEW);
+      const canCreate = await canUserAccessPath(user.uid, SystemPath.SOLDIERS, PermissionLevel.CREATE);
+      const canEdit = await canUserAccessPath(user.uid, SystemPath.SOLDIERS, PermissionLevel.EDIT);
+      const canDelete = await canUserAccessPath(user.uid, SystemPath.SOLDIERS, PermissionLevel.DELETE);
+      
+      setPermissions({ canView, canCreate, canEdit, canDelete });
+      
+      // אם אין הרשאת צפייה - לא טוען נתונים
+      if (!canView) {
+        setLoading(false);
+        return;
+      }
+      
+      // קבלת הרשאות המשתמש
+      const userPermissions = await getUserPermissions(user.uid);
+      const soldiersPolicy = userPermissions.policies.find(policy => 
+        policy.paths.includes(SystemPath.SOLDIERS)
+      );
+      
+      // טעינת כל הנתונים קודם
+      const [allSoldiers, allSoldiersWithNames, allFrameworks] = await Promise.all([
+        getAllSoldiers(),
+        getAllSoldiersWithFrameworkNames(),
+        getAllFrameworks()
+      ]);
+      
+      let soldiersData: Soldier[] = [];
+      let soldiersWithNamesData: (Soldier & { frameworkName?: string })[] = [];
+      let frameworksData = allFrameworks;
+      
+      if (soldiersPolicy) {
+        // סינון נתונים לפי מדיניות ההרשאות
+        switch (soldiersPolicy.dataScope) {
+          case DataScope.USER_ONLY:
+            // משתמש רואה רק את עצמו
+            const userSoldier = allSoldiers.find(s => s.email === user.email);
+            if (userSoldier) {
+              soldiersData = [userSoldier];
+              const userSoldierWithName = allSoldiersWithNames.find(s => s.id === userSoldier.id);
+              soldiersWithNamesData = userSoldierWithName ? [userSoldierWithName] : [userSoldier as any];
+            }
+            break;
+            
+          case DataScope.FRAMEWORK_ONLY:
+            // משתמש רואה את נתוני המסגרת שלו (כולל מסגרות-בנות)
+            const userSoldierForFramework = allSoldiers.find(s => s.email === user.email);
+            if (userSoldierForFramework?.frameworkId) {
+              // פונקציה למציאת כל החיילים בהיררכיה כולל מסגרות-בנות
+              const getAllSoldiersInHierarchy = (frameworkId: string): string[] => {
+                const directSoldiers = allSoldiers.filter(s => s.frameworkId === frameworkId).map(s => s.id);
+                const childFrameworks = frameworksData.filter(f => f.parentFrameworkId === frameworkId);
+                const childSoldiers = childFrameworks.flatMap(child => getAllSoldiersInHierarchy(child.id));
+                return [...directSoldiers, ...childSoldiers];
+              };
+              
+              // קבלת כל החיילים בהיררכיה
+              const allSoldiersInHierarchy = getAllSoldiersInHierarchy(userSoldierForFramework.frameworkId);
+              
+              soldiersData = allSoldiers.filter(s => allSoldiersInHierarchy.includes(s.id));
+              soldiersWithNamesData = allSoldiersWithNames.filter(s => allSoldiersInHierarchy.includes(s.id));
+            }
+            break;
+            
+          case DataScope.ALL_DATA:
+          default:
+            // משתמש רואה את כל הנתונים
+            soldiersData = allSoldiers;
+            soldiersWithNamesData = allSoldiersWithNames;
+            break;
+        }
+      } else {
+        // אם אין מדיניות - טוען את כל הנתונים
+        soldiersData = allSoldiers;
+        soldiersWithNamesData = allSoldiersWithNames;
+      }
+      
+      console.log('Loaded soldiers from Firebase:', soldiersData.length);
+      console.log('Loaded frameworks from Firebase:', frameworksData.length);
+      
+      setSoldiers(soldiersData);
+      setSoldiersWithFrameworkNames(soldiersWithNamesData);
+      setFrameworks(frameworksData);
+    } catch (error) {
+      console.error('Error loading data from Firebase:', error);
+      setSoldiers([]);
+      setSoldiersWithFrameworkNames([]);
+      setFrameworks([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
 
   useEffect(() => {
     refresh();
@@ -162,6 +247,14 @@ const Soldiers: React.FC = () => {
   );
 
   const handleOpenForm = (soldier?: Soldier) => {
+    if (soldier && !permissions.canEdit) {
+      alert('אין לך הרשאה לערוך חיילים');
+      return;
+    }
+    if (!soldier && !permissions.canCreate) {
+      alert('אין לך הרשאה להוסיף חיילים');
+      return;
+    }
     setEditId(soldier?.id || null);
     setShowForm(true);
   };
@@ -176,6 +269,10 @@ const Soldiers: React.FC = () => {
   };
 
   const handleDelete = async () => {
+    if (!permissions.canDelete) {
+      alert('אין לך הרשאה למחוק חיילים');
+      return;
+    }
     if (deleteId) {
       await deleteSoldier(deleteId);
       setDeleteId(null);
@@ -202,7 +299,24 @@ const Soldiers: React.FC = () => {
     setVisibleColumns(availableColumns);
   };
 
+  if (loading) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 3, textAlign: 'center' }}>
+        <CircularProgress />
+      </Container>
+    );
+  }
 
+  // בדיקה אם למשתמש יש הרשאת צפייה
+  if (!permissions.canView) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 3 }}>
+        <Alert severity="warning">
+          אין לך הרשאה לצפות במאגר חיילים
+        </Alert>
+      </Container>
+    );
+  }
 
   return (
     <Container maxWidth="lg" sx={{ py: 3, direction: 'rtl' }}>
@@ -221,14 +335,16 @@ const Soldiers: React.FC = () => {
             </Typography>
           </Box>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenForm()}
-          sx={{ display: { xs: 'none', sm: 'flex' } }}
-        >
-          הוסף חייל
-        </Button>
+        {permissions.canCreate && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenForm()}
+            sx={{ display: { xs: 'none', sm: 'flex' } }}
+          >
+            הוסף חייל
+          </Button>
+        )}
       </Box>
 
       {/* View Mode Tabs */}
@@ -507,12 +623,16 @@ const Soldiers: React.FC = () => {
                         return (
                           <TableCell key={column.key}>
                             <Box sx={{ display: 'flex', gap: 0.5 }}>
-                              <IconButton size="small" color="primary" onClick={() => handleOpenForm(soldier)}>
-                                <EditIcon fontSize="small" />
-                              </IconButton>
-                              <IconButton size="small" color="error" onClick={() => setDeleteId(soldier.id)}>
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
+                              {permissions.canEdit && (
+                                <IconButton size="small" color="primary" onClick={() => handleOpenForm(soldier)}>
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                              )}
+                              {permissions.canDelete && (
+                                <IconButton size="small" color="error" onClick={() => setDeleteId(soldier.id)}>
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              )}
                             </Box>
                           </TableCell>
                         );
@@ -605,12 +725,16 @@ const Soldiers: React.FC = () => {
                     </Box>
                   </Box>
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                    <IconButton size="small" onClick={() => handleOpenForm(soldier)}>
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton size="small" color="error" onClick={() => setDeleteId(soldier.id)}>
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
+                    {permissions.canEdit && (
+                      <IconButton size="small" onClick={() => handleOpenForm(soldier)}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                    {permissions.canDelete && (
+                      <IconButton size="small" color="error" onClick={() => setDeleteId(soldier.id)}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    )}
                   </Box>
                 </Box>
 

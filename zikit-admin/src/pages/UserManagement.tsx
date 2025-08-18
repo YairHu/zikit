@@ -20,28 +20,63 @@ import {
   Alert,
   Tabs,
   Tab,
-  Divider
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  IconButton,
+  Checkbox,
+  FormGroup,
+  FormControlLabel
 } from '@mui/material';
 import {
   Person as PersonIcon,
   Security as SecurityIcon,
   Group as GroupIcon,
   AdminPanelSettings as AdminIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  Policy as PolicyIcon,
+  Add as AddIcon,
+  Edit as EditIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
 import { User } from '../models/User';
-import { UserRole } from '../models/UserRole';
+import { 
+  UserRole, 
+  PermissionPolicy, 
+  Role, 
+  SystemPath, 
+  DataScope, 
+  PermissionLevel,
+  getDataScopeDisplayName,
+  getPermissionLevelDisplayName,
+  getSystemPathDisplayName
+} from '../models/UserRole';
 import { 
   getAllUsers, 
-  assignRole, 
+  assignRoleByName, 
   canUserAssignRoles,
   canUserRemoveUsers,
   removeUserFromSystem
 } from '../services/userService';
 import { getAllFrameworks } from '../services/frameworkService';
+import { 
+  getAllPolicies, 
+  createPolicy, 
+  updatePolicy, 
+  deletePolicy,
+  getAllRoles,
+  createRole,
+  updateRole,
+  deleteRole,
+  getUserPermissions,
+  canUserAccessPath
+} from '../services/permissionService';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
+import { getAllSoldiers } from '../services/soldierService';
+import { useNavigate } from 'react-router-dom';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -57,44 +92,70 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
 
 const UserManagement: React.FC = () => {
   const { user: currentUser } = useUser();
+  const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [tabValue, setTabValue] = useState(0);
+  const [permissions, setPermissions] = useState({
+    canView: false,
+    canCreate: false,
+    canEdit: false,
+    canDelete: false
+  });
+  
+  // Permission management state
+  const [policies, setPolicies] = useState<PermissionPolicy[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [soldiers, setSoldiers] = useState<any[]>([]);
+  const [selectedUserPermissions, setSelectedUserPermissions] = useState<{
+    policies: PermissionPolicy[];
+    role: Role | null;
+  } | null>(null);
   
   // Dialogs state
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [policyDialogOpen, setPolicyDialogOpen] = useState(false);
+  const [roleManagementDialogOpen, setRoleManagementDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [selectedRole, setSelectedRole] = useState<UserRole>(UserRole.CHAYAL);
+  const [selectedRole, setSelectedRole] = useState<string>('');
   const [frameworks, setFrameworks] = useState<any[]>([]);
   const [assignmentData, setAssignmentData] = useState({
-    role: UserRole.CHAYAL,
+    role: '',
     frameworkId: '',
     personalNumber: ''
+  });
+  
+  // Policy management state
+  const [editingPolicy, setEditingPolicy] = useState<PermissionPolicy | null>(null);
+  const [policyForm, setPolicyForm] = useState({
+    name: '',
+    description: '',
+    paths: [SystemPath.MISSIONS] as SystemPath[],
+    dataScope: DataScope.FRAMEWORK_ONLY,
+    permissions: [PermissionLevel.VIEW] as PermissionLevel[]
+  });
+  
+  // Role management state
+  const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [roleForm, setRoleForm] = useState({
+    name: '',
+    description: '',
+    policies: [] as string[]
   });
 
   const loadUsers = useCallback(async () => {
     try {
       setLoading(true);
-      const allUsers = await getAllUsers();
-      setUsers(allUsers);
+      const usersData = await getAllUsers();
+      setUsers(usersData);
     } catch (error) {
       console.error('שגיאה בטעינת משתמשים:', error);
     } finally {
       setLoading(false);
     }
   }, []);
-
-  useEffect(() => {
-    const loadData = async () => {
-      await Promise.all([
-        loadUsers(),
-        loadFrameworks()
-      ]);
-    };
-    loadData();
-  }, [loadUsers]);
 
   const loadFrameworks = async () => {
     try {
@@ -105,20 +166,97 @@ const UserManagement: React.FC = () => {
     }
   };
 
+  const loadPolicies = async () => {
+    try {
+      const policiesData = await getAllPolicies();
+      setPolicies(policiesData);
+    } catch (error) {
+      console.error('שגיאה בטעינת מדיניות:', error);
+    }
+  };
+
+  const loadRoles = async () => {
+    try {
+      const rolesData = await getAllRoles();
+      setRoles(rolesData);
+    } catch (error) {
+      console.error('שגיאה בטעינת תפקידים:', error);
+    }
+  };
+
+  const loadSoldiers = async () => {
+    try {
+      const soldiersData = await getAllSoldiers();
+      setSoldiers(soldiersData);
+    } catch (error) {
+      console.error('שגיאה בטעינת חיילים:', error);
+    }
+  };
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        
+        // בדיקת הרשאות המשתמש
+        if (currentUser) {
+          const canView = await canUserAccessPath(currentUser.uid, SystemPath.USERS, PermissionLevel.VIEW);
+          const canCreate = await canUserAccessPath(currentUser.uid, SystemPath.USERS, PermissionLevel.CREATE);
+          const canEdit = await canUserAccessPath(currentUser.uid, SystemPath.USERS, PermissionLevel.EDIT);
+          const canDelete = await canUserAccessPath(currentUser.uid, SystemPath.USERS, PermissionLevel.DELETE);
+          
+          setPermissions({ canView, canCreate, canEdit, canDelete });
+          
+          // אם אין הרשאת צפייה - לא טוען נתונים
+          if (!canView) {
+            setLoading(false);
+            return;
+          }
+        }
+        
+        await Promise.all([
+          loadUsers(),
+          loadFrameworks(),
+          loadPolicies(),
+          loadRoles(),
+          loadSoldiers()
+        ]);
+      } catch (error) {
+        console.error('שגיאה בטעינת נתונים:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, [currentUser, loadUsers]);
+
   const handleAssignRole = async () => {
-    if (!selectedUser || !currentUser) return;
+    if (!selectedUser || !selectedRole || !currentUser || !permissions.canEdit) {
+      if (!permissions.canEdit) {
+        alert('אין לך הרשאה לשבץ תפקידים');
+        return;
+      }
+      return;
+    }
     
     try {
-      await assignRole(selectedUser.uid, selectedRole, currentUser.uid);
+      await assignRoleByName(selectedUser.uid, selectedRole, currentUser.uid);
       setRoleDialogOpen(false);
       loadUsers();
     } catch (error) {
-      alert('שגיאה בשיבוץ תפקיד: ' + error);
+      console.error('שגיאה בשיבוץ תפקיד:', error);
+      alert('שגיאה בשיבוץ תפקיד');
     }
   };
 
   const handleAssignTeam = async () => {
-    if (!selectedUser || !currentUser) return;
+    if (!selectedUser || !currentUser || !permissions.canEdit) {
+      if (!permissions.canEdit) {
+        alert('אין לך הרשאה לשבץ למסגרת');
+        return;
+      }
+      return;
+    }
 
     // בדיקה שהמסגרת נבחרה
     if (!assignmentData.frameworkId) {
@@ -148,7 +286,7 @@ const UserManagement: React.FC = () => {
       }
 
       // עדכון רשומת המשתמש
-      await assignRole(selectedUser.uid, assignmentData.role, currentUser.uid);
+      await assignRoleByName(selectedUser.uid, assignmentData.role, currentUser.uid);
 
       setTeamDialogOpen(false);
       alert('המשתמש שובץ בהצלחה!');
@@ -160,7 +298,13 @@ const UserManagement: React.FC = () => {
   };
 
   const handleDeleteUser = async () => {
-    if (!selectedUser || !currentUser) return;
+    if (!selectedUser || !currentUser || !permissions.canDelete) {
+      if (!permissions.canDelete) {
+        alert('אין לך הרשאה להסיר משתמשים');
+        return;
+      }
+      return;
+    }
     
     try {
       await removeUserFromSystem(selectedUser.uid, currentUser.uid);
@@ -176,15 +320,20 @@ const UserManagement: React.FC = () => {
 
   const openRoleDialog = (user: User) => {
     setSelectedUser(user);
-    setSelectedRole(user.role);
+    setSelectedRole(typeof user.role === 'string' ? user.role : user.role);
     setRoleDialogOpen(true);
   };
 
   const openTeamDialog = (user: User) => {
     setSelectedUser(user);
+    
+    // מציאת המסגרת הנוכחית של המשתמש
+    const soldier = soldiers.find(s => s.email === user.email);
+    const currentFrameworkId = soldier?.frameworkId || '';
+    
     setAssignmentData({
-      role: user.role,
-      frameworkId: '',
+      role: typeof user.role === 'string' ? user.role : user.role,
+      frameworkId: currentFrameworkId,
       personalNumber: user.personalNumber || ''
     });
     setTeamDialogOpen(true);
@@ -195,29 +344,208 @@ const UserManagement: React.FC = () => {
     setDeleteDialogOpen(true);
   };
 
-  const getRoleColor = (role: UserRole): string => {
-    const colors: Record<UserRole, string> = {
-      [UserRole.ADMIN]: '#f44336',
-      
-      [UserRole.CHAYAL]: '#4caf50',
-    };
-    return colors[role] || '#9e9e9e';
-  };
-
-  const getRoleDisplayName = (role: UserRole): string => {
-    switch (role) {
-      case UserRole.ADMIN:
-        return 'אדמין';
-      case UserRole.CHAYAL:
-        return 'חייל';
-      default:
-        return role;
+  const openPolicyDialog = async (user: User) => {
+    setSelectedUser(user);
+    try {
+      const userPermissions = await getUserPermissions(user.uid);
+      setSelectedUserPermissions(userPermissions);
+      setPolicyDialogOpen(true);
+    } catch (error) {
+      console.error('שגיאה בטעינת הרשאות משתמש:', error);
+      alert('שגיאה בטעינת הרשאות משתמש');
     }
   };
 
+  const openRoleManagementDialog = () => {
+    setRoleManagementDialogOpen(true);
+  };
+
+  const handleCreatePolicy = async () => {
+    if (!currentUser || !permissions.canCreate) {
+      alert('אין לך הרשאה ליצור מדיניות');
+      return;
+    }
+    
+    try {
+      await createPolicy({
+        ...policyForm,
+        createdBy: currentUser.uid
+      }, currentUser.uid);
+      setPolicyForm({
+        name: '',
+        description: '',
+        paths: [SystemPath.MISSIONS],
+        dataScope: DataScope.FRAMEWORK_ONLY,
+        permissions: [PermissionLevel.VIEW]
+      });
+      loadPolicies();
+      alert('מדיניות נוצרה בהצלחה!');
+    } catch (error) {
+      alert('שגיאה ביצירת מדיניות: ' + error);
+    }
+  };
+
+  const handleUpdatePolicy = async () => {
+    if (!editingPolicy || !currentUser || !permissions.canEdit) {
+      alert('אין לך הרשאה לערוך מדיניות');
+      return;
+    }
+    
+    try {
+      await updatePolicy(editingPolicy.id, policyForm, currentUser.uid);
+      setEditingPolicy(null);
+      setPolicyForm({
+        name: '',
+        description: '',
+        paths: [SystemPath.MISSIONS],
+        dataScope: DataScope.FRAMEWORK_ONLY,
+        permissions: [PermissionLevel.VIEW]
+      });
+      loadPolicies();
+      alert('מדיניות עודכנה בהצלחה!');
+    } catch (error) {
+      alert('שגיאה בעדכון מדיניות: ' + error);
+    }
+  };
+
+  const handleDeletePolicy = async (policyId: string) => {
+    if (!permissions.canDelete) {
+      alert('אין לך הרשאה למחוק מדיניות');
+      return;
+    }
+    
+    if (!window.confirm('האם אתה בטוח שברצונך למחוק מדיניות זו?')) return;
+    
+    try {
+      await deletePolicy(policyId);
+      loadPolicies();
+      alert('מדיניות נמחקה בהצלחה!');
+    } catch (error) {
+      alert('שגיאה במחיקת מדיניות: ' + error);
+    }
+  };
+
+  const handleCreateRole = async () => {
+    if (!currentUser || !permissions.canCreate) {
+      alert('אין לך הרשאה ליצור תפקיד');
+      return;
+    }
+    
+    try {
+      await createRole({
+        ...roleForm,
+        createdBy: currentUser.uid,
+        isSystem: false
+      }, currentUser.uid);
+      setRoleForm({
+        name: '',
+        description: '',
+        policies: []
+      });
+      loadRoles();
+      alert('תפקיד נוצר בהצלחה!');
+    } catch (error) {
+      alert('שגיאה ביצירת תפקיד: ' + error);
+    }
+  };
+
+  const handleUpdateRole = async () => {
+    if (!editingRole || !currentUser || !permissions.canEdit) {
+      alert('אין לך הרשאה לערוך תפקיד');
+      return;
+    }
+    
+    try {
+      await updateRole(editingRole.id, roleForm, currentUser.uid);
+      setEditingRole(null);
+      setRoleForm({
+        name: '',
+        description: '',
+        policies: []
+      });
+      loadRoles();
+      alert('תפקיד עודכן בהצלחה!');
+    } catch (error) {
+      alert('שגיאה בעדכון תפקיד: ' + error);
+    }
+  };
+
+  const handleDeleteRole = async (roleId: string) => {
+    if (!permissions.canDelete) {
+      alert('אין לך הרשאה למחוק תפקיד');
+      return;
+    }
+    
+    if (!window.confirm('האם אתה בטוח שברצונך למחוק תפקיד זה?')) return;
+    
+    try {
+      await deleteRole(roleId);
+      loadRoles();
+      alert('תפקיד נמחק בהצלחה!');
+    } catch (error) {
+      alert('שגיאה במחיקת תפקיד: ' + error);
+    }
+  };
+
+  const editPolicy = (policy: PermissionPolicy) => {
+    setEditingPolicy(policy);
+    setPolicyForm({
+      name: policy.name,
+      description: policy.description,
+      paths: [...policy.paths],
+      dataScope: policy.dataScope,
+      permissions: [...policy.permissions]
+    });
+  };
+
+  const editRole = (role: Role) => {
+    setEditingRole(role);
+    setRoleForm({
+      name: role.name,
+      description: role.description,
+      policies: [...role.policies]
+    });
+  };
+
+  const getRoleColor = (role: UserRole | string): string => {
+    if (typeof role === 'string') {
+      // אם זה שם תפקיד - נחפש את התפקיד ברשימה
+      const foundRole = roles.find(r => r.name === role);
+      if (foundRole) {
+        return foundRole.isSystem ? '#1976d2' : '#4caf50';
+      }
+    }
+    
+    // אם זה UserRole enum - נחזיר צבע ברירת מחדל
+    return '#9e9e9e';
+  };
+
+  const getRoleDisplayName = (role: UserRole | string): string => {
+    if (typeof role === 'string') {
+      // אם זה שם תפקיד - נחפש את התפקיד ברשימה
+      const foundRole = roles.find(r => r.name === role);
+      if (foundRole) {
+        return foundRole.name;
+      }
+    }
+    
+    // אם זה UserRole enum - נחזיר את השם כמו שהוא
+    return role as string;
+  };
+
+  // פונקציה למציאת שם המסגרת לפי מזהה
+  const getFrameworkName = (userEmail: string): string => {
+    const soldier = soldiers.find(s => s.email === userEmail);
+    if (soldier && soldier.frameworkId) {
+      const framework = frameworks.find(f => f.id === soldier.frameworkId);
+      return framework ? framework.name : soldier.frameworkId;
+    }
+    return 'לא מוגדר';
+  };
+
   // בדיקת הרשאות
-  const canAssignRoles = currentUser ? canUserAssignRoles(currentUser) : false;
-  const canRemoveUsers = currentUser ? canUserRemoveUsers(currentUser) : false;
+  const canAssignRoles = permissions.canEdit;
+  const canRemoveUsers = permissions.canDelete;
 
   if (loading) {
     return (
@@ -227,11 +555,12 @@ const UserManagement: React.FC = () => {
     );
   }
 
-  if (!canAssignRoles) {
+  // בדיקה אם למשתמש יש הרשאת צפייה
+  if (!permissions.canView) {
     return (
       <Container maxWidth="lg" sx={{ py: 3 }}>
         <Alert severity="warning">
-          אין לך הרשאה לניהול משתמשים ותפקידים
+          אין לך הרשאה לצפות בניהול משתמשים ותפקידים
         </Alert>
       </Container>
     );
@@ -269,6 +598,7 @@ const UserManagement: React.FC = () => {
         <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
           <Tab label="כל המשתמשים" icon={<PersonIcon />} />
           <Tab label="לפי תפקידים" icon={<SecurityIcon />} />
+          <Tab label="ניהול מדיניות הרשאות" icon={<PolicyIcon />} />
         </Tabs>
       </Card>
 
@@ -290,7 +620,15 @@ const UserManagement: React.FC = () => {
                     <PersonIcon />
                   </Avatar>
                   <Box sx={{ flex: 1 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    <Typography 
+                      variant="h6" 
+                      sx={{ 
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        '&:hover': { textDecoration: 'underline' }
+                      }}
+                      onClick={() => navigate(`/soldier-profile/${userData.uid}`)}
+                    >
                       {userData.displayName}
                     </Typography>
                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
@@ -327,47 +665,58 @@ const UserManagement: React.FC = () => {
                   )}
                 </Box>
 
+                <Box sx={{ mb: 2 }}>
                 {userData.personalNumber && (
-                  <Typography variant="body2" sx={{ mb: 1 }}>
-                    מס' אישי: {userData.personalNumber}
-                  </Typography>
-                )}
+                    <Chip 
+                      label={`מס' אישי: ${userData.personalNumber}`}
+                      variant="outlined"
+                      size="small"
+                      sx={{ 
+                        bgcolor: '#f5f5f5',
+                        borderColor: '#e0e0e0',
+                        color: '#666',
+                        fontWeight: 500,
+                        mb: 1
+                      }}
+                    />
+                  )}
+                  <Chip 
+                    label={`מסגרת: ${getFrameworkName(userData.email)}`}
+                    variant="outlined"
+                    size="small"
+                    sx={{ 
+                      bgcolor: '#e3f2fd',
+                      borderColor: '#2196f3',
+                      color: '#1976d2',
+                      fontWeight: 500,
+                      mb: 1
+                    }}
+                  />
+                </Box>
 
                 <Divider sx={{ my: 2 }} />
 
                                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                    <Button
                      size="small"
-                     startIcon={<SecurityIcon />}
-                     onClick={() => openRoleDialog(userData)}
-                     variant="outlined"
-                     disabled={!userData.soldierDocId}
-                     title={!userData.soldierDocId ? "יש למלא טופס לפני שיבוץ תפקיד" : ""}
-                   >
-                     שנה תפקיד
-                   </Button>
-                   <Button
-                     size="small"
                      startIcon={<GroupIcon />}
                      onClick={() => openTeamDialog(userData)}
                      variant="outlined"
-                     disabled={!userData.soldierDocId}
-                     title={!userData.soldierDocId ? "יש למלא טופס לפני שיבוץ למסגרת" : ""}
+                    disabled={!userData.soldierDocId || !permissions.canEdit}
+                    title={!userData.soldierDocId ? "יש למלא טופס לפני שיבוץ חייל" : (!permissions.canEdit ? "אין לך הרשאה לערוך שיבוצים" : "")}
                    >
-                     שבץ לצוות
+                    שבץ חייל
                    </Button>
-                   {currentUser?.role === UserRole.ADMIN && (
                      <Button
                        size="small"
-                       startIcon={<DeleteIcon />}
-                       onClick={() => openDeleteDialog(userData)}
+                    startIcon={<PolicyIcon />}
+                    onClick={() => openPolicyDialog(userData)}
                        variant="outlined"
-                       color="primary"
+                    color="secondary"
                      >
-                       ניהול הרשאות
+                    מדיניות הרשאות
                      </Button>
-                   )}
-                   {canRemoveUsers && userData.uid !== currentUser?.uid && (
+                  {permissions.canDelete && userData.uid !== currentUser?.uid && (
                      <Button
                        size="small"
                        startIcon={<DeleteIcon />}
@@ -384,7 +733,7 @@ const UserManagement: React.FC = () => {
                    <Alert severity="info" sx={{ mt: 2, fontSize: '0.875rem' }}>
                      <Typography variant="body2">
                        <strong>הערה:</strong> משתמש זה טרם מילא את טופס ההצטרפות. 
-                       יש למלא את הטופס לפני שניתן יהיה לשבץ תפקיד או מסגרת.
+                       יש למלא את הטופס לפני שניתן יהיה לשבץ חייל.
                      </Typography>
                    </Alert>
                  )}
@@ -396,23 +745,26 @@ const UserManagement: React.FC = () => {
 
       {/* Tab 2: לפי תפקידים */}
       <TabPanel value={tabValue} index={1}>
-        {Object.values(UserRole).map((role) => {
-          const roleUsers = users.filter(u => u.role === role);
+        {roles.map((role) => {
+          const roleUsers = users.filter(u => u.role === role.name);
           if (roleUsers.length === 0) return null;
 
           return (
-            <Card key={role} sx={{ mb: 3 }}>
+            <Card key={role.id} sx={{ mb: 3 }}>
               <CardContent>
                 <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
                   <Chip 
-                    label={getRoleDisplayName(role)}
+                    label={role.name}
                     sx={{ 
-                      bgcolor: getRoleColor(role),
+                      bgcolor: role.isSystem ? '#1976d2' : '#4caf50',
                       color: 'white',
                       mr: 2
                     }}
                   />
                   {roleUsers.length} משתמשים
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+                  {role.description}
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                   {roleUsers.map((userData) => (
@@ -425,7 +777,7 @@ const UserManagement: React.FC = () => {
                     />
                   ))}
                 </Box>
-                {canRemoveUsers && (
+                {permissions.canDelete && (
                   <Box sx={{ mt: 2 }}>
                     <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
                       פעולות ניהול:
@@ -454,6 +806,137 @@ const UserManagement: React.FC = () => {
         })}
       </TabPanel>
 
+      {/* Tab 3: ניהול מדיניות הרשאות */}
+      <TabPanel value={tabValue} index={2}>
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            ניהול מדיניות הרשאות ותפקידים
+          </Typography>
+          
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <Typography variant="body2">
+              כאן תוכל לנהל מדיניות הרשאות ותפקידים במערכת.
+              {!permissions.canView && ' צפייה בלבד'}
+            </Typography>
+            {/* <Button 
+              size="small" 
+              onClick={initializeDefaultData}
+              sx={{ mt: 1 }}
+              variant="outlined"
+            >
+              אתחל תפקידים ומדיניות ברירת מחדל
+            </Button> */}
+          </Alert>
+
+          {/* מדיניות הרשאות */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">מדיניות הרשאות</Typography>
+                {permissions.canCreate && (
+                  <Button
+                    startIcon={<AddIcon />}
+                    variant="contained"
+                    onClick={() => {
+                      setEditingPolicy({ id: '' } as PermissionPolicy); // פתיחת דיאלוג יצירה
+                      setPolicyForm({
+                        name: '',
+                        description: '',
+                        paths: [SystemPath.MISSIONS],
+                        dataScope: DataScope.FRAMEWORK_ONLY,
+                        permissions: [PermissionLevel.VIEW]
+                      });
+                    }}
+                  >
+                    הוסף מדיניות
+                  </Button>
+                )}
+              </Box>
+              
+              <List>
+                {policies.map((policy) => (
+                  <ListItem key={policy.id} divider>
+                    <ListItemText
+                      primary={policy.name}
+                      secondary={
+                        <Box>
+                          <Typography variant="body2">{policy.description}</Typography>
+                          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                            נתיבים: {(policy.paths || []).map(p => getSystemPathDisplayName(p)).join(', ')} | 
+                            היקף: {getDataScopeDisplayName(policy.dataScope)} | 
+                            הרשאות: {policy.permissions.map(p => getPermissionLevelDisplayName(p)).join(', ')}
+                          </Typography>
+                        </Box>
+                      }
+                    />
+                    <ListItemSecondaryAction>
+                      {permissions.canEdit && (
+                        <IconButton onClick={() => editPolicy(policy)}>
+                          <EditIcon />
+                        </IconButton>
+                      )}
+                      {permissions.canDelete && (
+                        <IconButton onClick={() => handleDeletePolicy(policy.id)} color="error">
+                          <DeleteIcon />
+                        </IconButton>
+                      )}
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                ))}
+              </List>
+            </CardContent>
+          </Card>
+
+          {/* תפקידים */}
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">תפקידים</Typography>
+                {permissions.canCreate && (
+                  <Button
+                    startIcon={<AddIcon />}
+                    variant="contained"
+                    onClick={() => {
+                      setEditingRole({ id: '' } as Role); // פתיחת דיאלוג יצירה
+                      setRoleForm({
+                        name: '',
+                        description: '',
+                        policies: []
+                      });
+                    }}
+                  >
+                    הוסף תפקיד
+                  </Button>
+                )}
+              </Box>
+              
+              <List>
+                {roles.map((role) => (
+                  <ListItem key={role.id} divider>
+                    <ListItemText
+                      primary={role.name}
+                      secondary={role.description}
+                    />
+                    <ListItemSecondaryAction>
+                      {permissions.canEdit && (
+                        <IconButton onClick={() => editRole(role)}>
+                          <EditIcon />
+                        </IconButton>
+                      )}
+                      {permissions.canDelete && !role.isSystem && (
+                        <IconButton onClick={() => handleDeleteRole(role.id)} color="error">
+                          <DeleteIcon />
+                        </IconButton>
+                      )}
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                ))}
+              </List>
+            </CardContent>
+          </Card>
+        </Box>
+      </TabPanel>
+
 
 
       {/* Dialog for Role Assignment */}
@@ -469,12 +952,12 @@ const UserManagement: React.FC = () => {
                 <InputLabel>תפקיד</InputLabel>
                 <Select
                   value={selectedRole}
-                  onChange={(e) => setSelectedRole(e.target.value as UserRole)}
+                  onChange={(e) => setSelectedRole(e.target.value as string)}
                   label="תפקיד"
                 >
-                  {Object.values(UserRole).map((role) => (
-                    <MenuItem key={role} value={role}>
-                      {getRoleDisplayName(role)}
+                  {roles.map((role) => (
+                    <MenuItem key={role.id} value={role.name}>
+                      {role.name}
                     </MenuItem>
                   ))}
                 </Select>
@@ -512,12 +995,12 @@ const UserManagement: React.FC = () => {
                 <InputLabel>תפקיד</InputLabel>
                 <Select
                   value={assignmentData.role}
-                  onChange={(e) => setAssignmentData({ ...assignmentData, role: e.target.value as UserRole })}
+                  onChange={(e) => setAssignmentData({ ...assignmentData, role: e.target.value })}
                   label="תפקיד"
                 >
-                  {Object.values(UserRole).map((role) => (
-                    <MenuItem key={role} value={role}>
-                      {getRoleDisplayName(role)}
+                  {roles.map((role) => (
+                    <MenuItem key={role.id} value={role.name}>
+                      {role.name}
                     </MenuItem>
                   ))}
                 </Select>
@@ -577,6 +1060,250 @@ const UserManagement: React.FC = () => {
           </Button>
           <Button onClick={handleDeleteUser} variant="contained" color="error">
             הסר מהמערכת
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog for Policy Management */}
+      <Dialog open={policyDialogOpen} onClose={() => setPolicyDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>ניהול מדיניות הרשאות</DialogTitle>
+        <DialogContent>
+          {selectedUser && selectedUserPermissions && (
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                הרשאות עבור: {selectedUser.displayName}
+              </Typography>
+              
+              {selectedUserPermissions.role && (
+                <Card sx={{ mb: 2 }}>
+                  <CardContent>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                      תפקיד: {selectedUserPermissions.role.name}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                      {selectedUserPermissions.role.description}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              )}
+              
+              <Typography variant="subtitle1" sx={{ mb: 2 }}>
+                מדיניות הרשאות:
+              </Typography>
+              
+              {selectedUserPermissions.policies.length > 0 ? (
+                <List>
+                  {selectedUserPermissions.policies.map((policy) => (
+                    <ListItem key={policy.id} divider>
+                      <ListItemText
+                        primary={policy.name}
+                        secondary={
+                          <Box>
+                            <Typography variant="body2">{policy.description}</Typography>
+                            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                              נתיבים: {(policy?.paths || []).map(p => getSystemPathDisplayName(p)).join(', ')} | 
+                              היקף: {getDataScopeDisplayName(policy.dataScope)} | 
+                              הרשאות: {policy.permissions.map(p => getPermissionLevelDisplayName(p)).join(', ')}
+                            </Typography>
+                          </Box>
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Alert severity="info">
+                  אין מדיניות הרשאות מוגדרות למשתמש זה
+                </Alert>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPolicyDialogOpen(false)}>סגור</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog for Policy Form */}
+      <Dialog open={editingPolicy !== null} onClose={() => setEditingPolicy(null)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          {editingPolicy && editingPolicy.id && editingPolicy.id !== '' ? 'עריכת מדיניות' : 'יצירת מדיניות חדשה'}
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="שם המדיניות"
+            value={policyForm.name}
+            onChange={(e) => setPolicyForm({ ...policyForm, name: e.target.value })}
+            sx={{ mb: 2 }}
+          />
+          
+          <TextField
+            fullWidth
+            label="תיאור"
+            value={policyForm.description}
+            onChange={(e) => setPolicyForm({ ...policyForm, description: e.target.value })}
+            multiline
+            rows={3}
+            sx={{ mb: 2 }}
+          />
+          
+          <Typography variant="subtitle1" sx={{ mb: 1 }}>
+            נתיבי מערכת:
+          </Typography>
+          <FormGroup>
+            {Object.values(SystemPath).map((path) => (
+              <FormControlLabel
+                key={path}
+                control={
+                  <Checkbox
+                    checked={policyForm.paths.includes(path)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setPolicyForm({
+                          ...policyForm,
+                          paths: [...policyForm.paths, path]
+                        });
+                      } else {
+                        setPolicyForm({
+                          ...policyForm,
+                          paths: policyForm.paths.filter(p => p !== path)
+                        });
+                      }
+                    }}
+                  />
+                }
+                label={getSystemPathDisplayName(path)}
+              />
+            ))}
+          </FormGroup>
+          
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <InputLabel>היקף נתונים</InputLabel>
+            <Select
+              value={policyForm.dataScope}
+              onChange={(e) => setPolicyForm({ ...policyForm, dataScope: e.target.value as DataScope })}
+              label="היקף נתונים"
+            >
+              {Object.values(DataScope).map((scope) => (
+                <MenuItem key={scope} value={scope}>
+                  {getDataScopeDisplayName(scope)}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          
+          <Typography variant="subtitle1" sx={{ mb: 1 }}>
+            הרשאות:
+          </Typography>
+          <FormGroup>
+            {Object.values(PermissionLevel).map((level) => (
+              <FormControlLabel
+                key={level}
+                control={
+                  <Checkbox
+                    checked={policyForm.permissions.includes(level)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setPolicyForm({
+                          ...policyForm,
+                          permissions: [...policyForm.permissions, level]
+                        });
+                      } else {
+                        setPolicyForm({
+                          ...policyForm,
+                          permissions: policyForm.permissions.filter(p => p !== level)
+                        });
+                      }
+                    }}
+                  />
+                }
+                label={getPermissionLevelDisplayName(level)}
+              />
+            ))}
+          </FormGroup>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditingPolicy(null)}>ביטול</Button>
+          <Button 
+            onClick={editingPolicy && editingPolicy.id && editingPolicy.id !== '' ? handleUpdatePolicy : handleCreatePolicy} 
+            variant="contained"
+          >
+            {editingPolicy && editingPolicy.id && editingPolicy.id !== '' ? 'עדכן' : 'צור'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog for Role Form */}
+      <Dialog open={editingRole !== null} onClose={() => setEditingRole(null)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          {editingRole && editingRole.id && editingRole.id !== '' ? 'עריכת תפקיד' : 'יצירת תפקיד חדש'}
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="שם התפקיד"
+            placeholder="לדוגמה: מפקד צוות, מפקד מחלקה"
+            helperText="שם התפקיד כפי שיוצג במערכת"
+            value={roleForm.name}
+            onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
+            sx={{ mb: 2 }}
+          />
+          
+          <TextField
+            fullWidth
+            label="תיאור"
+            value={roleForm.description}
+            onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })}
+            multiline
+            rows={3}
+            sx={{ mb: 2 }}
+          />
+          
+          <Typography variant="subtitle1" sx={{ mb: 1 }}>
+            מדיניות הרשאות:
+          </Typography>
+          <FormGroup>
+            {policies.map((policy) => (
+              <FormControlLabel
+                key={policy.id}
+                control={
+                  <Checkbox
+                    checked={roleForm.policies.includes(policy.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setRoleForm({
+                          ...roleForm,
+                          policies: [...roleForm.policies, policy.id]
+                        });
+                      } else {
+                        setRoleForm({
+                          ...roleForm,
+                          policies: roleForm.policies.filter(p => p !== policy.id)
+                        });
+                      }
+                    }}
+                  />
+                }
+                label={
+                  <Box>
+                    <Typography variant="body2">{policy.name}</Typography>
+                    <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.875rem' }}>
+                      {(policy.paths || []).map(p => getSystemPathDisplayName(p)).join(', ')} - {policy.permissions.map(p => getPermissionLevelDisplayName(p)).join(', ')}
+                    </Typography>
+                  </Box>
+                }
+              />
+            ))}
+          </FormGroup>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditingRole(null)}>ביטול</Button>
+          <Button 
+            onClick={editingRole && editingRole.id && editingRole.id !== '' ? handleUpdateRole : handleCreateRole} 
+            variant="contained"
+          >
+            {editingRole && editingRole.id && editingRole.id !== '' ? 'עדכן' : 'צור'}
           </Button>
         </DialogActions>
       </Dialog>

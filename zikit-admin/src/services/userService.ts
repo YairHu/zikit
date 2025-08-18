@@ -53,16 +53,6 @@ export const deleteUser = async (uid: string): Promise<void> => {
 
 // פונקציה להסרת משתמש מהמערכת (רק לאדמין ומ"פ)
 export const removeUserFromSystem = async (uid: string, removerUid: string): Promise<void> => {
-  // בדיקת הרשאות - רק אדמין ומ"פ יכולים להסיר משתמשים
-  const remover = await getUserById(removerUid);
-  if (!remover) {
-    throw new Error('משתמש לא נמצא');
-  }
-
-  if (!canUserRemoveUsers(remover)) {
-    throw new Error('אין הרשאה להסרת משתמשים מהמערכת');
-  }
-
   // בדיקה שהמשתמש לא מנסה להסיר את עצמו
   if (uid === removerUid) {
     throw new Error('לא ניתן להסיר את עצמך מהמערכת');
@@ -70,7 +60,8 @@ export const removeUserFromSystem = async (uid: string, removerUid: string): Pro
 
   // בדיקה שהמשתמש לא מנסה להסיר אדמין אחר (אם הוא לא אדמין בעצמו)
   const userToRemove = await getUserById(uid);
-  if (userToRemove && userToRemove.role === 'admin' && remover.role !== 'admin') {
+  const remover = await getUserById(removerUid);
+  if (userToRemove && userToRemove.role === 'admin' && remover && remover.role !== 'admin') {
     throw new Error('רק אדמין יכול להסיר אדמין אחר');
   }
 
@@ -120,25 +111,16 @@ export const removeUserFromSystem = async (uid: string, removerUid: string): Pro
 
 // שירותי תפקידים
 export const assignRole = async (uid: string, role: UserRole, assignerUid: string): Promise<void> => {
-  // בדיקת הרשאות - רק מ"פ, סמ"פ ואדמין יכולים לשבץ תפקידים
-  const assigner = await getUserById(assignerUid);
-  if (!assigner || !canUserAssignRoles(assigner)) {
-    throw new Error('אין הרשאה לשיבוץ תפקידים');
-  }
-
   // עדכון התפקיד ב-Firestore בלבד
   await updateUser(uid, { role });
 };
 
-export const assignToTeam = async (uid: string, teamId: string, plagaId: string, assignerUid?: string): Promise<void> => {
-  // אם יש assignerUid, בדוק הרשאות
-  if (assignerUid) {
-    const assigner = await getUserById(assignerUid);
-    if (!assigner || !canUserAssignRoles(assigner)) {
-      throw new Error('אין הרשאה לשיבוץ לצוות');
-    }
-  }
+export const assignRoleByName = async (uid: string, roleName: string, assignerUid: string): Promise<void> => {
+  // עדכון התפקיד ב-Firestore בלבד
+  await updateUser(uid, { role: roleName });
+};
 
+export const assignToTeam = async (uid: string, teamId: string, plagaId: string, assignerUid?: string): Promise<void> => {
   await updateUser(uid, { 
     team: teamId, 
     pelaga: plagaId 
@@ -161,10 +143,11 @@ export const setCommander = async (subordinateUid: string, commanderUid: string)
 };
 
 // שירותי מבנה ארגוני
-export const getUsersByRole = async (role: UserRole): Promise<User[]> => {
+export const getUsersByRole = async (role: UserRole | string): Promise<User[]> => {
+  const roleValue = typeof role === 'string' ? role : role;
   const q = query(
     collection(db, USERS_COLLECTION),
-    where('role', '==', role),
+    where('role', '==', roleValue),
     where('isActive', '==', true)
   );
   const querySnapshot = await getDocs(q);
@@ -174,15 +157,24 @@ export const getUsersByRole = async (role: UserRole): Promise<User[]> => {
 // פונקציות עזר להרשאות בסיסיות
 export const canUserAssignRoles = (user: User): boolean => {
   // בדיקה לפי התפקיד
-  return user.role === UserRole.ADMIN;
+  if (typeof user.role === 'string') {
+    return user.role === 'admin';
+  }
+  return false; // אם זה UserRole enum - נחזיר false
 };
 
 export const canUserViewSensitiveData = (user: User): boolean => {
-  return user.role === UserRole.ADMIN;
+  if (typeof user.role === 'string') {
+    return user.role === 'admin';
+  }
+  return false; // אם זה UserRole enum - נחזיר false
 };
 
 export const canUserRemoveUsers = (user: User): boolean => {
-  return user.role === UserRole.ADMIN;
+  if (typeof user.role === 'string') {
+    return user.role === 'admin';
+  }
+  return false; // אם זה UserRole enum - נחזיר false
 };
 
 export const getVisibleUsers = async (viewerUid: string): Promise<User[]> => {

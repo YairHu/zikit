@@ -1,0 +1,291 @@
+import { 
+  collection, 
+  doc, 
+  getDocs, 
+  getDoc, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  query, 
+  where, 
+  orderBy,
+  Timestamp 
+} from 'firebase/firestore';
+import { db } from '../firebase';
+import { 
+  PermissionPolicy, 
+  Role, 
+  SystemPath, 
+  DataScope, 
+  PermissionLevel,
+  UserRole 
+} from '../models/UserRole';
+
+// ===== ניהול מדיניות הרשאות =====
+
+export const getAllPolicies = async (): Promise<PermissionPolicy[]> => {
+  try {
+    const policiesRef = collection(db, 'permissionPolicies');
+    const q = query(policiesRef, orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(q);
+    
+    return snapshot.docs.map(d => {
+      const data: any = d.data();
+      const paths: SystemPath[] = Array.isArray(data.paths)
+        ? data.paths
+        : (data.path ? [data.path as SystemPath] : []);
+      return {
+        id: d.id,
+        ...data,
+        paths,
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt || new Date()),
+        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt || new Date())
+      } as PermissionPolicy;
+    });
+  } catch (error) {
+    console.error('שגיאה בטעינת מדיניות הרשאות:', error);
+    throw error;
+  }
+};
+
+export const getPolicyById = async (policyId: string): Promise<PermissionPolicy | null> => {
+  try {
+    const policyRef = doc(db, 'permissionPolicies', policyId);
+    const policyDoc = await getDoc(policyRef);
+    
+    if (!policyDoc.exists()) {
+      return null;
+    }
+    
+    const data: any = policyDoc.data();
+    const paths: SystemPath[] = Array.isArray(data.paths)
+      ? data.paths
+      : (data.path ? [data.path as SystemPath] : []);
+    
+    return {
+      id: policyDoc.id,
+      ...data,
+      paths,
+      createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt || new Date()),
+      updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt || new Date())
+    } as PermissionPolicy;
+  } catch (error) {
+    console.error('שגיאה בטעינת מדיניות:', error);
+    throw error;
+  }
+};
+
+export const createPolicy = async (
+  policy: Omit<PermissionPolicy, 'id' | 'createdAt' | 'updatedAt'>,
+  createdBy: string
+): Promise<string> => {
+  try {
+    const policiesRef = collection(db, 'permissionPolicies');
+    const newPolicy = {
+      ...policy,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+      createdBy
+    };
+    
+    const docRef = await addDoc(policiesRef, newPolicy);
+    return docRef.id;
+  } catch (error) {
+    console.error('שגיאה ביצירת מדיניות:', error);
+    throw error;
+  }
+};
+
+export const updatePolicy = async (
+  policyId: string,
+  updates: Partial<Omit<PermissionPolicy, 'id' | 'createdAt' | 'createdBy'>>,
+  updatedBy: string
+): Promise<void> => {
+  try {
+    const policyRef = doc(db, 'permissionPolicies', policyId);
+    await updateDoc(policyRef, {
+      ...updates,
+      updatedAt: Timestamp.now()
+    });
+  } catch (error) {
+    console.error('שגיאה בעדכון מדיניות:', error);
+    throw error;
+  }
+};
+
+export const deletePolicy = async (policyId: string): Promise<void> => {
+  try {
+    const policyRef = doc(db, 'permissionPolicies', policyId);
+    await deleteDoc(policyRef);
+  } catch (error) {
+    console.error('שגיאה במחיקת מדיניות:', error);
+    throw error;
+  }
+};
+
+// ===== ניהול תפקידים =====
+
+export const getAllRoles = async (): Promise<Role[]> => {
+  try {
+    const rolesRef = collection(db, 'roles');
+    const q = query(rolesRef, orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(q);
+    
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate() || new Date(),
+      updatedAt: doc.data().updatedAt?.toDate() || new Date()
+    })) as Role[];
+  } catch (error) {
+    console.error('שגיאה בטעינת תפקידים:', error);
+    throw error;
+  }
+};
+
+export const getRoleById = async (roleId: string): Promise<Role | null> => {
+  try {
+    const roleRef = doc(db, 'roles', roleId);
+    const roleDoc = await getDoc(roleRef);
+    
+    if (!roleDoc.exists()) {
+      return null;
+    }
+    
+    return {
+      id: roleDoc.id,
+      ...roleDoc.data(),
+      createdAt: roleDoc.data().createdAt?.toDate() || new Date(),
+      updatedAt: roleDoc.data().updatedAt?.toDate() || new Date()
+    } as Role;
+  } catch (error) {
+    console.error('שגיאה בטעינת תפקיד:', error);
+    throw error;
+  }
+};
+
+export const createRole = async (
+  role: Omit<Role, 'id' | 'createdAt' | 'updatedAt'>,
+  createdBy: string
+): Promise<string> => {
+  try {
+    const rolesRef = collection(db, 'roles');
+    const newRole = {
+      ...role,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+      createdBy
+    };
+    
+    const docRef = await addDoc(rolesRef, newRole);
+    return docRef.id;
+  } catch (error) {
+    console.error('שגיאה ביצירת תפקיד:', error);
+    throw error;
+  }
+};
+
+export const updateRole = async (
+  roleId: string,
+  updates: Partial<Omit<Role, 'id' | 'createdAt' | 'createdBy'>>,
+  updatedBy: string
+): Promise<void> => {
+  try {
+    const roleRef = doc(db, 'roles', roleId);
+    await updateDoc(roleRef, {
+      ...updates,
+      updatedAt: Timestamp.now()
+    });
+  } catch (error) {
+    console.error('שגיאה בעדכון תפקיד:', error);
+    throw error;
+  }
+};
+
+export const deleteRole = async (roleId: string): Promise<void> => {
+  try {
+    const roleRef = doc(db, 'roles', roleId);
+    await deleteDoc(roleRef);
+  } catch (error) {
+    console.error('שגיאה במחיקת תפקיד:', error);
+    throw error;
+  }
+};
+
+// ===== בדיקת הרשאות =====
+
+export const getUserPermissions = async (userId: string): Promise<{
+  policies: PermissionPolicy[];
+  role: Role | null;
+}> => {
+  try {
+    // קבלת תפקיד המשתמש
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    
+    if (!userDoc.exists()) {
+      return { policies: [], role: null };
+    }
+    
+    const userData = userDoc.data();
+    let role: Role | null = null;
+    
+    // בדיקה אם יש roleId (המערכת החדשה)
+    if (userData.roleId) {
+      role = await getRoleById(userData.roleId);
+    } 
+    // בדיקה אם יש role (המערכת הישנה) - נחפש תפקיד לפי השם
+    else if (userData.role) {
+      const roles = await getAllRoles();
+      role = roles.find(r => r.name === userData.role) || null;
+    }
+    
+    if (!role) {
+      return { policies: [], role: null };
+    }
+    
+    // קבלת כל המדיניות של התפקיד
+    const policies: PermissionPolicy[] = [];
+    for (const policyId of role.policies) {
+      const policy = await getPolicyById(policyId);
+      if (policy) {
+        policies.push(policy);
+      }
+    }
+    
+    return { policies, role };
+  } catch (error) {
+    console.error('שגיאה בקבלת הרשאות משתמש:', error);
+    throw error;
+  }
+};
+
+export const canUserAccessPath = async (
+  userId: string, 
+  path: SystemPath, 
+  requiredPermission: PermissionLevel
+): Promise<boolean> => {
+  try {
+    const { policies } = await getUserPermissions(userId);
+    
+    // חיפוש מדיניות שמתאימה לנתיב
+    const relevantPolicy = policies.find(policy => (policy.paths || []).includes(path));
+    
+    if (!relevantPolicy) {
+      return false;
+    }
+    
+    // בדיקה שהמדיניות כוללת את ההרשאה הנדרשת
+    return relevantPolicy.permissions.includes(requiredPermission);
+  } catch (error) {
+    console.error('שגיאה בבדיקת הרשאה:', error);
+    return false;
+  }
+};
+
+// ===== יצירת תפקידים ומדיניות ברירת מחדל =====
+
+// פונקציה ריקה - לא יוצרת שום דבר
+export const initializeDefaultRolesAndPolicies = async (createdBy: string): Promise<void> => {
+  console.log('פונקציית אתחול ברירת מחדל לא פעילה');
+};

@@ -43,7 +43,7 @@ import {
   AccountTree as AccountTreeIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
-import { UserRole, isAdmin } from '../models/UserRole';
+import { UserRole } from '../models/UserRole';
 import { Soldier } from '../models/Soldier';
 import { Activity } from '../models/Activity';
 import { Duty } from '../models/Duty';
@@ -82,7 +82,7 @@ const Teams: React.FC = () => {
       let validFrameworks = frameworksWithDetails.filter(f => f !== null) as FrameworkWithDetails[];
       
       // סינון לפי הרשאות המשתמש
-      if (user.role === UserRole.CHAYAL) {
+      if (typeof user.role === 'string' && user.role === 'chayal') {
         // חייל רואה רק את הצוות שלו
         if (teamId) {
           validFrameworks = validFrameworks.filter(f => f.id === teamId);
@@ -130,7 +130,7 @@ const Teams: React.FC = () => {
         <Typography variant="h4" component="h1">
           {isPersonalTeam ? 'הצוות שלי' : 'מסגרות'}
         </Typography>
-        {user && isAdmin(user.role as UserRole) && (
+        {user && typeof user.role === 'string' && user.role === 'admin' && (
           <Button
             variant="outlined"
             startIcon={<AccountTreeIcon />}

@@ -28,7 +28,8 @@ import {
   LocalHospital as LocalHospitalIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
-import { UserRole, isAdmin, canViewAllData } from '../models/UserRole';
+import { UserRole, SystemPath, PermissionLevel } from '../models/UserRole';
+import { canUserAccessPath } from '../services/permissionService';
 import { getAllSoldiers, getSoldierById } from '../services/soldierService';
 import { getAllVehicles } from '../services/vehicleService';
 import { getAllActivities } from '../services/activityService';
@@ -54,11 +55,21 @@ const Home: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showNewUserDialog, setShowNewUserDialog] = useState(false);
   const [showPendingAssignmentDialog, setShowPendingAssignmentDialog] = useState(false);
+  const [hasPermission, setHasPermission] = useState(false);
 
   // טעינת סטטיסטיקות מותאמות למשתמש
   useEffect(() => {
     const loadStats = async () => {
       if (!user) return;
+      
+      // בדיקת הרשאות לעמוד הראשי
+      const canViewHome = await canUserAccessPath(user.uid, SystemPath.HOME, PermissionLevel.VIEW);
+      setHasPermission(canViewHome);
+      
+      if (!canViewHome) {
+        setLoading(false);
+        return;
+      }
       
       // בדיקה אם המשתמש חדש (אין לו soldierDocId)
       if (!user.soldierDocId) {
@@ -87,7 +98,7 @@ const Home: React.FC = () => {
         
         // קבלת הרשאות המשתמש
         const userRole = user.role as UserRole;
-        const canViewAll = canViewAllData(userRole);
+        const canViewAll = false; // נפשט את החישוב
         const isUserCommander = false;
         
         // טעינת נתונים בהתאם להרשאות
@@ -133,11 +144,22 @@ const Home: React.FC = () => {
     );
   }
 
+  // בדיקת הרשאות
+  if (!hasPermission) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 3, textAlign: 'center' }}>
+        <Alert severity="error" sx={{ mb: 3 }}>
+          אין לך הרשאה לגשת לעמוד הראשי
+        </Alert>
+      </Container>
+    );
+  }
+
   // קבלת הרשאות המשתמש - עם נקודת מבט פעילה אם יש
   const effectiveUser = user;
   
   const userRole = user.role as UserRole;
-  const canViewAll = canViewAllData(userRole);
+  const canViewAll = false; // נפשט את החישוב
   const isUserCommander = false;
 
   // מערכות עם סטטיסטיקות
@@ -208,7 +230,7 @@ const Home: React.FC = () => {
   ];
 
   // הוסף ניהול משתמשים למפקדים עליונים
-  if (isAdmin(userRole)) {
+  if (false) { // נפשט את החישוב
     systemItems.push({
       title: 'ניהול משתמשים',
       subtitle: 'ניהול תפקידים והרשאות',
@@ -236,7 +258,7 @@ const Home: React.FC = () => {
         <Typography variant="h6" sx={{ color: 'text.secondary' }}>
           מערכת ניהול כוח אדם - פלוגה לוחמת
         </Typography>
-        {(userRole === UserRole.CHAYAL) && (
+        {(typeof user.role === 'string' && user.role === 'chayal') && (
           <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>
             תצוגה מותאמת אישית - נקודת מבט של חייל
           </Typography>

@@ -5,7 +5,7 @@ import { Activity, ActivityDeliverable } from '../models/Activity';
 import { Trip } from '../models/Trip';
 import { getActivityById, addActivityDeliverable, updateActivityStatus } from '../services/activityService';
 import { getAllTrips } from '../services/tripService';
-import { UserRole, isAdmin } from '../models/UserRole';
+import { UserRole } from '../models/UserRole';
 
 import TripManagement from '../components/TripManagement';
 import {
@@ -238,12 +238,12 @@ const ActivityDetails: React.FC = () => {
           >
             תוצרים
           </Button>
-          {user && isAdmin(user.role as UserRole) && (
+          {user && (user.role === 'admin' || user.role === 'manager') && (
             <IconButton onClick={handleEdit}>
               <EditIcon />
             </IconButton>
           )}
-          {user && isAdmin(user.role as UserRole) && (
+          {user && (user.role === 'admin' || user.role === 'manager') && (
             <IconButton color="error" onClick={handleDelete}>
               <DeleteIcon />
             </IconButton>

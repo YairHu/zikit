@@ -3,21 +3,119 @@ export enum UserRole {
   CHAYAL = 'chayal',
 }
 
-// פונקציות עזר מינימליות עד למעבר למדיניות דינמית
-export const isAdmin = (role: UserRole): boolean => role === UserRole.ADMIN;
+// סוגי נתונים חשופים
+export enum DataScope {
+  USER_ONLY = 'user_only',           // נתוני משתמש בלבד
+  FRAMEWORK_ONLY = 'framework_only', // נתוני המסגרת שלו
+  ALL_DATA = 'all_data'              // כלל הנתונים בנתיב זה
+}
 
-export const canManageUsers = (role: UserRole): boolean => isAdmin(role);
-export const canViewAllData = (role: UserRole): boolean => isAdmin(role);
-export const canEditData = (role: UserRole): boolean => isAdmin(role);
-export const canDeleteData = (role: UserRole): boolean => isAdmin(role);
+// רמות הרשאה
+export enum PermissionLevel {
+  VIEW = 'view',       // צפייה
+  EDIT = 'edit',       // עריכה
+  DELETE = 'delete',   // מחיקה
+  CREATE = 'create'    // הוספה
+}
 
-// תצוגת שם תפקיד
-export const getRoleDisplayName = (role: UserRole): string => {
-  switch (role) {
-    case UserRole.ADMIN:
-      return 'מנהל מערכת';
-    case UserRole.CHAYAL:
+// נתיבי מערכת
+export enum SystemPath {
+  HOME = 'home',                   // עמוד ראשי
+  SOLDIERS = 'soldiers',           // כוח אדם
+  TEAMS = 'teams',                 // צוותים
+  MISSIONS = 'missions',           // משימות
+  ACTIVITIES = 'activities',       // פעילויות
+  DUTIES = 'duties',               // תורנויות
+  TRIPS = 'trips',                 // נסיעות
+  REFERRALS = 'referrals',         // הפניות
+  FORMS = 'forms',                 // טפסים
+  FRAMEWORKS = 'frameworks',       // מסגרות
+  USERS = 'users',                 // משתמשים
+  VEHICLES = 'vehicles'            // רכבים
+}
+
+// מדיניות הרשאה
+export interface PermissionPolicy {
+  id: string;
+  name: string;
+  description: string;
+  paths: SystemPath[]; // מערך של נתיבים במקום נתיב אחד
+  dataScope: DataScope;
+  permissions: PermissionLevel[];
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: string;
+}
+
+// תפקיד מורחב
+export interface Role {
+  id: string;
+  name: string;
+  description: string;
+  policies: string[]; // מערך של policy IDs
+  isSystem: boolean;  // האם זה תפקיד מערכת שלא ניתן למחיקה
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: string;
+}
+
+
+// פונקציות עזר למדיניות
+export const getDataScopeDisplayName = (scope: DataScope): string => {
+  switch (scope) {
+    case DataScope.USER_ONLY:
+      return 'נתוני משתמש בלבד';
+    case DataScope.FRAMEWORK_ONLY:
+      return 'נתוני המסגרת שלו';
+    case DataScope.ALL_DATA:
+      return 'כלל הנתונים';
     default:
-      return 'חייל';
+      return scope;
+  }
+};
+
+export const getPermissionLevelDisplayName = (level: PermissionLevel): string => {
+  switch (level) {
+    case PermissionLevel.VIEW:
+      return 'צפייה';
+    case PermissionLevel.EDIT:
+      return 'עריכה';
+    case PermissionLevel.DELETE:
+      return 'מחיקה';
+    case PermissionLevel.CREATE:
+      return 'הוספה';
+    default:
+      return level;
+  }
+};
+
+export const getSystemPathDisplayName = (path: SystemPath): string => {
+  switch (path) {
+    case SystemPath.HOME:
+      return 'עמוד ראשי';
+    case SystemPath.SOLDIERS:
+      return 'כוח אדם';
+    case SystemPath.TEAMS:
+      return 'צוותים';
+    case SystemPath.MISSIONS:
+      return 'משימות';
+    case SystemPath.ACTIVITIES:
+      return 'פעילויות';
+    case SystemPath.DUTIES:
+      return 'תורנויות';
+    case SystemPath.TRIPS:
+      return 'נסיעות';
+    case SystemPath.REFERRALS:
+      return 'הפניות';
+    case SystemPath.FORMS:
+      return 'טפסים';
+    case SystemPath.FRAMEWORKS:
+      return 'מסגרות';
+    case SystemPath.USERS:
+      return 'משתמשים';
+    case SystemPath.VEHICLES:
+      return 'רכבים';
+    default:
+      return path;
   }
 }; 

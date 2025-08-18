@@ -9,8 +9,8 @@ service cloud.firestore {
     
     // חיילים ממתינים לשיבוץ
     match /soldiers/{soldierId} {
-      allow read, write: if isAdmin();
-      allow read: if request.auth != null && resource.data.email == request.auth.token.email;
+      allow read: if request.auth != null; // כל משתמש מחובר יכול לקרוא
+      allow write: if isAdmin();
     }
     
     // צוותים
@@ -77,6 +77,16 @@ service cloud.firestore {
     match /frameworks/{frameworkId} {
       allow read: if request.auth != null;
       allow write: if isAdmin();
+    }
+    
+    // מדיניות הרשאות
+    match /permissionPolicies/{policyId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // תפקידים
+    match /roles/{roleId} {
+      allow read, write: if request.auth != null;
     }
     
     

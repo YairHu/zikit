@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
 import { Duty } from '../models/Duty';
 import { getDutyById } from '../services/dutyService';
-import { UserRole, isAdmin, canViewAllData, canEditData, canDeleteData } from '../models/UserRole';
+import { UserRole } from '../models/UserRole';
 import {
   Container,
   Typography,
@@ -106,16 +106,16 @@ const DutyDetails: React.FC = () => {
             label={duty.status} 
             color={getStatusColor(duty.status) as any}
           />
-          {user && isAdmin(user.role as UserRole) && (
-            <IconButton onClick={handleEdit}>
-              <EditIcon />
-            </IconButton>
-          )}
-          {user && isAdmin(user.role as UserRole) && (
-            <IconButton color="error" onClick={handleDelete}>
-              <DeleteIcon />
-            </IconButton>
-          )}
+                      {user && typeof user.role === 'string' && user.role === 'admin' && (
+              <IconButton onClick={handleEdit}>
+                <EditIcon />
+              </IconButton>
+            )}
+            {user && typeof user.role === 'string' && user.role === 'admin' && (
+              <IconButton color="error" onClick={handleDelete}>
+                <DeleteIcon />
+              </IconButton>
+            )}
         </Box>
       </Box>
 

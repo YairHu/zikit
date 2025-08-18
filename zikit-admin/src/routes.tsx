@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, Link } from 'react-router-dom';
 import { useUser } from './contexts/UserContext';
-import { UserRole, isAdmin, canManageUsers, canViewAllData } from './models/UserRole';
+import { UserRole, SystemPath, PermissionLevel } from './models/UserRole';
+import { canUserAccessPath } from './services/permissionService';
 import Home from './pages/Home';
 import Soldiers from './pages/Soldiers';
 import Teams from './pages/Teams';
@@ -17,7 +18,6 @@ import Login from './pages/Login';
 import SoldierProfile from './pages/SoldierProfile';
 import TeamDetails from './pages/TeamDetails';
 import UserManagement from './pages/UserManagement';
-import DataSeeder from './pages/DataSeeder';
 import ActivityDetails from './pages/ActivityDetails';
 import ActivityStatistics from './pages/ActivityStatistics';
 import DutyDetails from './pages/DutyDetails';
@@ -62,33 +62,49 @@ const ProtectedRoute: React.FC<{
   return <>{children}</>;
 };
 
-const getMenuItems = (user: any) => {
+const getMenuItems = async (user: any) => {
   if (!user) return { baseItems: [], managementItems: [], adminItems: [] };
   
+  // בדיקת הרשאות
+  const canViewHome = await canUserAccessPath(user.uid, SystemPath.HOME, PermissionLevel.VIEW);
+  
   const baseItems = [
-    { text: 'דף ראשי', icon: <HomeIcon />, path: '/' },
     { text: 'התיק האישי', icon: <PersonIcon />, path: user.soldierDocId ? `/soldiers/${user.soldierDocId}` : '/soldiers' }
   ];
 
+  // הוספת דף ראשי רק למורשים
+  if (canViewHome) {
+    baseItems.unshift({ text: 'דף ראשי', icon: <HomeIcon />, path: '/home' });
+  }
+
+  // בדיקת הרשאות לכל הנתיבים
+  const canViewSoldiers = await canUserAccessPath(user.uid, SystemPath.SOLDIERS, PermissionLevel.VIEW);
+  const canViewTeams = await canUserAccessPath(user.uid, SystemPath.TEAMS, PermissionLevel.VIEW);
+  const canViewTrips = await canUserAccessPath(user.uid, SystemPath.TRIPS, PermissionLevel.VIEW);
+  const canViewMissions = await canUserAccessPath(user.uid, SystemPath.MISSIONS, PermissionLevel.VIEW);
+  const canViewActivities = await canUserAccessPath(user.uid, SystemPath.ACTIVITIES, PermissionLevel.VIEW);
+  const canViewDuties = await canUserAccessPath(user.uid, SystemPath.DUTIES, PermissionLevel.VIEW);
+  const canViewReferrals = await canUserAccessPath(user.uid, SystemPath.REFERRALS, PermissionLevel.VIEW);
+  const canViewForms = await canUserAccessPath(user.uid, SystemPath.FORMS, PermissionLevel.VIEW);
+  const canViewUsers = await canUserAccessPath(user.uid, SystemPath.USERS, PermissionLevel.VIEW);
+  const canViewFrameworks = await canUserAccessPath(user.uid, SystemPath.FRAMEWORKS, PermissionLevel.VIEW);
+
   const managementItems = [
-    { text: 'כוח אדם', icon: <GroupsIcon />, path: '/soldiers' },
-    { text: 'צוותים', icon: <GroupsIcon />, path: '/teams' },
-    { text: 'נסיעות ורכבים', icon: <DirectionsCarIcon />, path: '/trips' },
-    { text: 'משימות', icon: <AssignmentIcon />, path: '/missions' },
-    { text: 'פעילויות מבצעיות', icon: <AssignmentIcon />, path: '/activities' },
-    { text: 'תורנויות', icon: <CalendarMonthIcon />, path: '/duties' },
-    { text: 'הפניות', icon: <LocalHospitalIcon />, path: '/referrals' },
-    { text: 'טפסים', icon: <DescriptionIcon />, path: '/forms' },
-    { text: 'מסך חמ"ל', icon: <MonitorIcon />, path: '/hamal' },
-    { text: 'סטטיסטיקות פעילויות', icon: <BarChartIcon />, path: '/activity-statistics' },
-    { text: 'ניהול מבנה פלוגה', icon: <GroupsIcon />, path: '/framework-management' },
-    { text: 'ניהול משתמשים', icon: <SettingsIcon />, path: '/users' },
-    { text: 'הכנסת נתונים', icon: <SettingsIcon />, path: '/data-seeder' }
+    ...(canViewSoldiers ? [{ text: 'כוח אדם', icon: <GroupsIcon />, path: '/soldiers' }] : []),
+    ...(canViewTeams ? [{ text: 'צוותים', icon: <GroupsIcon />, path: '/teams' }] : []),
+    ...(canViewTrips ? [{ text: 'נסיעות ורכבים', icon: <DirectionsCarIcon />, path: '/trips' }] : []),
+    ...(canViewMissions ? [{ text: 'משימות', icon: <AssignmentIcon />, path: '/missions' }] : []),
+    ...(canViewActivities ? [{ text: 'פעילויות מבצעיות', icon: <AssignmentIcon />, path: '/activities' }] : []),
+    ...(canViewDuties ? [{ text: 'תורנויות', icon: <CalendarMonthIcon />, path: '/duties' }] : []),
+    ...(canViewReferrals ? [{ text: 'הפניות', icon: <LocalHospitalIcon />, path: '/referrals' }] : []),
+    ...(canViewForms ? [{ text: 'טפסים', icon: <DescriptionIcon />, path: '/forms' }] : []),
+    ...(canViewMissions ? [{ text: 'מסך חמ"ל', icon: <MonitorIcon />, path: '/hamal' }] : []),
+    ...(canViewActivities ? [{ text: 'סטטיסטיקות פעילויות', icon: <BarChartIcon />, path: '/activity-statistics' }] : [])
   ];
 
   const adminItems = [
-    { text: 'ניהול משתמשים', icon: <KeyIcon />, path: '/users' },
-    { text: 'הכנסת נתונים', icon: <SettingsIcon />, path: '/data-seeder' }
+    ...(canViewUsers ? [{ text: 'ניהול משתמשים', icon: <KeyIcon />, path: '/users' }] : []),
+    ...(canViewFrameworks ? [{ text: 'ניהול מבנה פלוגה', icon: <GroupsIcon />, path: '/framework-management' }] : [])
   ];
 
   return { baseItems, managementItems, adminItems };
@@ -97,7 +113,22 @@ const getMenuItems = (user: any) => {
 const SideDrawer: React.FC<{ open: boolean; onClose: () => void; onLogout: () => void; user: any }> = ({ open, onClose, onLogout, user }) => {
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [soldiers, setSoldiers] = useState<any[]>([]);
-  const { baseItems, managementItems, adminItems } = getMenuItems(user);
+  const [menuItems, setMenuItems] = useState<{
+    baseItems: Array<{ text: string; icon: React.ReactElement; path: string }>;
+    managementItems: Array<{ text: string; icon: React.ReactElement; path: string }>;
+    adminItems: Array<{ text: string; icon: React.ReactElement; path: string }>;
+  }>({ baseItems: [], managementItems: [], adminItems: [] });
+  
+  // טעינת פריטי התפריט
+  useEffect(() => {
+    const loadMenuItems = async () => {
+      if (user) {
+        const items = await getMenuItems(user);
+        setMenuItems(items);
+      }
+    };
+    loadMenuItems();
+  }, [user]);
   
   // טעינת חיילים
   useEffect(() => {
@@ -110,7 +141,8 @@ const SideDrawer: React.FC<{ open: boolean; onClose: () => void; onLogout: () =>
       }
     };
     
-    if (user && isAdmin(user.role as UserRole)) {
+    // טעינת חיילים לכל משתמש מחובר (הרשאות נבדקות במקום אחר)
+    if (user) {
       loadSoldiers();
     }
   }, [user]);
@@ -125,7 +157,7 @@ const SideDrawer: React.FC<{ open: boolean; onClose: () => void; onLogout: () =>
       <Divider />
       <List>
         {/* פריטים בסיסיים */}
-        {baseItems.map((item) => (
+        {menuItems.baseItems.map((item: any) => (
           <ListItem key={item.text} component={Link} to={item.path} onClick={onClose}>
             <ListItemIcon sx={{ minWidth: 36 }}>{item.icon}</ListItemIcon>
             <ListItemText primary={item.text} />
@@ -133,10 +165,10 @@ const SideDrawer: React.FC<{ open: boolean; onClose: () => void; onLogout: () =>
         ))}
         
         {/* פריטי ניהול */}
-        {managementItems.length > 0 && (
+        {menuItems.managementItems.length > 0 && (
           <>
             <Divider sx={{ my: 1 }} />
-            {managementItems.map((item) => (
+            {menuItems.managementItems.map((item: any) => (
               <ListItem key={item.text} component={Link} to={item.path} onClick={onClose}>
                 <ListItemIcon sx={{ minWidth: 36 }}>{item.icon}</ListItemIcon>
                 <ListItemText primary={item.text} />
@@ -146,7 +178,7 @@ const SideDrawer: React.FC<{ open: boolean; onClose: () => void; onLogout: () =>
         )}
         
         {/* תפריט ניהול מתקפל */}
-        {adminItems.length > 0 && (
+        {menuItems.adminItems.length > 0 && (
           <>
             <Divider sx={{ my: 1 }} />
             <ListItem component="button" onClick={() => setAdminMenuOpen(!adminMenuOpen)}>
@@ -156,7 +188,7 @@ const SideDrawer: React.FC<{ open: boolean; onClose: () => void; onLogout: () =>
             </ListItem>
             <Collapse in={adminMenuOpen} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
-                {adminItems.map((item) => (
+                {menuItems.adminItems.map((item: any) => (
                   <ListItem key={item.text} component={Link} to={item.path} onClick={onClose} sx={{ pl: 4 }}>
                     <ListItemIcon sx={{ minWidth: 36 }}>{item.icon}</ListItemIcon>
                     <ListItemText primary={item.text} />
@@ -237,7 +269,12 @@ const AppRoutes: React.FC = () => {
     <Router>
       <Layout>
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<Navigate to={user.soldierDocId ? `/soldiers/${user.soldierDocId}` : '/soldiers'} />} />
+          <Route path="/home" element={
+            <ProtectedRoute userRole={user.role as UserRole}>
+              <Home />
+            </ProtectedRoute>
+          } />
           <Route path="/soldiers" element={
             <ProtectedRoute userRole={user.role as UserRole}>
               <Soldiers />
@@ -330,11 +367,7 @@ const AppRoutes: React.FC = () => {
             </ProtectedRoute>
           } />
 
-          <Route path="/data-seeder" element={
-            <ProtectedRoute userRole={user.role as UserRole}>
-              <DataSeeder />
-            </ProtectedRoute>
-          } />
+
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Layout>

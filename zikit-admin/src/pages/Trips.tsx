@@ -66,7 +66,9 @@ import { getAllTrips, addTrip, updateTrip, deleteTrip, checkAvailability } from 
 import { getAllVehicles, addVehicle, updateVehicle } from '../services/vehicleService';
 import { getAllSoldiers, updateSoldier } from '../services/soldierService';
 import { getAllActivities, updateActivity } from '../services/activityService';
-import { UserRole, isAdmin } from '../models/UserRole';
+import { getAllFrameworks } from '../services/frameworkService';
+import { UserRole, SystemPath, PermissionLevel, DataScope } from '../models/UserRole';
+import { canUserAccessPath, getUserPermissions } from '../services/permissionService';
 
 const Trips: React.FC = () => {
   const navigate = useNavigate();
@@ -76,6 +78,7 @@ const Trips: React.FC = () => {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [frameworks, setFrameworks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [activeTab, setActiveTab] = useState(0);
@@ -111,24 +114,152 @@ const Trips: React.FC = () => {
     drivingLicenses: ''
   });
 
+  // הרשאות
+  const [permissions, setPermissions] = useState({
+    canView: false,
+    canCreate: false,
+    canEdit: false,
+    canDelete: false
+  });
+
+  // פונקציה למציאת החייל של המשתמש
+  const findUserSoldier = (soldiers: Soldier[], user: any): Soldier | null => {
+    // חיפוש לפי email
+    let soldier = soldiers.find(s => s.email === user.email);
+    if (soldier) return soldier;
+    
+    // חיפוש לפי personalNumber אם יש
+    if (user.personalNumber) {
+      soldier = soldiers.find(s => s.personalNumber === user.personalNumber);
+      if (soldier) return soldier;
+    }
+    
+    // חיפוש לפי name
+    if (user.displayName) {
+      soldier = soldiers.find(s => s.name === user.displayName);
+      if (soldier) return soldier;
+    }
+    
+    return null;
+  };
+
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [tripsData, vehiclesData, soldiersData, activitiesData] = await Promise.all([
+      
+      // בדיקת הרשאות המשתמש
+      if (user) {
+        const canView = await canUserAccessPath(user.uid, SystemPath.TRIPS, PermissionLevel.VIEW);
+        const canCreate = await canUserAccessPath(user.uid, SystemPath.TRIPS, PermissionLevel.CREATE);
+        const canEdit = await canUserAccessPath(user.uid, SystemPath.TRIPS, PermissionLevel.EDIT);
+        const canDelete = await canUserAccessPath(user.uid, SystemPath.TRIPS, PermissionLevel.DELETE);
+        
+        setPermissions({ canView, canCreate, canEdit, canDelete });
+        
+        // אם אין הרשאת צפייה - לא טוען נתונים
+        if (!canView) {
+          setTrips([]);
+          setVehicles([]);
+          setSoldiers([]);
+          setActivities([]);
+          setDrivers([]);
+          return;
+        }
+      }
+
+      const [tripsData, vehiclesData, soldiersData, activitiesData, frameworksData] = await Promise.all([
         getAllTrips(),
         getAllVehicles(),
         getAllSoldiers(),
-        getAllActivities()
+        getAllActivities(),
+        getAllFrameworks()
       ]);
       
-      // סינון נסיעות לפי הרשאות המשתמש
-      const filteredTrips = tripsData;
+      // טעינת נסיעות לפי הרשאות המשתמש
+      let filteredTrips = tripsData;
+      if (user) {
+        // קבלת הרשאות המשתמש עם פרטי המדיניות
+        const userPermissions = await getUserPermissions(user.uid);
+        
+        // חיפוש מדיניות שמתאימה לנסיעות
+        const tripsPolicy = userPermissions.policies.find(policy => 
+          policy.paths.includes(SystemPath.TRIPS)
+        );
+        
+        if (tripsPolicy) {
+          // טעינת נסיעות לפי היקף הנתונים
+          switch (tripsPolicy.dataScope) {
+            case DataScope.USER_ONLY:
+              // נתוני משתמש בלבד - רק נסיעות שהמשתמש משתתף בהן
+              const userSoldierForUserOnly = findUserSoldier(soldiersData, user);
+              if (userSoldierForUserOnly) {
+                filteredTrips = tripsData.filter(trip => 
+                  (trip.driverId && trip.driverId === userSoldierForUserOnly.id) || 
+                  (trip.commanderId && trip.commanderId === userSoldierForUserOnly.id)
+                );
+              } else {
+                filteredTrips = [];
+              }
+              break;
+            
+            case DataScope.FRAMEWORK_ONLY:
+              // נתוני המסגרת שלו - נסיעות שבהן יש משתתף מהמסגרת (כולל מסגרות-בנות)
+              const userSoldier = findUserSoldier(soldiersData, user);
+              if (userSoldier?.frameworkId) {
+                // פונקציה למציאת כל החיילים בהיררכיה כולל מסגרות-בנות
+                const getAllSoldiersInHierarchy = (frameworkId: string): string[] => {
+                  const directSoldiers = soldiersData.filter(s => s.frameworkId === frameworkId).map(s => s.id);
+                  const childFrameworks = frameworksData.filter(f => f.parentFrameworkId === frameworkId);
+                  const childSoldiers = childFrameworks.flatMap(child => getAllSoldiersInHierarchy(child.id));
+                  return [...directSoldiers, ...childSoldiers];
+                };
+                
+                // קבלת כל החיילים בהיררכיה
+                const allSoldiersInHierarchy = getAllSoldiersInHierarchy(userSoldier.frameworkId);
+                
+                filteredTrips = tripsData.filter(trip => {
+                  return (trip.driverId && allSoldiersInHierarchy.includes(trip.driverId)) || 
+                         (trip.commanderId && allSoldiersInHierarchy.includes(trip.commanderId));
+                });
+              } else {
+                // אם לא נמצאה מסגרת - רק הנסיעות של המשתמש
+                if (userSoldier) {
+                                  filteredTrips = tripsData.filter(trip => 
+                  (trip.driverId && trip.driverId === userSoldier.id) || 
+                  (trip.commanderId && trip.commanderId === userSoldier.id)
+                );
+                } else {
+                  filteredTrips = [];
+                }
+              }
+              break;
+            
+            case DataScope.ALL_DATA:
+            default:
+              // כלל הנתונים - כל הנסיעות
+              filteredTrips = tripsData;
+              break;
+          }
+        } else {
+          // אם אין מדיניות מתאימה - רק הנסיעות של המשתמש
+          const userSoldierForDefault = findUserSoldier(soldiersData, user);
+          if (userSoldierForDefault) {
+            filteredTrips = tripsData.filter(trip => 
+              (trip.driverId && trip.driverId === userSoldierForDefault.id) || 
+              (trip.commanderId && trip.commanderId === userSoldierForDefault.id)
+            );
+          } else {
+            filteredTrips = [];
+          }
+        }
+      }
       
       setTrips(filteredTrips);
       setVehicles(vehiclesData);
       setSoldiers(soldiersData);
       setActivities(activitiesData);
-      
+      setFrameworks(frameworksData);
+
       // סינון נהגים מתוך החיילים
       const driversData = soldiersData.filter(soldier => 
         soldier.qualifications?.includes('נהג')
@@ -150,6 +281,12 @@ const Trips: React.FC = () => {
   };
 
   const handleAddTrip = () => {
+    // בדיקת הרשאות
+    if (!permissions.canCreate) {
+      alert('אין לך הרשאה ליצור נסיעות');
+      return;
+    }
+    
     setEditId(null);
     setFormData({
       vehicleId: '',
@@ -166,6 +303,12 @@ const Trips: React.FC = () => {
   };
 
   const handleEditTrip = (trip: Trip) => {
+    // בדיקת הרשאות
+    if (!permissions.canEdit) {
+      alert('אין לך הרשאה לערוך נסיעות');
+      return;
+    }
+    
     setEditId(trip.id);
     
     // המרת התאריכים לפורמט הנדרש ל-datetime-local
@@ -228,6 +371,16 @@ const Trips: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // בדיקת הרשאות
+    if (editId && !permissions.canEdit) {
+      alert('אין לך הרשאה לערוך נסיעות');
+      return;
+    }
+    if (!editId && !permissions.canCreate) {
+      alert('אין לך הרשאה ליצור נסיעות');
+      return;
+    }
     
     try {
       // בדיקת זמינות אם יש רכב ונהג
@@ -365,6 +518,12 @@ const Trips: React.FC = () => {
   };
 
   const handleDeleteTrip = async (tripId: string) => {
+    // בדיקת הרשאות
+    if (!permissions.canDelete) {
+      alert('אין לך הרשאה למחוק נסיעות');
+      return;
+    }
+    
     if (window.confirm('האם אתה בטוח שברצונך למחוק נסיעה זו?')) {
       try {
         // מציאת הנסיעה לפני המחיקה
@@ -724,10 +883,9 @@ const Trips: React.FC = () => {
   };
 
   // בדיקת הרשאות למשתמש
-        const userRole = user?.role as UserRole;
-      const canEdit = isAdmin(userRole);
-      const canDelete = isAdmin(userRole);
-      const canCreate = isAdmin(userRole);
+  const canEdit = permissions.canEdit;
+  const canDelete = permissions.canDelete;
+  const canCreate = permissions.canCreate;
 
   const isTripComplete = (trip: Trip) => {
     const missingFields: string[] = [];
@@ -898,6 +1056,13 @@ const Trips: React.FC = () => {
 
   return (
     <Container maxWidth="xl">
+      {/* הודעת שגיאה אם אין הרשאות */}
+      {!permissions.canView && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          אין לך הרשאה לצפות בנסיעות
+        </Alert>
+      )}
+
       <Box display="flex" alignItems="center" mb={3}>
         <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
           <ArrowBackIcon />

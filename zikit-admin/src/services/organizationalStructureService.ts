@@ -26,11 +26,19 @@ export const getUsersByTeam = async (teamId: string): Promise<User[]> => {
   
   // מיון בצד הלקוח
   return users.sort((a, b) => {
-    const roleOrder = {
-      [UserRole.ADMIN]: 0,
-      [UserRole.CHAYAL]: 1
+    const getRoleOrder = (role: UserRole | string): number => {
+      if (typeof role === 'string') {
+        // אם זה שם תפקיד - נחפש את התפקיד ברשימה
+        if (role === 'admin') return 0;
+        if (role === 'chayal') return 1;
+        return 2; // תפקידים אחרים
+      }
+      
+      // אם זה UserRole enum - נחזיר ברירת מחדל
+      return 2;
     };
-    return (roleOrder[b.role] || 0) - (roleOrder[a.role] || 0);
+    
+    return getRoleOrder(b.role) - getRoleOrder(a.role);
   });
 };
 

@@ -4,7 +4,7 @@ export interface User {
   uid: string;
   displayName: string;
   email: string;
-  role: UserRole;
+  role: UserRole | string; // תמיכה גם בUserRole enum וגם בשם תפקיד כסטרינג
   
   // מידע אישי וצבאי
   personalNumber?: string; // מספר אישי
@@ -55,16 +55,23 @@ export interface TeamStructure {
 // פונקציות עזר למבנה ההיררכיה
 export const getUserHierarchyLevel = (user: User): number => {
   // Simplified hierarchy
-  return user.role === UserRole.ADMIN ? 100 : 0;
+  if (typeof user.role === 'string') {
+    if (user.role === 'admin') return 100;
+  }
+  return 0;
 };
 
 export const canUserSeeOtherUser = (viewer: User, target: User): boolean => {
   // אדמין רואה הכל
-  if (viewer.role === UserRole.ADMIN) return true;
+  if (typeof viewer.role === 'string') {
+    if (viewer.role === 'admin') return true;
+  }
   
   // חייל רואה רק את עצמו
-  if (viewer.role === UserRole.CHAYAL) {
-    return viewer.uid === target.uid;
+  if (typeof viewer.role === 'string') {
+    if (viewer.role === 'chayal') {
+      return viewer.uid === target.uid;
+    }
   }
 
   return false;

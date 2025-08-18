@@ -10,7 +10,8 @@ import { getAllSoldiers, updateSoldier, getSoldierById } from '../services/soldi
 import { getAllVehicles } from '../services/vehicleService';
 import { getAllTrips, updateTrip } from '../services/tripService';
 import { getAllFrameworks } from '../services/frameworkService';
-import { UserRole, isAdmin } from '../models/UserRole';
+import { UserRole, SystemPath, PermissionLevel, DataScope } from '../models/UserRole';
+import { canUserAccessPath, getUserPermissions } from '../services/permissionService';
 
 import {
   Container,
@@ -111,31 +112,147 @@ const Activities: React.FC = () => {
   const [filterActivityType, setFilterActivityType] = useState<string>('');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
+  // הרשאות
+  const [permissions, setPermissions] = useState({
+    canView: false,
+    canCreate: false,
+    canEdit: false,
+    canDelete: false
+  });
+
+  // פונקציה למציאת החייל של המשתמש
+  const findUserSoldier = (soldiers: Soldier[], user: any): Soldier | null => {
+    // חיפוש לפי email
+    let soldier = soldiers.find(s => s.email === user.email);
+    if (soldier) return soldier;
+    
+    // חיפוש לפי personalNumber אם יש
+    if (user.personalNumber) {
+      soldier = soldiers.find(s => s.personalNumber === user.personalNumber);
+      if (soldier) return soldier;
+    }
+    
+    // חיפוש לפי name
+    if (user.displayName) {
+      soldier = soldiers.find(s => s.name === user.displayName);
+      if (soldier) return soldier;
+    }
+    
+    return null;
+  };
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      // טעינת כל הפעילויות
-      const allActivitiesData = await getAllActivities();
-      let activitiesData = allActivitiesData;
-      
-      // אם המשתמש הוא חייל, נציג רק פעילויות רלוונטיות לו
-      if (user?.role === UserRole.CHAYAL && user?.soldierDocId) {
-        const soldierData = await getSoldierById(user.soldierDocId);
-        if (soldierData?.activities && soldierData.activities.length > 0) {
-          // נטען רק את הפעילויות הספציפיות
-          const activityPromises = soldierData.activities.map(activityId => getActivityById(activityId));
-          const activitiesResults = await Promise.all(activityPromises);
-          activitiesData = activitiesResults.filter((activity): activity is Activity => activity !== null);
+      // בדיקת הרשאות המשתמש
+      if (user) {
+        const canView = await canUserAccessPath(user.uid, SystemPath.ACTIVITIES, PermissionLevel.VIEW);
+        const canCreate = await canUserAccessPath(user.uid, SystemPath.ACTIVITIES, PermissionLevel.CREATE);
+        const canEdit = await canUserAccessPath(user.uid, SystemPath.ACTIVITIES, PermissionLevel.EDIT);
+        const canDelete = await canUserAccessPath(user.uid, SystemPath.ACTIVITIES, PermissionLevel.DELETE);
+        
+        setPermissions({ canView, canCreate, canEdit, canDelete });
+        
+        // אם אין הרשאת צפייה - לא טוען נתונים
+        if (!canView) {
+          setActivities([]);
+          setSoldiers([]);
+          setVehicles([]);
+          setTrips([]);
+          setFrameworks([]);
+          return;
         }
       }
-      
-      const [soldiersData, vehiclesData, tripsData, frameworksData] = await Promise.all([
+
+      // טעינת נתונים
+      const [allActivitiesData, soldiersData, vehiclesData, tripsData, frameworksData] = await Promise.all([
+        getAllActivities(),
         getAllSoldiers(),
         getAllVehicles(),
         getAllTrips(),
         getAllFrameworks()
       ]);
+
+      // טעינת פעילויות לפי הרשאות המשתמש
+      let activitiesData = allActivitiesData;
+      if (user) {
+        // קבלת הרשאות המשתמש עם פרטי המדיניות
+        const userPermissions = await getUserPermissions(user.uid);
+        
+        // חיפוש מדיניות שמתאימה לפעילויות
+        const activitiesPolicy = userPermissions.policies.find(policy => 
+          policy.paths.includes(SystemPath.ACTIVITIES)
+        );
+        
+        if (activitiesPolicy) {
+          // טעינת פעילויות לפי היקף הנתונים
+          switch (activitiesPolicy.dataScope) {
+            case DataScope.USER_ONLY:
+              // נתוני משתמש בלבד - רק פעילויות שהמשתמש משתתף בהן
+              const userSoldierForUserOnly = findUserSoldier(soldiersData, user);
+              if (userSoldierForUserOnly) {
+                activitiesData = allActivitiesData.filter(activity => 
+                  activity.participants.some(p => p.soldierId === userSoldierForUserOnly.id) ||
+                  activity.commanderId === userSoldierForUserOnly.id ||
+                  activity.taskLeaderId === userSoldierForUserOnly.id
+                );
+              } else {
+                activitiesData = [];
+              }
+              break;
+              
+            case DataScope.FRAMEWORK_ONLY:
+              // נתוני המסגרת שלו - פעילויות של המסגרת (כולל מסגרות-בנות)
+              const userSoldier = findUserSoldier(soldiersData, user);
+              if (userSoldier?.frameworkId) {
+                // פונקציה למציאת כל המסגרות בהיררכיה כולל מסגרות-בנות
+                const getAllFrameworksInHierarchy = (frameworkId: string): string[] => {
+                  const directFramework = [frameworkId];
+                  const childFrameworks = frameworksData.filter(f => f.parentFrameworkId === frameworkId);
+                  const childFrameworkIds = childFrameworks.flatMap(child => getAllFrameworksInHierarchy(child.id));
+                  return [...directFramework, ...childFrameworkIds];
+                };
+                
+                // קבלת כל המסגרות בהיררכיה
+                const allFrameworksInHierarchy = getAllFrameworksInHierarchy(userSoldier.frameworkId);
+                
+                activitiesData = allActivitiesData.filter(activity => 
+                  activity.frameworkId ? allFrameworksInHierarchy.includes(activity.frameworkId) : false
+                );
+              } else {
+                // אם לא נמצאה מסגרת - רק הפעילויות של המשתמש
+                if (userSoldier) {
+                  activitiesData = allActivitiesData.filter(activity => 
+                    activity.participants.some(p => p.soldierId === userSoldier.id) ||
+                    activity.commanderId === userSoldier.id ||
+                    activity.taskLeaderId === userSoldier.id
+                  );
+                } else {
+                  activitiesData = [];
+                }
+              }
+              break;
+              
+            case DataScope.ALL_DATA:
+            default:
+              // כלל הנתונים - כל הפעילויות
+              activitiesData = allActivitiesData;
+              break;
+          }
+        } else {
+          // אם אין מדיניות מתאימה - רק הפעילויות של המשתמש
+          const userSoldierForDefault = findUserSoldier(soldiersData, user);
+          if (userSoldierForDefault) {
+            activitiesData = allActivitiesData.filter(activity => 
+              activity.participants.some(p => p.soldierId === userSoldierForDefault.id) ||
+              activity.commanderId === userSoldierForDefault.id ||
+              activity.taskLeaderId === userSoldierForDefault.id
+            );
+          } else {
+            activitiesData = [];
+          }
+        }
+      }
       
       setActivities(activitiesData);
       setSoldiers(soldiersData);
@@ -662,8 +779,7 @@ const Activities: React.FC = () => {
   };
 
   // בדיקת הרשאות למשתמש
-        const userRole = user?.role as UserRole;
-      const canCreate = isAdmin(userRole);
+  const canCreate = permissions.canCreate;
 
   const isActivityComplete = (activity: Activity) => {
     const missingFields: string[] = [];
@@ -856,9 +972,9 @@ const Activities: React.FC = () => {
                   }}>
                     {activity.name}
                   </Typography>
-                  {user && isAdmin(user.role as UserRole) && (
+                  {permissions.canEdit || permissions.canDelete ? (
                     <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 1 } }}>
-                      {isAdmin(user.role as UserRole) && (
+                      {permissions.canEdit && (
                         <IconButton
                           size="small"
                           color="primary"
@@ -871,7 +987,7 @@ const Activities: React.FC = () => {
                           <EditIcon fontSize="small" />
                         </IconButton>
                       )}
-                      {isAdmin(user.role as UserRole) && (
+                      {permissions.canDelete && (
                         <IconButton
                           size="small"
                           color="error"
@@ -885,7 +1001,7 @@ const Activities: React.FC = () => {
                         </IconButton>
                       )}
                     </Box>
-                  )}
+                  ) : null}
                 </Box>
 
                 <Box sx={{ mb: 2 }}>
@@ -1165,9 +1281,9 @@ const Activities: React.FC = () => {
                     />
                   </TableCell>
                   <TableCell>
-                    {user && isAdmin(user.role as UserRole) && (
+                    {permissions.canEdit || permissions.canDelete ? (
                       <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 1 } }}>
-                        {isAdmin(user.role as UserRole) && (
+                        {permissions.canEdit && (
                           <IconButton
                             size="small"
                             color="primary"
@@ -1180,7 +1296,7 @@ const Activities: React.FC = () => {
                             <EditIcon fontSize="small" />
                           </IconButton>
                         )}
-                        {isAdmin(user.role as UserRole) && (
+                        {permissions.canDelete && (
                           <IconButton
                             size="small"
                             color="error"
@@ -1194,7 +1310,7 @@ const Activities: React.FC = () => {
                           </IconButton>
                         )}
                       </Box>
-                    )}
+                    ) : null}
                   </TableCell>
                 </TableRow>
               ))}

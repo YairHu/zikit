@@ -13,13 +13,20 @@ import {
 import { useUser } from '../contexts/UserContext';
 import { Mission } from '../models/Mission';
 import { getAllMissions, addMission, updateMission, deleteMission, getMissionsBySoldier } from '../services/missionService';
-import { UserRole, isAdmin } from '../models/UserRole';
+import { UserRole, SystemPath, PermissionLevel } from '../models/UserRole';
+import { canUserAccessPath } from '../services/permissionService';
 
 const Missions: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useUser();
   const [missions, setMissions] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [permissions, setPermissions] = useState({
+    canView: false,
+    canCreate: false,
+    canEdit: false,
+    canDelete: false
+  });
   const [openForm, setOpenForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -46,15 +53,33 @@ const Missions: React.FC = () => {
     try {
       setLoading(true);
       
+      // בדיקת הרשאות המשתמש
+      if (user) {
+        const canView = await canUserAccessPath(user.uid, SystemPath.MISSIONS, PermissionLevel.VIEW);
+        const canCreate = await canUserAccessPath(user.uid, SystemPath.MISSIONS, PermissionLevel.CREATE);
+        const canEdit = await canUserAccessPath(user.uid, SystemPath.MISSIONS, PermissionLevel.EDIT);
+        const canDelete = await canUserAccessPath(user.uid, SystemPath.MISSIONS, PermissionLevel.DELETE);
+        
+        setPermissions({ canView, canCreate, canEdit, canDelete });
+        
+        // אם אין הרשאת צפייה - לא טוען נתונים
+        if (!canView) {
+          setMissions([]);
+          return;
+        }
+      }
+      
       // טעינת משימות לפי הרשאות המשתמש
       let data: Mission[] = [];
       if (user) {
-        // אם המשתמש הוא חייל - רואה רק את המשימות שלו
-        if (user.role === UserRole.CHAYAL) {
-          data = await getMissionsBySoldier(user.uid);
-        } else {
-          // משתמשים אחרים - רואים את כל המשימות
+        // בדיקה אם למשתמש יש הרשאת צפייה במשימות שלו בלבד
+        const canViewAll = await canUserAccessPath(user.uid, SystemPath.MISSIONS, PermissionLevel.VIEW);
+        if (canViewAll) {
+          // אם יש הרשאת צפייה - רואה את כל המשימות
           data = await getAllMissions();
+        } else {
+          // אם אין הרשאת צפייה - רואה רק את המשימות שלו
+          data = await getMissionsBySoldier(user.uid);
         }
       }
       
@@ -121,6 +146,20 @@ const Missions: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!user) return;
+    
+    // בדיקת הרשאות
+    if (editId && !permissions.canEdit) {
+      alert('אין לך הרשאה לערוך משימות');
+      return;
+    }
+    
+    if (!editId && !permissions.canCreate) {
+      alert('אין לך הרשאה ליצור משימות חדשות');
+      return;
+    }
+    
     try {
       if (editId) {
         await updateMission(editId, formData);
@@ -131,17 +170,24 @@ const Missions: React.FC = () => {
       loadMissions();
     } catch (error) {
       console.error('שגיאה בשמירת משימה:', error);
+      alert('שגיאה בשמירת משימה');
     }
   };
 
   const handleDelete = async () => {
     if (deleteId) {
+      if (!permissions.canDelete) {
+        alert('אין לך הרשאה למחוק משימות');
+        return;
+      }
+      
       try {
         await deleteMission(deleteId);
         setDeleteId(null);
         loadMissions();
       } catch (error) {
         console.error('שגיאה במחיקת משימה:', error);
+        alert('שגיאה במחיקת משימה');
       }
     }
   };
@@ -174,13 +220,24 @@ const Missions: React.FC = () => {
     );
   }
 
+  // בדיקה אם למשתמש יש הרשאת צפייה
+  if (!permissions.canView) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Alert severity="warning" sx={{ mt: 3 }}>
+          אין לך הרשאה לצפות במשימות
+        </Alert>
+      </Container>
+    );
+  }
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
         <Typography variant="h4" component="h1" fontWeight="bold">
           משימות
         </Typography>
-                  {user && (isAdmin(user.role as UserRole)) && (
+        {permissions.canCreate && (
           <Button
             variant="contained"
             startIcon={<AddIcon />}
@@ -237,7 +294,7 @@ const Missions: React.FC = () => {
                     {mission.name}
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 1 }}>
-                    {user && (isAdmin(user.role as UserRole)) && (
+                    {permissions.canEdit && (
                       <IconButton
                         size="small"
                         color="primary"
@@ -246,7 +303,7 @@ const Missions: React.FC = () => {
                         <EditIcon />
                       </IconButton>
                     )}
-                    {user && (isAdmin(user.role as UserRole)) && (
+                    {permissions.canDelete && (
                       <IconButton
                         size="small"
                         color="error"
@@ -324,7 +381,7 @@ const Missions: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <Box sx={{ display: 'flex', gap: 1 }}>
-                      {user && (isAdmin(user.role as UserRole)) && (
+                      {permissions.canEdit && (
                         <IconButton
                           size="small"
                           color="primary"
@@ -333,7 +390,7 @@ const Missions: React.FC = () => {
                           <EditIcon />
                         </IconButton>
                       )}
-                      {user && (isAdmin(user.role as UserRole)) && (
+                      {permissions.canDelete && (
                         <IconButton
                           size="small"
                           color="error"
