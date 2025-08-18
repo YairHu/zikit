@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -43,25 +43,25 @@ import {
   AccountTree as AccountTreeIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
-import { UserRole } from '../models/UserRole';
+import { DataScope, PermissionLevel, SystemPath } from '../models/UserRole';
 import { Soldier } from '../models/Soldier';
 import { Activity } from '../models/Activity';
 import { Duty } from '../models/Duty';
 import { Framework, FrameworkWithDetails } from '../models/Framework';
 import { getAllSoldiers } from '../services/soldierService';
 import { getAllFrameworks, getFrameworkWithDetails } from '../services/frameworkService';
-import { getActivitiesByTeam } from '../services/activityService';
-import { getDutiesByTeam } from '../services/dutyService';
+import { getUserPermissions } from '../services/permissionService';
 import { getPresenceColor, getProfileColor } from '../utils/colors';
 
 const Teams: React.FC = () => {
   const navigate = useNavigate();
-  const { teamId } = useParams<{ teamId: string }>();
   const { user } = useUser();
   const [frameworks, setFrameworks] = useState<FrameworkWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [error, setError] = useState<string>('');
+  const [canManageFrameworks, setCanManageFrameworks] = useState<boolean>(false);
+  const [isFrameworkScoped, setIsFrameworkScoped] = useState<boolean>(false);
 
   const loadData = useCallback(async () => {
     if (!user) return;
@@ -80,17 +80,44 @@ const Teams: React.FC = () => {
       
       // סינון רק המסגרות שנטענו בהצלחה
       let validFrameworks = frameworksWithDetails.filter(f => f !== null) as FrameworkWithDetails[];
-      
-      // סינון לפי הרשאות המשתמש
-      if (typeof user.role === 'string' && user.role === 'chayal') {
-        // חייל רואה רק את הצוות שלו
-        if (teamId) {
-          validFrameworks = validFrameworks.filter(f => f.id === teamId);
+
+      // בדיקת הרשאות למסגרות
+      const { policies } = await getUserPermissions(user.uid);
+      const frameworkPolicy = policies.find(p => (p.paths || []).includes(SystemPath.FRAMEWORKS));
+
+      // בדיקה אם יש הרשאות לניהול (יצירה/עריכה)
+      const canManage = !!frameworkPolicy && (
+        frameworkPolicy.permissions.includes(PermissionLevel.CREATE) ||
+        frameworkPolicy.permissions.includes(PermissionLevel.EDIT)
+      );
+      setCanManageFrameworks(canManage);
+
+      // סינון לפי היקף נתונים: מי שמוגבל למסגרת שלו בלבד רואה את ההיררכיה שלו
+      if (frameworkPolicy?.dataScope === DataScope.FRAMEWORK_ONLY) {
+        setIsFrameworkScoped(true);
+        const allSoldiers = await getAllSoldiers();
+        // מציאת רשומת החייל של המשתמש
+        const userSoldier = user.soldierDocId
+          ? allSoldiers.find(s => s.id === user.soldierDocId)
+          : allSoldiers.find(s => s.email === user.email);
+
+        const rootFrameworkId = userSoldier?.frameworkId;
+        if (rootFrameworkId) {
+          const getAllFrameworksInHierarchy = (rootId: string): string[] => {
+            const direct = [rootId];
+            const children = allFrameworks.filter(f => f.parentFrameworkId === rootId);
+            const childIds = children.flatMap(child => getAllFrameworksInHierarchy(child.id));
+            return [...direct, ...childIds];
+          };
+          const allowedFrameworkIds = new Set(getAllFrameworksInHierarchy(rootFrameworkId));
+          validFrameworks = validFrameworks.filter(f => allowedFrameworkIds.has(f.id));
         } else {
-          validFrameworks = validFrameworks.filter(f => f.id === user.team);
+          // ללא שיוך למסגרת – לא להציג דבר
+          validFrameworks = [];
         }
+      } else {
+        setIsFrameworkScoped(false);
       }
-      // אם רואה כל הנתונים - לא מסנן
       
       setFrameworks(validFrameworks);
     } catch (error) {
@@ -99,7 +126,7 @@ const Teams: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user, teamId]);
+  }, [user]);
 
   useEffect(() => {
     loadData();
@@ -121,22 +148,22 @@ const Teams: React.FC = () => {
     );
   }
 
-  // אם זה חייל ומועבר teamId - זה הצוות שלו
-  const isPersonalTeam = user?.role === 'chayal' && teamId;
+  // האם התצוגה ממוקדת למסגרת של המשתמש
+  const isPersonalTeam = isFrameworkScoped;
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h1">
-          {isPersonalTeam ? 'הצוות שלי' : 'מסגרות'}
+          {isPersonalTeam ? 'המסגרת שלי' : 'מסגרות'}
         </Typography>
-        {user && typeof user.role === 'string' && user.role === 'admin' && (
+        {user && canManageFrameworks && (
           <Button
             variant="outlined"
             startIcon={<AccountTreeIcon />}
             onClick={() => navigate('/framework-management')}
           >
-            ניהול מבנה פלוגה
+            ניהול מסגרות
           </Button>
         )}
       </Box>
@@ -149,7 +176,7 @@ const Teams: React.FC = () => {
 
       {frameworks.length === 0 ? (
         <Alert severity="info" sx={{ mb: 3 }}>
-          {isPersonalTeam ? 'לא נמצאו נתונים לצוות שלך' : 'לא נמצאו מסגרות זמינות'}
+          {isPersonalTeam ? 'לא נמצאו נתונים למסגרת שלך' : 'לא נמצאו מסגרות זמינות'}
         </Alert>
       ) : (
         <>

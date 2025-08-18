@@ -132,7 +132,7 @@ const createNewUser = async (firebaseUser: FirebaseUser): Promise<User> => {
     uid: firebaseUser.uid,
     displayName: '', // השם ייקלט בטופס Google Forms
     email: firebaseUser.email || '',
-    role: isAdmin ? 'admin' : 'chayal',
+    role: isAdmin ? 'admin' : 'טרם הוזנו פרטים',
     
     // הרשאות מיוחדות למנהלים
     canAssignRoles: isAdmin,

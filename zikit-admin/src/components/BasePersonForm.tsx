@@ -26,6 +26,7 @@ interface BasePersonFormProps {
 const emptyPerson: Omit<BasePerson, 'id'> = {
   name: '',
   personalNumber: '',
+  rank: '',
   frameworkId: '',
   role: '',
   profile: '',
@@ -192,6 +193,14 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
               value={formData.personalNumber}
               onChange={handleChange}
               required
+            />
+            <TextField
+              fullWidth
+              label="דרגה"
+              name="rank"
+              value={formData.rank || ''}
+              onChange={handleChange}
+              placeholder="לדוגמה: טוראי, רב טוראי, סמל"
             />
             <TextField
               fullWidth

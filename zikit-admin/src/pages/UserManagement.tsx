@@ -103,6 +103,14 @@ const UserManagement: React.FC = () => {
     canDelete: false
   });
   
+  // פונקציה עזר לאתחול pathPermissions
+  const createEmptyPathPermissions = (): Record<SystemPath, PermissionLevel[]> => {
+    return Object.values(SystemPath).reduce((acc, path) => {
+      acc[path] = [];
+      return acc;
+    }, {} as Record<SystemPath, PermissionLevel[]>);
+  };
+  
   // Permission management state
   const [policies, setPolicies] = useState<PermissionPolicy[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -132,9 +140,8 @@ const UserManagement: React.FC = () => {
   const [policyForm, setPolicyForm] = useState({
     name: '',
     description: '',
-    paths: [SystemPath.MISSIONS] as SystemPath[],
     dataScope: DataScope.FRAMEWORK_ONLY,
-    permissions: [PermissionLevel.VIEW] as PermissionLevel[]
+    pathPermissions: createEmptyPathPermissions()
   });
   
   // Role management state
@@ -367,16 +374,29 @@ const UserManagement: React.FC = () => {
     }
     
     try {
+      // המרה לפורמט הישן לתאימות
+      const paths = Object.keys(policyForm.pathPermissions).filter(path => 
+        policyForm.pathPermissions[path as SystemPath].length > 0
+      ) as SystemPath[];
+      const allPermissions = Array.from(new Set(
+        Object.values(policyForm.pathPermissions).flat()
+      ));
+      
       await createPolicy({
-        ...policyForm,
+        name: policyForm.name,
+        description: policyForm.description,
+        paths,
+        dataScope: policyForm.dataScope,
+        permissions: allPermissions,
+        pathPermissions: policyForm.pathPermissions, // שמירת הפורמט החדש
         createdBy: currentUser.uid
       }, currentUser.uid);
+      
       setPolicyForm({
         name: '',
         description: '',
-        paths: [SystemPath.MISSIONS],
         dataScope: DataScope.FRAMEWORK_ONLY,
-        permissions: [PermissionLevel.VIEW]
+        pathPermissions: createEmptyPathPermissions()
       });
       loadPolicies();
       alert('מדיניות נוצרה בהצלחה!');
@@ -392,14 +412,29 @@ const UserManagement: React.FC = () => {
     }
     
     try {
-      await updatePolicy(editingPolicy.id, policyForm, currentUser.uid);
+      // המרה לפורמט הישן לתאימות
+      const paths = Object.keys(policyForm.pathPermissions).filter(path => 
+        policyForm.pathPermissions[path as SystemPath].length > 0
+      ) as SystemPath[];
+      const allPermissions = Array.from(new Set(
+        Object.values(policyForm.pathPermissions).flat()
+      ));
+      
+      await updatePolicy(editingPolicy.id, {
+        name: policyForm.name,
+        description: policyForm.description,
+        paths,
+        dataScope: policyForm.dataScope,
+        permissions: allPermissions,
+        pathPermissions: policyForm.pathPermissions // שמירת הפורמט החדש
+      }, currentUser.uid);
+      
       setEditingPolicy(null);
       setPolicyForm({
         name: '',
         description: '',
-        paths: [SystemPath.MISSIONS],
         dataScope: DataScope.FRAMEWORK_ONLY,
-        permissions: [PermissionLevel.VIEW]
+        pathPermissions: createEmptyPathPermissions()
       });
       loadPolicies();
       alert('מדיניות עודכנה בהצלחה!');
@@ -489,12 +524,27 @@ const UserManagement: React.FC = () => {
 
   const editPolicy = (policy: PermissionPolicy) => {
     setEditingPolicy(policy);
+    
+    // המרה מהפורמט הישן לפורמט החדש
+    const pathPermissions = createEmptyPathPermissions();
+    
+    // אם יש pathPermissions במדיניות (הפורמט החדש), השתמש בהם
+    if (policy.pathPermissions) {
+      Object.keys(policy.pathPermissions).forEach(path => {
+        pathPermissions[path as SystemPath] = [...policy.pathPermissions![path as SystemPath]];
+      });
+    } else {
+      // אחרת, השתמש בפורמט הישן - כל הנתיבים מקבלים את כל ההרשאות
+      policy.paths.forEach(path => {
+        pathPermissions[path] = [...policy.permissions];
+      });
+    }
+    
     setPolicyForm({
       name: policy.name,
       description: policy.description,
-      paths: [...policy.paths],
       dataScope: policy.dataScope,
-      permissions: [...policy.permissions]
+      pathPermissions
     });
   };
 
@@ -509,6 +559,11 @@ const UserManagement: React.FC = () => {
 
   const getRoleColor = (role: UserRole | string): string => {
     if (typeof role === 'string') {
+      // אם זה "טרם הוזנו פרטים" - צבע כתום
+      if (role === 'טרם הוזנו פרטים') {
+        return '#ff9800';
+      }
+      
       // אם זה שם תפקיד - נחפש את התפקיד ברשימה
       const foundRole = roles.find(r => r.name === role);
       if (foundRole) {
@@ -526,6 +581,11 @@ const UserManagement: React.FC = () => {
       const foundRole = roles.find(r => r.name === role);
       if (foundRole) {
         return foundRole.name;
+      }
+      
+      // אם זה "טרם הוזנו פרטים" - נחזיר אותו כמו שהוא
+      if (role === 'טרם הוזנו פרטים') {
+        return role;
       }
     }
     
@@ -624,10 +684,10 @@ const UserManagement: React.FC = () => {
                       variant="h6" 
                       sx={{ 
                         fontWeight: 600,
-                        cursor: 'pointer',
-                        '&:hover': { textDecoration: 'underline' }
+                        cursor: userData.soldierDocId ? 'pointer' : 'default',
+                        '&:hover': { textDecoration: userData.soldierDocId ? 'underline' : 'none' }
                       }}
-                      onClick={() => navigate(`/soldier-profile/${userData.uid}`)}
+                      onClick={() => userData.soldierDocId && navigate(`/soldier-profile/${userData.soldierDocId}`)}
                     >
                       {userData.displayName}
                     </Typography>
@@ -649,7 +709,7 @@ const UserManagement: React.FC = () => {
                   />
                   {userData.team && (
                     <Chip 
-                      label={`צוות ${userData.team}`}
+                      label={`מסגרת ${userData.team}`}
                       variant="outlined"
                       size="small"
                       sx={{ ml: 1 }}
@@ -842,9 +902,8 @@ const UserManagement: React.FC = () => {
                       setPolicyForm({
                         name: '',
                         description: '',
-                        paths: [SystemPath.MISSIONS],
                         dataScope: DataScope.FRAMEWORK_ONLY,
-                        permissions: [PermissionLevel.VIEW]
+                        pathPermissions: createEmptyPathPermissions()
                       });
                     }}
                   >
@@ -864,7 +923,14 @@ const UserManagement: React.FC = () => {
                           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                             נתיבים: {(policy.paths || []).map(p => getSystemPathDisplayName(p)).join(', ')} | 
                             היקף: {getDataScopeDisplayName(policy.dataScope)} | 
-                            הרשאות: {policy.permissions.map(p => getPermissionLevelDisplayName(p)).join(', ')}
+                            הרשאות: {policy.pathPermissions ? 
+                              Object.entries(policy.pathPermissions)
+                                .filter(([_, permissions]) => permissions.length > 0)
+                                .map(([path, permissions]) => 
+                                  `${getSystemPathDisplayName(path as SystemPath)}: ${permissions.map(p => getPermissionLevelDisplayName(p)).join(', ')}`
+                                ).join('; ')
+                              : policy.permissions.map(p => getPermissionLevelDisplayName(p)).join(', ')
+                            }
                           </Typography>
                         </Box>
                       }
@@ -1103,7 +1169,14 @@ const UserManagement: React.FC = () => {
                             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                               נתיבים: {(policy?.paths || []).map(p => getSystemPathDisplayName(p)).join(', ')} | 
                               היקף: {getDataScopeDisplayName(policy.dataScope)} | 
-                              הרשאות: {policy.permissions.map(p => getPermissionLevelDisplayName(p)).join(', ')}
+                              הרשאות: {policy.pathPermissions ? 
+                                Object.entries(policy.pathPermissions)
+                                  .filter(([_, permissions]) => permissions.length > 0)
+                                  .map(([path, permissions]) => 
+                                    `${getSystemPathDisplayName(path as SystemPath)}: ${permissions.map(p => getPermissionLevelDisplayName(p)).join(', ')}`
+                                  ).join('; ')
+                                : policy.permissions.map(p => getPermissionLevelDisplayName(p)).join(', ')
+                              }
                             </Typography>
                           </Box>
                         }
@@ -1149,35 +1222,96 @@ const UserManagement: React.FC = () => {
           />
           
           <Typography variant="subtitle1" sx={{ mb: 1 }}>
-            נתיבי מערכת:
+            הרשאות לפי נתיבי מערכת:
           </Typography>
-          <FormGroup>
-            {Object.values(SystemPath).map((path) => (
-              <FormControlLabel
-                key={path}
-                control={
-                  <Checkbox
-                    checked={policyForm.paths.includes(path)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setPolicyForm({
-                          ...policyForm,
-                          paths: [...policyForm.paths, path]
-                        });
-                      } else {
-                        setPolicyForm({
-                          ...policyForm,
-                          paths: policyForm.paths.filter(p => p !== path)
-                        });
-                      }
-                    }}
+          <Box sx={{ mb: 2 }}>
+            <FormGroup>
+              {Object.values(SystemPath).map((path) => (
+                <Box key={path} sx={{ mb: 2, p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                    {getSystemPathDisplayName(path)}
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {Object.values(PermissionLevel).map((level) => (
+                      <FormControlLabel
+                        key={level}
+                        control={
+                          <Checkbox
+                            checked={policyForm.pathPermissions[path]?.includes(level) || false}
+                            onChange={(e) => {
+                              const currentPermissions = policyForm.pathPermissions[path] || [];
+                              if (e.target.checked) {
+                                setPolicyForm({
+                                  ...policyForm,
+                                  pathPermissions: {
+                                    ...policyForm.pathPermissions,
+                                    [path]: [...currentPermissions, level]
+                                  }
+                                });
+                              } else {
+                                setPolicyForm({
+                                  ...policyForm,
+                                  pathPermissions: {
+                                    ...policyForm.pathPermissions,
+                                    [path]: currentPermissions.filter(p => p !== level)
+                                  }
+                                });
+                              }
+                            }}
+                          />
+                        }
+                        label={getPermissionLevelDisplayName(level)}
+                      />
+                    ))}
+                  </Box>
+                </Box>
+              ))}
+            </FormGroup>
+          </Box>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+              סימון מהיר לפי רמת הרשאה:
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              {Object.values(PermissionLevel).map((level) => {
+                const allPaths = Object.values(SystemPath);
+                const checkedPaths = allPaths.filter(path => 
+                  policyForm.pathPermissions[path]?.includes(level)
+                );
+                const isIndeterminate = checkedPaths.length > 0 && checkedPaths.length < allPaths.length;
+                const isChecked = checkedPaths.length === allPaths.length;
+                
+                return (
+                  <FormControlLabel
+                    key={level}
+                    control={
+                      <Checkbox
+                        checked={isChecked}
+                        indeterminate={isIndeterminate}
+                        onChange={(e) => {
+                          const newPathPermissions = { ...policyForm.pathPermissions };
+                          allPaths.forEach(path => {
+                            const currentPermissions = newPathPermissions[path] || [];
+                            if (e.target.checked) {
+                              // סמן הכל
+                              if (!currentPermissions.includes(level)) {
+                                newPathPermissions[path] = [...currentPermissions, level];
+                              }
+                            } else {
+                              // בטל הכל
+                              newPathPermissions[path] = currentPermissions.filter(p => p !== level);
+                            }
+                          });
+                          setPolicyForm({ ...policyForm, pathPermissions: newPathPermissions });
+                        }}
+                      />
+                    }
+                    label={getPermissionLevelDisplayName(level)}
                   />
-                }
-                label={getSystemPathDisplayName(path)}
-              />
-            ))}
-          </FormGroup>
-          
+                );
+              })}
+            </Box>
+          </Box>
           <FormControl fullWidth sx={{ mb: 2 }}>
             <InputLabel>היקף נתונים</InputLabel>
             <Select
@@ -1192,36 +1326,6 @@ const UserManagement: React.FC = () => {
               ))}
             </Select>
           </FormControl>
-          
-          <Typography variant="subtitle1" sx={{ mb: 1 }}>
-            הרשאות:
-          </Typography>
-          <FormGroup>
-            {Object.values(PermissionLevel).map((level) => (
-              <FormControlLabel
-                key={level}
-                control={
-                  <Checkbox
-                    checked={policyForm.permissions.includes(level)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setPolicyForm({
-                          ...policyForm,
-                          permissions: [...policyForm.permissions, level]
-                        });
-                      } else {
-                        setPolicyForm({
-                          ...policyForm,
-                          permissions: policyForm.permissions.filter(p => p !== level)
-                        });
-                      }
-                    }}
-                  />
-                }
-                label={getPermissionLevelDisplayName(level)}
-              />
-            ))}
-          </FormGroup>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditingPolicy(null)}>ביטול</Button>
@@ -1289,7 +1393,15 @@ const UserManagement: React.FC = () => {
                   <Box>
                     <Typography variant="body2">{policy.name}</Typography>
                     <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.875rem' }}>
-                      {(policy.paths || []).map(p => getSystemPathDisplayName(p)).join(', ')} - {policy.permissions.map(p => getPermissionLevelDisplayName(p)).join(', ')}
+                      {(policy.paths || []).map(p => getSystemPathDisplayName(p)).join(', ')} - {
+                        policy.pathPermissions ? 
+                          Object.entries(policy.pathPermissions)
+                            .filter(([_, permissions]) => permissions.length > 0)
+                            .map(([path, permissions]) => 
+                              `${getSystemPathDisplayName(path as SystemPath)}: ${permissions.map(p => getPermissionLevelDisplayName(p)).join(', ')}`
+                            ).join('; ')
+                          : policy.permissions.map(p => getPermissionLevelDisplayName(p)).join(', ')
+                      }
                     </Typography>
                   </Box>
                 }

@@ -253,7 +253,7 @@ export const createUserFromSoldier = functions.firestore
           
           // אל תעדכן תפקיד והרשאות אם המשתמש כבר קיים
           if (!existingData.role) {
-            updateData.role = "chayal";
+            updateData.role = "טרם הוזנו פרטים";
           }
           if (!existingData.canAssignRoles) {
             updateData.canAssignRoles = false;
@@ -271,7 +271,7 @@ export const createUserFromSoldier = functions.firestore
           uid: userRecord.uid,
           displayName: soldierData.fullName,
           email: soldierData.email,
-          role: "chayal", // ברירת מחדל
+          role: "טרם הוזנו פרטים", // ברירת מחדל
           personalNumber: soldierData.personalNumber,
           
           // קישור לרשומת החייל

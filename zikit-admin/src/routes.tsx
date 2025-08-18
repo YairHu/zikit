@@ -23,6 +23,7 @@ import ActivityStatistics from './pages/ActivityStatistics';
 import DutyDetails from './pages/DutyDetails';
 import FrameworkManagement from './pages/FrameworkManagement';
 import FrameworkDetails from './pages/FrameworkDetails';
+import DataImportExport from './pages/DataImportExport';
 import { signOutUser } from './services/authService';
 import { Drawer, List, ListItem, ListItemIcon, ListItemText, IconButton, AppBar, Toolbar, Typography, Box, Divider, Avatar, Collapse, Menu, MenuItem, Select, FormControl, InputLabel } from '@mui/material';
 import AccessDenied from './components/AccessDenied';
@@ -45,6 +46,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import BarChartIcon from '@mui/icons-material/BarChart';
+import FileUploadIcon from '@mui/icons-material/FileUpload';
 
 const drawerWidth = 260;
 
@@ -79,7 +81,7 @@ const getMenuItems = async (user: any) => {
 
   // בדיקת הרשאות לכל הנתיבים
   const canViewSoldiers = await canUserAccessPath(user.uid, SystemPath.SOLDIERS, PermissionLevel.VIEW);
-  const canViewTeams = await canUserAccessPath(user.uid, SystemPath.TEAMS, PermissionLevel.VIEW);
+  const canViewFrameworks = await canUserAccessPath(user.uid, SystemPath.FRAMEWORKS, PermissionLevel.VIEW);
   const canViewTrips = await canUserAccessPath(user.uid, SystemPath.TRIPS, PermissionLevel.VIEW);
   const canViewMissions = await canUserAccessPath(user.uid, SystemPath.MISSIONS, PermissionLevel.VIEW);
   const canViewActivities = await canUserAccessPath(user.uid, SystemPath.ACTIVITIES, PermissionLevel.VIEW);
@@ -87,17 +89,17 @@ const getMenuItems = async (user: any) => {
   const canViewReferrals = await canUserAccessPath(user.uid, SystemPath.REFERRALS, PermissionLevel.VIEW);
   const canViewForms = await canUserAccessPath(user.uid, SystemPath.FORMS, PermissionLevel.VIEW);
   const canViewUsers = await canUserAccessPath(user.uid, SystemPath.USERS, PermissionLevel.VIEW);
-  const canViewFrameworks = await canUserAccessPath(user.uid, SystemPath.FRAMEWORKS, PermissionLevel.VIEW);
 
   const managementItems = [
     ...(canViewSoldiers ? [{ text: 'כוח אדם', icon: <GroupsIcon />, path: '/soldiers' }] : []),
-    ...(canViewTeams ? [{ text: 'צוותים', icon: <GroupsIcon />, path: '/teams' }] : []),
+    ...(canViewFrameworks ? [{ text: 'מסגרות', icon: <GroupsIcon />, path: '/teams' }] : []),
     ...(canViewTrips ? [{ text: 'נסיעות ורכבים', icon: <DirectionsCarIcon />, path: '/trips' }] : []),
     ...(canViewMissions ? [{ text: 'משימות', icon: <AssignmentIcon />, path: '/missions' }] : []),
     ...(canViewActivities ? [{ text: 'פעילויות מבצעיות', icon: <AssignmentIcon />, path: '/activities' }] : []),
     ...(canViewDuties ? [{ text: 'תורנויות', icon: <CalendarMonthIcon />, path: '/duties' }] : []),
     ...(canViewReferrals ? [{ text: 'הפניות', icon: <LocalHospitalIcon />, path: '/referrals' }] : []),
     ...(canViewForms ? [{ text: 'טפסים', icon: <DescriptionIcon />, path: '/forms' }] : []),
+    ...(canViewForms ? [{ text: 'ייבוא/ייצוא נתונים', icon: <FileUploadIcon />, path: '/data-import-export' }] : []),
     ...(canViewMissions ? [{ text: 'מסך חמ"ל', icon: <MonitorIcon />, path: '/hamal' }] : []),
     ...(canViewActivities ? [{ text: 'סטטיסטיקות פעילויות', icon: <BarChartIcon />, path: '/activity-statistics' }] : [])
   ];
@@ -353,6 +355,11 @@ const AppRoutes: React.FC = () => {
           <Route path="/forms" element={
             <ProtectedRoute userRole={user.role as UserRole}>
               <Forms />
+            </ProtectedRoute>
+          } />
+          <Route path="/data-import-export" element={
+            <ProtectedRoute userRole={user.role as UserRole}>
+              <DataImportExport />
             </ProtectedRoute>
           } />
           <Route path="/users" element={

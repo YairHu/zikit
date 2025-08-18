@@ -3,6 +3,7 @@ export interface BasePerson {
   id: string;
   name: string;
   personalNumber: string;
+  rank?: string; // דרגה
   frameworkId?: string; // מזהה המסגרת שאליה שייך האדם
   role: string;
   profile: string;

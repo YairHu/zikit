@@ -131,7 +131,7 @@ const TeamDetails: React.FC = () => {
   if (loading) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Typography>טוען פרטי צוות...</Typography>
+        <Typography>טוען פרטי מסגרת...</Typography>
       </Container>
     );
   }
@@ -139,7 +139,7 @@ const TeamDetails: React.FC = () => {
   if (!team) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Alert severity="error">לא נמצא צוות</Alert>
+        <Alert severity="error">לא נמצאה מסגרת</Alert>
       </Container>
     );
   }
@@ -176,12 +176,12 @@ const TeamDetails: React.FC = () => {
         </Tabs>
       </Box>
 
-      {/* סגל הצוות */}
+      {/* סגל המסגרת */}
       {team.commanders.length > 0 && (
         <Box sx={{ mb: 4 }}>
           <Typography variant="h5" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
             <StarIcon sx={{ mr: 1, color: 'primary.main' }} />
-            סגל הצוות ({team.commanders.length})
+            סגל המסגרת ({team.commanders.length})
           </Typography>
           
           {viewMode === 'table' ? (
@@ -462,7 +462,7 @@ const TeamDetails: React.FC = () => {
         </Box>
       )}
 
-      {/* לוחמי הצוות */}
+      {/* לוחמי המסגרת */}
       {team.fighters.length > 0 && (
         <Box sx={{ mb: 4 }}>
           <Typography variant="h5" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
@@ -750,7 +750,7 @@ const TeamDetails: React.FC = () => {
 
       {team.soldiers.length === 0 && (
         <Alert severity="info" sx={{ mt: 3 }}>
-          לא נמצאו חיילים בצוות זה.
+          לא נמצאו חיילים במסגרת זו.
         </Alert>
       )}
 
@@ -796,10 +796,10 @@ const TeamDetails: React.FC = () => {
                     {activity.plannedDate} {activity.plannedTime} - {activity.location}
                   </Typography>
 
-                  {/* משתתפים מהצוות */}
+                  {/* משתתפים מהמסגרת */}
                   <Box sx={{ mt: 1 }}>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                      משתתפים מהצוות:
+                      משתתפים מהמסגרת:
                     </Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                       {team.soldiers
@@ -869,10 +869,10 @@ const TeamDetails: React.FC = () => {
                     {duty.startDate} {duty.startTime} - {duty.location}
                   </Typography>
 
-                  {/* משתתפים מהצוות */}
+                  {/* משתתפים מהמסגרת */}
                   <Box sx={{ mt: 1 }}>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                      משתתפים מהצוות:
+                      משתתפים מהמסגרת:
                     </Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                       {duty.participants
@@ -939,7 +939,7 @@ const TeamDetails: React.FC = () => {
                     {trip.departureTime} - {trip.returnTime} • {trip.location}
                   </Typography>
 
-                  {/* נהג מהצוות */}
+                  {/* נהג מהמסגרת */}
                   {trip.driverName && (
                     <Box sx={{ mt: 1 }}>
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>

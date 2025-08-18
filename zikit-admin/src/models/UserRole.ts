@@ -41,7 +41,8 @@ export interface PermissionPolicy {
   description: string;
   paths: SystemPath[]; // מערך של נתיבים במקום נתיב אחד
   dataScope: DataScope;
-  permissions: PermissionLevel[];
+  permissions: PermissionLevel[]; // הרשאות גלובליות (לפורמט הישן)
+  pathPermissions?: Record<SystemPath, PermissionLevel[]>; // הרשאות דינמיות לפי נתיב (פורמט חדש)
   createdAt: Date;
   updatedAt: Date;
   createdBy: string;
@@ -96,7 +97,7 @@ export const getSystemPathDisplayName = (path: SystemPath): string => {
     case SystemPath.SOLDIERS:
       return 'כוח אדם';
     case SystemPath.TEAMS:
-      return 'צוותים';
+      return 'מסגרות';
     case SystemPath.MISSIONS:
       return 'משימות';
     case SystemPath.ACTIVITIES:

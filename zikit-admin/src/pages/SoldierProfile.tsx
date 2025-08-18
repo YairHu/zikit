@@ -249,6 +249,11 @@ const SoldierProfile: React.FC = () => {
                   <Typography variant="body2" color="text.secondary">
                     {soldier.personalNumber}
                   </Typography>
+                  {soldier.rank && (
+                    <Typography variant="body2" color="primary" fontWeight="medium">
+                      {soldier.rank}
+                    </Typography>
+                  )}
                 </Box>
               </Box>
 
@@ -261,8 +266,14 @@ const SoldierProfile: React.FC = () => {
                   מידע בסיסי
                 </Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {soldier.rank && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" color="text.secondary">דרגה:</Typography>
+                      <Typography variant="body2" fontWeight="bold" color="primary">{soldier.rank}</Typography>
+                    </Box>
+                  )}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography variant="body2" color="text.secondary">צוות:</Typography>
+                    <Typography variant="body2" color="text.secondary">מסגרת:</Typography>
                     <Typography variant="body2" fontWeight="bold">{frameworkName || soldier.frameworkId || 'לא שויך למסגרת'}</Typography>
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -557,7 +568,7 @@ const SoldierProfile: React.FC = () => {
                   {viewMode === 'cards' && (
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       {activities.map((activity) => (
-                        <Card key={activity.id} sx={{ cursor: 'pointer' }} onClick={() => navigate(`/activities/${activity.id}`)}>
+                        <Card key={activity.id} sx={{ cursor: 'default' }}>
                           <CardContent>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
                               <Typography variant="h6" fontWeight="bold">
@@ -583,9 +594,33 @@ const SoldierProfile: React.FC = () => {
                                   activity.participants.find(p => p.soldierId === soldier.id)?.role || 'משתתף'
                                 }
                               </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>סוג פעילות:</strong> {activity.activityType}{activity.activityTypeOther ? ` - ${activity.activityTypeOther}` : ''}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>אזור:</strong> {activity.region}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>משך:</strong> {activity.duration} שעות
+                              </Typography>
                               {activity.mobility && (
                                 <Typography variant="body2" color="text.secondary">
                                   <strong>ניוד:</strong> {formatMobilityDisplay(activity.mobility)}
+                                </Typography>
+                              )}
+                              {activity.commanderId && (
+                                <Typography variant="body2" color="text.secondary">
+                                  <strong>מפקד הפעילות:</strong> {activity.commanderName || 'לא מוגדר'}
+                                </Typography>
+                              )}
+                              {activity.taskLeaderId && (
+                                <Typography variant="body2" color="text.secondary">
+                                  <strong>מוביל משימה:</strong> {activity.taskLeaderName || 'לא מוגדר'}
+                                </Typography>
+                              )}
+                              {activity.participants && activity.participants.length > 0 && (
+                                <Typography variant="body2" color="text.secondary">
+                                  <strong>מספר משתתפים:</strong> {activity.participants.length}
                                 </Typography>
                               )}
                             </Box>
@@ -610,7 +645,7 @@ const SoldierProfile: React.FC = () => {
                         </TableHead>
                         <TableBody>
                           {activities.map((activity) => (
-                            <TableRow key={activity.id} hover onClick={() => navigate(`/activities/${activity.id}`)} sx={{ cursor: 'pointer' }}>
+                            <TableRow key={activity.id} sx={{ cursor: 'default' }}>
                               <TableCell>
                                 <Typography variant="body2" fontWeight="bold">
                                   {activity.name}
@@ -664,10 +699,8 @@ const SoldierProfile: React.FC = () => {
                           border: '1px solid #e0e0e0', 
                           borderRadius: 1, 
                           mb: 1, 
-                          cursor: 'pointer',
-                          '&:hover': { bgcolor: 'action.hover' }
+                          cursor: 'default'
                         }}
-                        onClick={() => navigate(`/duties/${duty.id}`)}
                       >
                         <ListItemText
                           primary={
@@ -733,10 +766,8 @@ const SoldierProfile: React.FC = () => {
                           border: '1px solid #e0e0e0', 
                           borderRadius: 1, 
                           mb: 1, 
-                          cursor: 'pointer',
-                          '&:hover': { bgcolor: 'action.hover' }
+                          cursor: 'default'
                         }}
-                        onClick={() => navigate(`/trips/${trip.id}`)}
                       >
                         <ListItemText
                           primary={

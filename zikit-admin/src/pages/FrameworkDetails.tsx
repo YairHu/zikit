@@ -45,17 +45,22 @@ import {
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
 import { FrameworkWithDetails } from '../models/Framework';
-import { getFrameworkWithDetails, getFrameworkNamesByIds } from '../services/frameworkService';
+import { getAllFrameworks, getFrameworkWithDetails, getFrameworkNamesByIds } from '../services/frameworkService';
+import { getAllSoldiers } from '../services/soldierService';
 import { getPresenceColor, getProfileColor } from '../utils/colors';
+import { getUserPermissions } from '../services/permissionService';
+import { PermissionLevel, SystemPath } from '../models/UserRole';
 
 const FrameworkDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useUser();
   const [framework, setFramework] = useState<FrameworkWithDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [activeTab, setActiveTab] = useState(0);
   const [frameworkNames, setFrameworkNames] = useState<{ [key: string]: string }>({});
+  const [canManageFrameworks, setCanManageFrameworks] = useState<boolean>(false);
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -64,6 +69,52 @@ const FrameworkDetails: React.FC = () => {
       setLoading(true);
       setError('');
       
+      // בדיקת הרשאות לניהול מסגרות
+      if (user) {
+        try {
+          const { policies } = await getUserPermissions(user.uid);
+          const policy = policies.find(p => (p.paths || []).includes(SystemPath.FRAMEWORKS));
+          const canManage = !!policy && (
+            policy.permissions.includes(PermissionLevel.CREATE) ||
+            policy.permissions.includes(PermissionLevel.EDIT)
+          );
+          setCanManageFrameworks(canManage);
+
+          // אם משתמש מוגבל למסגרת שלו בלבד, בחן גישה למסגרת המבוקשת
+          if (policy?.dataScope === 'framework_only') {
+            const [frameworks, soldiers] = await Promise.all([
+              getAllFrameworks(),
+              getAllSoldiers()
+            ]);
+            const userSoldier = user.soldierDocId
+              ? soldiers.find(s => s.id === user.soldierDocId)
+              : soldiers.find(s => s.email === user.email);
+            const rootFrameworkId = userSoldier?.frameworkId;
+            if (rootFrameworkId) {
+              const collectHierarchy = (rootId: string): string[] => {
+                const direct = [rootId];
+                const children = frameworks.filter(f => f.parentFrameworkId === rootId);
+                const childIds = children.flatMap(child => collectHierarchy(child.id));
+                return [...direct, ...childIds];
+              };
+              const allowed = new Set(collectHierarchy(rootFrameworkId));
+              if (!allowed.has(id)) {
+                setError('אין הרשאה לצפות במסגרת זו');
+                setLoading(false);
+                return;
+              }
+            } else {
+              setError('אין הרשאה לצפות במסגרת זו');
+              setLoading(false);
+              return;
+            }
+          }
+        } catch (e) {
+          // במקרה של שגיאה בהרשאות, נסתיר את הכפתור
+          setCanManageFrameworks(false);
+        }
+      }
+
       // טעינת פרטי המסגרת עם כל המידע
       const frameworkData = await getFrameworkWithDetails(id);
       if (!frameworkData) {
@@ -138,9 +189,15 @@ const FrameworkDetails: React.FC = () => {
             רמה: {framework.level} • {framework.totalSoldiers} חיילים
           </Typography>
         </Box>
-        <IconButton>
-          <EditIcon />
-        </IconButton>
+        {canManageFrameworks && (
+          <Button
+            variant="outlined"
+            startIcon={<AccountTreeIcon />}
+            onClick={() => navigate('/framework-management')}
+          >
+            ניהול מסגרות
+          </Button>
+        )}
       </Box>
 
       {/* Framework Info Card */}

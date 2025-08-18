@@ -34,10 +34,20 @@ export const getAllPolicies = async (): Promise<PermissionPolicy[]> => {
       const paths: SystemPath[] = Array.isArray(data.paths)
         ? data.paths
         : (data.path ? [data.path as SystemPath] : []);
+      
+      // המרה של pathPermissions אם קיים
+      const pathPermissions: Partial<Record<SystemPath, PermissionLevel[]>> = {};
+      if (data.pathPermissions) {
+        Object.keys(data.pathPermissions).forEach(path => {
+          pathPermissions[path as SystemPath] = data.pathPermissions[path] || [];
+        });
+      }
+      
       return {
         id: d.id,
         ...data,
         paths,
+        pathPermissions: Object.keys(pathPermissions).length > 0 ? pathPermissions as Record<SystemPath, PermissionLevel[]> : undefined,
         createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt || new Date()),
         updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt || new Date())
       } as PermissionPolicy;
@@ -62,10 +72,19 @@ export const getPolicyById = async (policyId: string): Promise<PermissionPolicy 
       ? data.paths
       : (data.path ? [data.path as SystemPath] : []);
     
+    // המרה של pathPermissions אם קיים
+    const pathPermissions: Partial<Record<SystemPath, PermissionLevel[]>> = {};
+    if (data.pathPermissions) {
+      Object.keys(data.pathPermissions).forEach(path => {
+        pathPermissions[path as SystemPath] = data.pathPermissions[path] || [];
+      });
+    }
+    
     return {
       id: policyDoc.id,
       ...data,
       paths,
+      pathPermissions: Object.keys(pathPermissions).length > 0 ? pathPermissions as Record<SystemPath, PermissionLevel[]> : undefined,
       createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt || new Date()),
       updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt || new Date())
     } as PermissionPolicy;
@@ -83,6 +102,10 @@ export const createPolicy = async (
     const policiesRef = collection(db, 'permissionPolicies');
     const newPolicy = {
       ...policy,
+      // המרה של pathPermissions לשמירה
+      pathPermissions: policy.pathPermissions ? Object.fromEntries(
+        Object.entries(policy.pathPermissions).filter(([_, permissions]) => permissions.length > 0)
+      ) : undefined,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
       createdBy
@@ -103,10 +126,17 @@ export const updatePolicy = async (
 ): Promise<void> => {
   try {
     const policyRef = doc(db, 'permissionPolicies', policyId);
-    await updateDoc(policyRef, {
+    
+    // המרה של pathPermissions לשמירה
+    const updateData = {
       ...updates,
+      pathPermissions: updates.pathPermissions ? Object.fromEntries(
+        Object.entries(updates.pathPermissions).filter(([_, permissions]) => permissions.length > 0)
+      ) : undefined,
       updatedAt: Timestamp.now()
-    });
+    };
+    
+    await updateDoc(policyRef, updateData);
   } catch (error) {
     console.error('שגיאה בעדכון מדיניות:', error);
     throw error;
@@ -276,6 +306,12 @@ export const canUserAccessPath = async (
     }
     
     // בדיקה שהמדיניות כוללת את ההרשאה הנדרשת
+    // אם יש pathPermissions במדיניות (הפורמט החדש), נבדוק לפי הנתיב הספציפי
+    if (relevantPolicy.pathPermissions && relevantPolicy.pathPermissions[path]) {
+      return relevantPolicy.pathPermissions[path].includes(requiredPermission);
+    }
+    
+    // אחרת, נשתמש בפורמט הישן (permissions גלובליים)
     return relevantPolicy.permissions.includes(requiredPermission);
   } catch (error) {
     console.error('שגיאה בבדיקת הרשאה:', error);
