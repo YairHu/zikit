@@ -4,6 +4,7 @@ import { getAllSoldiers } from './soldierService';
 import { getAllActivities, getActivitiesByTeam } from './activityService';
 import { getAllDuties, getDutiesByTeam } from './dutyService';
 import { getAllTrips, getTripsByTeam } from './tripService';
+import { localStorageService, updateTableTimestamp } from './cacheService';
 import { db } from '../firebase';
 import { 
   collection, 
@@ -19,21 +20,27 @@ import {
 } from 'firebase/firestore';
 
 export const getAllFrameworks = async (): Promise<Framework[]> => {
-  try {
-    const frameworksRef = collection(db, 'frameworks');
-    const q = query(frameworksRef, orderBy('name'));
-    const querySnapshot = await getDocs(q);
-    
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt ? new Date(doc.data().createdAt) : new Date(),
-      updatedAt: doc.data().updatedAt ? new Date(doc.data().updatedAt) : new Date()
-    })) as Framework[];
-  } catch (error) {
-    console.error('שגיאה בקבלת מסגרות:', error);
-    return [];
-  }
+  return localStorageService.getFromLocalStorage('frameworks', async () => {
+    try {
+      console.log('📡 [DB] טוען מסגרות מהשרת');
+      const frameworksRef = collection(db, 'frameworks');
+      const q = query(frameworksRef, orderBy('name'));
+      const querySnapshot = await getDocs(q);
+      
+      const frameworks = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt ? new Date(doc.data().createdAt) : new Date(),
+        updatedAt: doc.data().updatedAt ? new Date(doc.data().updatedAt) : new Date()
+      })) as Framework[];
+      
+      console.log(`✅ [DB] נטענו ${frameworks.length} מסגרות מהשרת`);
+      return frameworks;
+    } catch (error) {
+      console.error('❌ [DB] שגיאה בקבלת מסגרות:', error);
+      return [];
+    }
+  });
 };
 
 export const getFrameworkById = async (id: string): Promise<Framework | null> => {
@@ -129,6 +136,11 @@ export const createFramework = async (framework: Omit<Framework, 'id' | 'created
     
     const docRef = await addDoc(frameworksRef, newFramework);
     
+    // עדכון טבלת העדכונים וניקוי מטמון מקומי
+    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי מסגרות');
+    await updateTableTimestamp('frameworks');
+    localStorageService.invalidateLocalStorage('frameworks');
+    
     return {
       id: docRef.id,
       ...newFramework,
@@ -150,6 +162,11 @@ export const updateFramework = async (id: string, updates: Partial<Omit<Framewor
     };
     
     await updateDoc(frameworkRef, updateData);
+    
+    // עדכון טבלת העדכונים וניקוי מטמון מקומי
+    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי מסגרות');
+    await updateTableTimestamp('frameworks');
+    localStorageService.invalidateLocalStorage('frameworks');
     
     // החזרת המסגרת המעודכנת
     return await getFrameworkById(id);
@@ -178,6 +195,11 @@ export const deleteFramework = async (id: string): Promise<boolean> => {
     
     const frameworkRef = doc(db, 'frameworks', id);
     await deleteDoc(frameworkRef);
+    
+    // עדכון טבלת העדכונים וניקוי מטמון מקומי
+    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי מסגרות');
+    await updateTableTimestamp('frameworks');
+    localStorageService.invalidateLocalStorage('frameworks');
     
     return true;
   } catch (error) {

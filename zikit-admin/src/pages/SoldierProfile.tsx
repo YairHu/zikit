@@ -54,7 +54,8 @@ import {
   Description as DescriptionIcon,
   LocalHospital as MedicalIcon,
   AttachFile as DocumentIcon,
-  LocalHospital as ReferralIcon
+  LocalHospital as ReferralIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { getSoldierById } from '../services/soldierService';
 import { getFrameworkNameById } from '../services/frameworkService';
@@ -73,6 +74,7 @@ import SoldierForm from '../components/SoldierForm';
 import { getAllTrips } from '../services/tripService';
 import { getAllVehicles } from '../services/vehicleService';
 import { canUserEditSoldierDetails } from '../services/permissionService';
+import { localStorageService } from '../services/cacheService';
 
 const SoldierProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -90,6 +92,7 @@ const SoldierProfile: React.FC = () => {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [showEditForm, setShowEditForm] = useState(false);
   const [canEditSoldier, setCanEditSoldier] = useState<boolean>(false);
+  const [isRefreshingCache, setIsRefreshingCache] = useState<boolean>(false);
 
   useEffect(() => {
     if (id) {
@@ -154,6 +157,49 @@ const SoldierProfile: React.FC = () => {
 
   const handleCloseEditForm = () => {
     setShowEditForm(false);
+  };
+
+  const handleRefreshCache = async () => {
+    if (!user) return;
+    
+    setIsRefreshingCache(true);
+    try {
+      // ניקוי מטמון מקומי
+      localStorageService.clearAllLocalStorage();
+      
+      // רענון הנתונים
+      if (id) {
+        const refreshedSoldier = await getSoldierById(id);
+        setSoldier(refreshedSoldier);
+        
+        // רענון נתונים נוספים
+        const [activitiesData, dutiesData, referralsData, tripsData, allTripsData, allVehiclesData] = await Promise.all([
+          getActivitiesBySoldier(id),
+          getDutiesBySoldier(id),
+          getReferralsBySoldier(id),
+          getTripsBySoldier(id),
+          getAllTrips(),
+          getAllVehicles()
+        ]);
+        
+        setActivities(activitiesData);
+        setDuties(dutiesData);
+        setReferrals(referralsData);
+        setTrips(tripsData);
+        setAllTrips(allTripsData);
+        setAllVehicles(allVehiclesData);
+        
+        // רענון שם המסגרת
+        if (refreshedSoldier?.frameworkId) {
+          const name = await getFrameworkNameById(refreshedSoldier.frameworkId);
+          setFrameworkName(name);
+        }
+      }
+    } catch (error) {
+      console.error('שגיאה ברענון מטמון:', error);
+    } finally {
+      setIsRefreshingCache(false);
+    }
   };
 
   const formatMobilityDisplay = (mobility: string) => {
@@ -228,19 +274,37 @@ const SoldierProfile: React.FC = () => {
             {soldier.name} • {soldier.personalNumber}
           </Typography>
         </Box>
-        {user && (
-          (canEditSoldier || 
-           user.role === 'admin' || 
-           (user.role === 'chayal' && user.soldierDocId === soldier.id)) && (
-            <IconButton 
-              color="primary"
-              onClick={handleOpenEditForm}
-              sx={{ bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' } }}
-            >
-              <EditIcon />
-            </IconButton>
-          )
-        )}
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          {/* כפתור ריענון מטמון */}
+          <IconButton 
+            color="secondary"
+            onClick={handleRefreshCache}
+            disabled={isRefreshingCache}
+            sx={{ 
+              bgcolor: 'secondary.main', 
+              color: 'white', 
+              '&:hover': { bgcolor: 'secondary.dark' },
+              '&:disabled': { bgcolor: 'grey.400' }
+            }}
+          >
+            {isRefreshingCache ? <CircularProgress size={20} color="inherit" /> : <RefreshIcon />}
+          </IconButton>
+          
+          {/* כפתור עריכה */}
+          {user && (
+            (canEditSoldier || 
+             user.role === 'admin' || 
+             (user.role === 'chayal' && user.soldierDocId === soldier.id)) && (
+              <IconButton 
+                color="primary"
+                onClick={handleOpenEditForm}
+                sx={{ bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' } }}
+              >
+                <EditIcon />
+              </IconButton>
+            )
+          )}
+        </Box>
       </Box>
 
       <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', md: 'row' } }}>

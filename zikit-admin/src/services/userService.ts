@@ -12,13 +12,25 @@ import {
 import { db } from '../firebase';
 import { User } from '../models/User';
 import { UserRole } from '../models/UserRole';
+import { localStorageService, updateTableTimestamp } from './cacheService';
 
 const USERS_COLLECTION = 'users';
 
 // שירותי משתמשים בסיסיים
 export const getAllUsers = async (): Promise<User[]> => {
-  const querySnapshot = await getDocs(collection(db, USERS_COLLECTION));
-  return querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
+  return localStorageService.getFromLocalStorage('users', async () => {
+    try {
+      console.log('📡 [DB] טוען משתמשים מהשרת');
+      const querySnapshot = await getDocs(collection(db, USERS_COLLECTION));
+      const users = querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
+      
+      console.log(`✅ [DB] נטענו ${users.length} משתמשים מהשרת`);
+      return users;
+    } catch (error) {
+      console.error('❌ [DB] Error getting users:', error);
+      return [];
+    }
+  });
 };
 
 export const getUserById = async (uid: string): Promise<User | null> => {
@@ -35,6 +47,11 @@ export const createUser = async (user: Omit<User, 'uid'>): Promise<void> => {
     updatedAt: new Date(),
     isActive: true
   });
+  
+  // עדכון טבלת העדכונים וניקוי מטמון מקומי
+  console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי משתמשים');
+  await updateTableTimestamp('users');
+  localStorageService.invalidateLocalStorage('users');
 };
 
 export const updateUser = async (uid: string, userData: Partial<User>): Promise<void> => {
@@ -44,11 +61,21 @@ export const updateUser = async (uid: string, userData: Partial<User>): Promise<
     ...userData,
     updatedAt: new Date()
   });
+  
+  // עדכון טבלת העדכונים וניקוי מטמון מקומי
+  console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי משתמשים');
+  await updateTableTimestamp('users');
+  localStorageService.invalidateLocalStorage('users');
 };
 
 export const deleteUser = async (uid: string): Promise<void> => {
   const userRef = doc(db, USERS_COLLECTION, uid);
   await deleteDoc(userRef);
+  
+  // עדכון טבלת העדכונים וניקוי מטמון מקומי
+  console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי משתמשים');
+  await updateTableTimestamp('users');
+  localStorageService.invalidateLocalStorage('users');
 };
 
 // פונקציה להסרת משתמש מהמערכת (רק לאדמין ומ"פ)

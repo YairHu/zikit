@@ -11,7 +11,7 @@ import { getAllVehicles } from '../services/vehicleService';
 import { getAllTrips, updateTrip } from '../services/tripService';
 import { getAllFrameworks } from '../services/frameworkService';
 import { UserRole, SystemPath, PermissionLevel, DataScope } from '../models/UserRole';
-import { canUserAccessPath, getUserPermissions } from '../services/permissionService';
+import { getUserAllPermissions } from '../services/permissionService';
 
 import {
   Container,
@@ -146,10 +146,14 @@ const Activities: React.FC = () => {
     try {
       // בדיקת הרשאות המשתמש
       if (user) {
-        const canView = await canUserAccessPath(user.uid, SystemPath.ACTIVITIES, PermissionLevel.VIEW);
-        const canCreate = await canUserAccessPath(user.uid, SystemPath.ACTIVITIES, PermissionLevel.CREATE);
-        const canEdit = await canUserAccessPath(user.uid, SystemPath.ACTIVITIES, PermissionLevel.EDIT);
-        const canDelete = await canUserAccessPath(user.uid, SystemPath.ACTIVITIES, PermissionLevel.DELETE);
+        // קבלת כל הרשאות המשתמש בבת אחת
+        const userAllPermissions = await getUserAllPermissions(user.uid);
+        
+        // בדיקת הרשאות לפעילויות
+        const canView = userAllPermissions.permissions[SystemPath.ACTIVITIES]?.[PermissionLevel.VIEW] || false;
+        const canCreate = userAllPermissions.permissions[SystemPath.ACTIVITIES]?.[PermissionLevel.CREATE] || false;
+        const canEdit = userAllPermissions.permissions[SystemPath.ACTIVITIES]?.[PermissionLevel.EDIT] || false;
+        const canDelete = userAllPermissions.permissions[SystemPath.ACTIVITIES]?.[PermissionLevel.DELETE] || false;
         
         setPermissions({ canView, canCreate, canEdit, canDelete });
         
@@ -164,23 +168,24 @@ const Activities: React.FC = () => {
         }
       }
 
-      // טעינת נתונים
+      // טעינת נתונים - עכשיו מהמטמון המקומי
       const [allActivitiesData, soldiersData, vehiclesData, tripsData, frameworksData] = await Promise.all([
-        getAllActivities(),
-        getAllSoldiers(),
-        getAllVehicles(),
-        getAllTrips(),
-        getAllFrameworks()
+        getAllActivities(), // כבר משתמש במטמון
+        getAllSoldiers(), // כבר משתמש במטמון
+        getAllVehicles(), // כבר משתמש במטמון
+        getAllTrips(), // כבר משתמש במטמון
+        getAllFrameworks() // כבר משתמש במטמון
       ]);
 
       // טעינת פעילויות לפי הרשאות המשתמש
       let activitiesData = allActivitiesData;
       if (user) {
         // קבלת הרשאות המשתמש עם פרטי המדיניות
-        const userPermissions = await getUserPermissions(user.uid);
+        const userAllPermissions = await getUserAllPermissions(user.uid);
+        const userPermissions = userAllPermissions;
         
         // חיפוש מדיניות שמתאימה לפעילויות
-        const activitiesPolicy = userPermissions.policies.find(policy => 
+        const activitiesPolicy = userPermissions.policies.find((policy: any) => 
           policy.paths.includes(SystemPath.ACTIVITIES)
         );
         

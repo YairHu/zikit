@@ -23,6 +23,7 @@ import DutyDetails from './pages/DutyDetails';
 import FrameworkManagement from './pages/FrameworkManagement';
 import FrameworkDetails from './pages/FrameworkDetails';
 import DataImportExport from './pages/DataImportExport';
+import CacheMonitor from './pages/CacheMonitor';
 import { signOutUser } from './services/authService';
 import { Drawer, List, ListItem, ListItemIcon, ListItemText, IconButton, AppBar, Toolbar, Typography, Box, Divider, Avatar, Collapse, Menu, MenuItem, Select, FormControl, InputLabel } from '@mui/material';
 import AccessDenied from './components/AccessDenied';
@@ -46,6 +47,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
+import StorageIcon from '@mui/icons-material/Storage';
 
 const drawerWidth = 260;
 
@@ -106,7 +108,8 @@ const getMenuItems = async (user: any) => {
 
   const adminItems = [
     ...(canViewUsers ? [{ text: 'ניהול משתמשים', icon: <KeyIcon />, path: '/users' }] : []),
-    ...(canViewFrameworks ? [{ text: 'ניהול מבנה פלוגה', icon: <GroupsIcon />, path: '/framework-management' }] : [])
+    ...(canViewFrameworks ? [{ text: 'ניהול מבנה פלוגה', icon: <GroupsIcon />, path: '/framework-management' }] : []),
+            { text: 'ניטור מטמון מקומי', icon: <StorageIcon />, path: '/cache-monitor' }
   ];
 
   return { baseItems, managementItems, adminItems };
@@ -132,22 +135,22 @@ const SideDrawer: React.FC<{ open: boolean; onClose: () => void; onLogout: () =>
     loadMenuItems();
   }, [user]);
   
-  // טעינת חיילים
-  useEffect(() => {
-    const loadSoldiers = async () => {
-      try {
-        const allSoldiers = await getAllSoldiers();
-        setSoldiers(allSoldiers);
-      } catch (error) {
-        console.error('שגיאה בטעינת חיילים:', error);
-      }
-    };
+  // טעינת חיילים - לא נדרש יותר כי המטמון המקומי מטפל בזה
+  // useEffect(() => {
+  //   const loadSoldiers = async () => {
+  //     try {
+  //       const allSoldiers = await getAllSoldiers();
+  //       setSoldiers(allSoldiers);
+  //     } catch (error) {
+  //       console.error('שגיאה בטעינת חיילים:', error);
+  //     }
+  //   };
     
-    // טעינת חיילים לכל משתמש מחובר (הרשאות נבדקות במקום אחר)
-    if (user) {
-      loadSoldiers();
-    }
-  }, [user]);
+  //   // טעינת חיילים לכל משתמש מחובר (הרשאות נבדקות במקום אחר)
+  //   if (user) {
+  //     loadSoldiers();
+  //   }
+  // }, [user]);
   
   return (
     <Drawer anchor="right" open={open} onClose={onClose} sx={{ '& .MuiDrawer-paper': { width: drawerWidth, direction: 'rtl' } }}>
@@ -371,6 +374,11 @@ const AppRoutes: React.FC = () => {
           <Route path="/framework-management" element={
             <ProtectedRoute userRole={user.role as UserRole}>
               <FrameworkManagement />
+            </ProtectedRoute>
+          } />
+          <Route path="/cache-monitor" element={
+            <ProtectedRoute userRole={user.role as UserRole}>
+              <CacheMonitor />
             </ProtectedRoute>
           } />
 

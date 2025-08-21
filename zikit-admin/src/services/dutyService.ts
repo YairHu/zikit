@@ -1,21 +1,29 @@
 import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Duty } from '../models/Duty';
+import { localStorageService, updateTableTimestamp } from './cacheService';
 
 const COLLECTION_NAME = 'duties';
 
 export const getAllDuties = async (): Promise<Duty[]> => {
-  try {
-    const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Duty[];
-  } catch (error) {
-    console.error('Error getting duties:', error);
-    return [];
-  }
+  console.log('🔍 [LOCAL_STORAGE] מבקש רשימת תורנויות');
+  return localStorageService.getFromLocalStorage('duties', async () => {
+    try {
+      console.log('📡 [DB] טוען תורנויות מהשרת');
+      const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const duties = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Duty[];
+      
+      console.log(`✅ [DB] נטענו ${duties.length} תורנויות מהשרת`);
+      return duties;
+    } catch (error) {
+      console.error('❌ [DB] Error getting duties:', error);
+      return [];
+    }
+  });
 };
 
 export const getDutyById = async (id: string): Promise<Duty | null> => {
@@ -40,6 +48,12 @@ export const addDuty = async (duty: Omit<Duty, 'id' | 'createdAt' | 'updatedAt'>
       createdAt: now,
       updatedAt: now
     });
+    
+    // עדכון טבלת העדכונים וניקוי מטמון מקומי
+    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי תורנויות');
+    await updateTableTimestamp('duties');
+    localStorageService.invalidateLocalStorage('duties');
+    
     return docRef.id;
   } catch (error) {
     console.error('Error adding duty:', error);
@@ -54,6 +68,11 @@ export const updateDuty = async (id: string, duty: Partial<Duty>): Promise<void>
       ...duty,
       updatedAt: new Date().toISOString()
     });
+    
+    // עדכון טבלת העדכונים וניקוי מטמון מקומי
+    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי תורנויות');
+    await updateTableTimestamp('duties');
+    localStorageService.invalidateLocalStorage('duties');
   } catch (error) {
     console.error('Error updating duty:', error);
     throw error;
@@ -64,6 +83,11 @@ export const deleteDuty = async (id: string): Promise<void> => {
   try {
     const docRef = doc(db, COLLECTION_NAME, id);
     await deleteDoc(docRef);
+    
+    // עדכון טבלת העדכונים וניקוי מטמון מקומי
+    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי תורנויות');
+    await updateTableTimestamp('duties');
+    localStorageService.invalidateLocalStorage('duties');
   } catch (error) {
     console.error('Error deleting duty:', error);
     throw error;

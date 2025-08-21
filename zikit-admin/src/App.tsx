@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import AppRoutes from './routes';
 import { UserProvider } from './contexts/UserContext';
+import { initializeTableUpdates, checkTableUpdatesStatus, localStorageService } from './services/cacheService';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -167,6 +169,37 @@ const theme = createTheme({
 const jss = create({ plugins: [...jssPreset().plugins, rtl()] });
 
 function App() {
+  useEffect(() => {
+    // אתחול מערכת המטמון רק אחרי שהמשתמש מחובר
+    const auth = getAuth();
+    
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          // בדיקת מצב טבלת העדכונים
+          const status = await checkTableUpdatesStatus();
+          
+          // אתחול טבלת העדכונים
+          await initializeTableUpdates();
+          
+          // יצירת listener אחד בלבד לטבלת העדכונים
+          localStorageService.initializeUpdateListeners();
+        } catch (error) {
+          console.error('❌ [LOCAL_STORAGE] שגיאה באתחול מערכת מטמון מקומי:', error);
+        }
+      } else {
+        // ניקוי listeners כשהמשתמש מתנתק
+        localStorageService.cleanup();
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      // ניקוי listeners כשהאפליקציה נסגרת
+      localStorageService.cleanup();
+    };
+  }, []);
+
   return (
     <StyledEngineProvider injectFirst>
       <StylesProvider jss={jss}>

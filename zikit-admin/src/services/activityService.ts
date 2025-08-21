@@ -1,6 +1,7 @@
 import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Activity, ActivityDeliverable } from '../models/Activity';
+import { localStorageService, updateTableTimestamp } from './cacheService';
 
 const COLLECTION_NAME = 'activities';
 
@@ -66,17 +67,24 @@ export const addActivityDeliverable = async (
 };
 
 export const getAllActivities = async (): Promise<Activity[]> => {
-  try {
-    const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Activity[];
-  } catch (error) {
-    console.error('Error getting activities:', error);
-    return [];
-  }
+  console.log('🔍 [LOCAL_STORAGE] מבקש רשימת פעילויות');
+  return localStorageService.getFromLocalStorage('activities', async () => {
+    try {
+      console.log('📡 [DB] טוען פעילויות מהשרת');
+      const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const activities = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Activity[];
+      
+      console.log(`✅ [DB] נטענו ${activities.length} פעילויות מהשרת`);
+      return activities;
+    } catch (error) {
+      console.error('❌ [DB] Error getting activities:', error);
+      return [];
+    }
+  });
 };
 
 export const getActivityById = async (id: string): Promise<Activity | null> => {
@@ -101,6 +109,12 @@ export const addActivity = async (activity: Omit<Activity, 'id' | 'createdAt' | 
       createdAt: now,
       updatedAt: now
     });
+    
+    // עדכון טבלת העדכונים וניקוי מטמון מקומי
+    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי פעילויות');
+    await updateTableTimestamp('activities');
+    localStorageService.invalidateLocalStorage('activities');
+    
     return docRef.id;
   } catch (error) {
     console.error('Error adding activity:', error);
@@ -115,6 +129,11 @@ export const updateActivity = async (id: string, activity: Partial<Activity>): P
       ...activity,
       updatedAt: new Date().toISOString()
     });
+    
+    // עדכון טבלת העדכונים וניקוי מטמון מקומי
+    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי פעילויות');
+    await updateTableTimestamp('activities');
+    localStorageService.invalidateLocalStorage('activities');
   } catch (error) {
     console.error('Error updating activity:', error);
     throw error;
@@ -125,6 +144,11 @@ export const deleteActivity = async (id: string): Promise<void> => {
   try {
     const docRef = doc(db, COLLECTION_NAME, id);
     await deleteDoc(docRef);
+    
+    // עדכון טבלת העדכונים וניקוי מטמון מקומי
+    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי פעילויות');
+    await updateTableTimestamp('activities');
+    localStorageService.invalidateLocalStorage('activities');
   } catch (error) {
     console.error('Error deleting activity:', error);
     throw error;

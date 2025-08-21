@@ -9,7 +9,7 @@ import SoldierForm from '../components/SoldierForm';
 import HierarchicalChart from '../components/HierarchicalChart';
 import { useUser } from '../contexts/UserContext';
 import { UserRole, SystemPath, PermissionLevel, DataScope } from '../models/UserRole';
-import { canUserAccessPath, getUserPermissions } from '../services/permissionService';
+import { getUserAllPermissions } from '../services/permissionService';
 import {
   Box,
   Container,
@@ -122,11 +122,14 @@ const Soldiers: React.FC = () => {
     try {
       setLoading(true);
       
-      // בדיקת הרשאות המשתמש
-      const canView = await canUserAccessPath(user.uid, SystemPath.SOLDIERS, PermissionLevel.VIEW);
-      const canCreate = await canUserAccessPath(user.uid, SystemPath.SOLDIERS, PermissionLevel.CREATE);
-      const canEdit = await canUserAccessPath(user.uid, SystemPath.SOLDIERS, PermissionLevel.EDIT);
-      const canDelete = await canUserAccessPath(user.uid, SystemPath.SOLDIERS, PermissionLevel.DELETE);
+      // קבלת כל הרשאות המשתמש בבת אחת
+      const userAllPermissions = await getUserAllPermissions(user.uid);
+      
+      // בדיקת הרשאות לחיילים
+      const canView = userAllPermissions.permissions[SystemPath.SOLDIERS]?.[PermissionLevel.VIEW] || false;
+      const canCreate = userAllPermissions.permissions[SystemPath.SOLDIERS]?.[PermissionLevel.CREATE] || false;
+      const canEdit = userAllPermissions.permissions[SystemPath.SOLDIERS]?.[PermissionLevel.EDIT] || false;
+      const canDelete = userAllPermissions.permissions[SystemPath.SOLDIERS]?.[PermissionLevel.DELETE] || false;
       
       setPermissions({ canView, canCreate, canEdit, canDelete });
       
@@ -136,9 +139,8 @@ const Soldiers: React.FC = () => {
         return;
       }
       
-      // קבלת הרשאות המשתמש
-      const userPermissions = await getUserPermissions(user.uid);
-      const soldiersPolicy = userPermissions.policies.find(policy => 
+      // קבלת מדיניות החיילים
+      const soldiersPolicy = userAllPermissions.policies.find((policy: any) => 
         policy.paths.includes(SystemPath.SOLDIERS)
       );
       
@@ -199,8 +201,7 @@ const Soldiers: React.FC = () => {
         soldiersWithNamesData = allSoldiersWithNames;
       }
       
-      console.log('Loaded soldiers from Firebase:', soldiersData.length);
-      console.log('Loaded frameworks from Firebase:', frameworksData.length);
+      // הלוגים הוסרו כדי להפחית רעש בקונסול
       
       setSoldiers(soldiersData);
       setSoldiersWithFrameworkNames(soldiersWithNamesData);
@@ -217,7 +218,7 @@ const Soldiers: React.FC = () => {
 
   useEffect(() => {
     refresh();
-  }, [refresh]);
+  }, [user]); // רק כשהמשתמש משתנה
 
   // בדיקה אם יש פרמטר edit ב-URL
   useEffect(() => {
@@ -236,7 +237,6 @@ const Soldiers: React.FC = () => {
 
   // השתמש בנתונים מ-Firebase בלבד
   const data = soldiersWithFrameworkNames;
-  console.log('Using data:', data.length, 'items (soldiers from Firebase:', soldiers.length, ')');
 
   const filteredData = data.filter(s =>
           (!filterFramework || (s.frameworkId && s.frameworkId.includes(filterFramework))) &&

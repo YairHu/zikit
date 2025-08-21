@@ -101,14 +101,14 @@ const Home: React.FC = () => {
         const canViewAll = false; // נפשט את החישוב
         const isUserCommander = false;
         
-        // טעינת נתונים בהתאם להרשאות
+        // טעינת נתונים בהתאם להרשאות - עכשיו מהמטמון המקומי
         const [allSoldiers, allVehicles, allActivities, allDuties, allMissions, allReferrals] = await Promise.all([
-          getAllSoldiers(),
-          getAllVehicles(),
-          getAllActivities(),
-          getAllDuties(),
-          getAllMissions(),
-          getAllReferrals()
+          getAllSoldiers(), // כבר משתמש במטמון
+          getAllVehicles(), // כבר משתמש במטמון
+          getAllActivities(), // כבר משתמש במטמון
+          getAllDuties(), // כבר משתמש במטמון
+          getAllMissions(), // כבר משתמש במטמון
+          getAllReferrals() // כבר משתמש במטמון
         ]);
 
         // חישוב סטטיסטיקות

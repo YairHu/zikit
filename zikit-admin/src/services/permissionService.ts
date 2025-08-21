@@ -20,74 +20,54 @@ import {
   PermissionLevel,
   UserRole 
 } from '../models/UserRole';
+import { localStorageService, updateTableTimestamp } from './cacheService';
 
 // ===== ניהול מדיניות הרשאות =====
 
 export const getAllPolicies = async (): Promise<PermissionPolicy[]> => {
-  try {
-    const policiesRef = collection(db, 'permissionPolicies');
-    const q = query(policiesRef, orderBy('createdAt', 'desc'));
-    const snapshot = await getDocs(q);
-    
-    return snapshot.docs.map(d => {
-      const data: any = d.data();
-      const paths: SystemPath[] = Array.isArray(data.paths)
-        ? data.paths
-        : (data.path ? [data.path as SystemPath] : []);
+  return localStorageService.getFromLocalStorage('permissionPolicies', async () => {
+    try {
+      const policiesRef = collection(db, 'permissionPolicies');
+      const q = query(policiesRef, orderBy('createdAt', 'desc'));
+      const snapshot = await getDocs(q);
       
-      // המרה של pathPermissions אם קיים
-      const pathPermissions: Partial<Record<SystemPath, PermissionLevel[]>> = {};
-      if (data.pathPermissions) {
-        Object.keys(data.pathPermissions).forEach(path => {
-          pathPermissions[path as SystemPath] = data.pathPermissions[path] || [];
-        });
-      }
+      const policies = snapshot.docs.map(d => {
+        const data: any = d.data();
+        const paths: SystemPath[] = Array.isArray(data.paths)
+          ? data.paths
+          : (data.path ? [data.path as SystemPath] : []);
+        
+        // המרה של pathPermissions אם קיים
+        const pathPermissions: Partial<Record<SystemPath, PermissionLevel[]>> = {};
+        if (data.pathPermissions) {
+          Object.keys(data.pathPermissions).forEach(path => {
+            pathPermissions[path as SystemPath] = data.pathPermissions[path] || [];
+          });
+        }
+        
+        return {
+          id: d.id,
+          ...data,
+          paths,
+          pathPermissions: Object.keys(pathPermissions).length > 0 ? pathPermissions as Record<SystemPath, PermissionLevel[]> : undefined,
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt || new Date()),
+          updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt || new Date())
+        } as PermissionPolicy;
+      });
       
-      return {
-        id: d.id,
-        ...data,
-        paths,
-        pathPermissions: Object.keys(pathPermissions).length > 0 ? pathPermissions as Record<SystemPath, PermissionLevel[]> : undefined,
-        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt || new Date()),
-        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt || new Date())
-      } as PermissionPolicy;
-    });
-  } catch (error) {
-    console.error('שגיאה בטעינת מדיניות הרשאות:', error);
-    throw error;
-  }
+      return policies;
+    } catch (error) {
+      console.error('❌ [DB] שגיאה בטעינת מדיניות הרשאות:', error);
+      throw error;
+    }
+  });
 };
 
 export const getPolicyById = async (policyId: string): Promise<PermissionPolicy | null> => {
   try {
-    const policyRef = doc(db, 'permissionPolicies', policyId);
-    const policyDoc = await getDoc(policyRef);
-    
-    if (!policyDoc.exists()) {
-      return null;
-    }
-    
-    const data: any = policyDoc.data();
-    const paths: SystemPath[] = Array.isArray(data.paths)
-      ? data.paths
-      : (data.path ? [data.path as SystemPath] : []);
-    
-    // המרה של pathPermissions אם קיים
-    const pathPermissions: Partial<Record<SystemPath, PermissionLevel[]>> = {};
-    if (data.pathPermissions) {
-      Object.keys(data.pathPermissions).forEach(path => {
-        pathPermissions[path as SystemPath] = data.pathPermissions[path] || [];
-      });
-    }
-    
-    return {
-      id: policyDoc.id,
-      ...data,
-      paths,
-      pathPermissions: Object.keys(pathPermissions).length > 0 ? pathPermissions as Record<SystemPath, PermissionLevel[]> : undefined,
-      createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt || new Date()),
-      updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt || new Date())
-    } as PermissionPolicy;
+    // שימוש במטמון מקומי למדיניות
+    const policies = await getAllPolicies();
+    return policies.find(policy => policy.id === policyId) || null;
   } catch (error) {
     console.error('שגיאה בטעינת מדיניות:', error);
     throw error;
@@ -112,9 +92,17 @@ export const createPolicy = async (
     };
     
     const docRef = await addDoc(policiesRef, newPolicy);
+    
+    // עדכון טבלת העדכונים וניקוי מטמון מקומי
+    await updateTableTimestamp('permissionPolicies');
+    localStorageService.invalidateLocalStorage('permissionPolicies');
+    
+    // ניקוי מטמון הרשאות משתמש - כי מדיניות חדשה יכולה להשפיע על הרשאות
+    clearUserPermissionsCache();
+    
     return docRef.id;
   } catch (error) {
-    console.error('שגיאה ביצירת מדיניות:', error);
+    console.error('❌ [DB] שגיאה ביצירת מדיניות:', error);
     throw error;
   }
 };
@@ -137,6 +125,13 @@ export const updatePolicy = async (
     };
     
     await updateDoc(policyRef, updateData);
+    
+    // עדכון טבלת העדכונים וניקוי מטמון מקומי
+    await updateTableTimestamp('permissionPolicies');
+    localStorageService.invalidateLocalStorage('permissionPolicies');
+    
+    // ניקוי מטמון הרשאות משתמש - כי מדיניות עודכנה
+    clearUserPermissionsCache();
   } catch (error) {
     console.error('שגיאה בעדכון מדיניות:', error);
     throw error;
@@ -147,6 +142,13 @@ export const deletePolicy = async (policyId: string): Promise<void> => {
   try {
     const policyRef = doc(db, 'permissionPolicies', policyId);
     await deleteDoc(policyRef);
+    
+    // עדכון טבלת העדכונים וניקוי מטמון מקומי
+    await updateTableTimestamp('permissionPolicies');
+    localStorageService.invalidateLocalStorage('permissionPolicies');
+    
+    // ניקוי מטמון הרשאות משתמש - כי מדיניות נמחקה
+    clearUserPermissionsCache();
   } catch (error) {
     console.error('שגיאה במחיקת מדיניות:', error);
     throw error;
@@ -156,38 +158,32 @@ export const deletePolicy = async (policyId: string): Promise<void> => {
 // ===== ניהול תפקידים =====
 
 export const getAllRoles = async (): Promise<Role[]> => {
-  try {
-    const rolesRef = collection(db, 'roles');
-    const q = query(rolesRef, orderBy('createdAt', 'desc'));
-    const snapshot = await getDocs(q);
-    
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate() || new Date(),
-      updatedAt: doc.data().updatedAt?.toDate() || new Date()
-    })) as Role[];
-  } catch (error) {
-    console.error('שגיאה בטעינת תפקידים:', error);
-    throw error;
-  }
+  return localStorageService.getFromLocalStorage('roles', async () => {
+    try {
+      const rolesRef = collection(db, 'roles');
+      const q = query(rolesRef, orderBy('createdAt', 'desc'));
+      const snapshot = await getDocs(q);
+      
+      const roles = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate() || new Date(),
+        updatedAt: doc.data().updatedAt?.toDate() || new Date()
+      })) as Role[];
+      
+      return roles;
+    } catch (error) {
+      console.error('❌ [DB] שגיאה בטעינת תפקידים:', error);
+      throw error;
+    }
+  });
 };
 
 export const getRoleById = async (roleId: string): Promise<Role | null> => {
   try {
-    const roleRef = doc(db, 'roles', roleId);
-    const roleDoc = await getDoc(roleRef);
-    
-    if (!roleDoc.exists()) {
-      return null;
-    }
-    
-    return {
-      id: roleDoc.id,
-      ...roleDoc.data(),
-      createdAt: roleDoc.data().createdAt?.toDate() || new Date(),
-      updatedAt: roleDoc.data().updatedAt?.toDate() || new Date()
-    } as Role;
+    // שימוש במטמון מקומי לתפקידים
+    const roles = await getAllRoles();
+    return roles.find(role => role.id === roleId) || null;
   } catch (error) {
     console.error('שגיאה בטעינת תפקיד:', error);
     throw error;
@@ -208,6 +204,14 @@ export const createRole = async (
     };
     
     const docRef = await addDoc(rolesRef, newRole);
+    
+    // עדכון טבלת העדכונים וניקוי מטמון מקומי
+    await updateTableTimestamp('roles');
+    localStorageService.invalidateLocalStorage('roles');
+    
+    // ניקוי מטמון הרשאות משתמש - כי תפקיד חדש יכול להשפיע על הרשאות
+    clearUserPermissionsCache();
+    
     return docRef.id;
   } catch (error) {
     console.error('שגיאה ביצירת תפקיד:', error);
@@ -226,6 +230,13 @@ export const updateRole = async (
       ...updates,
       updatedAt: Timestamp.now()
     });
+    
+    // עדכון טבלת העדכונים וניקוי מטמון מקומי
+    await updateTableTimestamp('roles');
+    localStorageService.invalidateLocalStorage('roles');
+    
+    // ניקוי מטמון הרשאות משתמש - כי תפקיד עודכן
+    clearUserPermissionsCache();
   } catch (error) {
     console.error('שגיאה בעדכון תפקיד:', error);
     throw error;
@@ -236,6 +247,13 @@ export const deleteRole = async (roleId: string): Promise<void> => {
   try {
     const roleRef = doc(db, 'roles', roleId);
     await deleteDoc(roleRef);
+    
+    // עדכון טבלת העדכונים וניקוי מטמון מקומי
+    await updateTableTimestamp('roles');
+    localStorageService.invalidateLocalStorage('roles');
+    
+    // ניקוי מטמון הרשאות משתמש - כי תפקיד נמחק
+    clearUserPermissionsCache();
   } catch (error) {
     console.error('שגיאה במחיקת תפקיד:', error);
     throw error;
@@ -319,6 +337,53 @@ export const canUserAccessPath = async (
   }
 };
 
+// פונקציה חדשה שמחזירה את כל ההרשאות בבת אחת
+export const getUserAllPermissions = async (userId: string): Promise<{
+  policies: PermissionPolicy[];
+  role: Role | null;
+  permissions: {
+    [path in SystemPath]: {
+      [level in PermissionLevel]: boolean;
+    };
+  };
+}> => {
+  try {
+    const { policies, role } = await getUserPermissions(userId);
+    
+    // יצירת מפת הרשאות לכל הנתיבים והרמות
+    const permissions: any = {};
+    
+    // רשימת כל הנתיבים והרמות
+    const allPaths = Object.values(SystemPath);
+    const allLevels = Object.values(PermissionLevel);
+    
+    for (const path of allPaths) {
+      permissions[path] = {};
+      for (const level of allLevels) {
+        // חיפוש מדיניות שמתאימה לנתיב
+        const relevantPolicy = policies.find(policy => (policy.paths || []).includes(path));
+        
+        if (!relevantPolicy) {
+          permissions[path][level] = false;
+          continue;
+        }
+        
+        // בדיקה שהמדיניות כוללת את ההרשאה הנדרשת
+        if (relevantPolicy.pathPermissions && relevantPolicy.pathPermissions[path]) {
+          permissions[path][level] = relevantPolicy.pathPermissions[path].includes(level);
+        } else {
+          permissions[path][level] = relevantPolicy.permissions.includes(level);
+        }
+      }
+    }
+    
+    return { policies, role, permissions };
+  } catch (error) {
+    console.error('❌ [DB] שגיאה בטעינת הרשאות משתמש:', error);
+    return { policies: [], role: null, permissions: {} as any };
+  }
+};
+
 // פונקציה לבדיקת הרשאת עריכת נוכחות חיילים
 export const canUserEditSoldierPresence = async (userId: string): Promise<boolean> => {
   try {
@@ -337,6 +402,32 @@ export const canUserEditSoldierDetails = async (userId: string): Promise<boolean
     console.error('שגיאה בבדיקת הרשאת עריכת פרטי חיילים:', error);
     return false;
   }
+};
+
+// ===== ניהול מטמון הרשאות משתמש =====
+
+// ניקוי מטמון הרשאות משתמש
+export const clearUserPermissionsCache = (userId?: string): void => {
+  if (userId) {
+    localStorageService.invalidateLocalStorage(`user_all_permissions_${userId}`);
+  } else {
+    // ניקוי כל המפתחות של הרשאות משתמש
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith('user_all_permissions_')) {
+        localStorage.removeItem(key);
+      }
+    });
+  }
+};
+
+// פונקציה לרענון הרשאות משתמש (לשימוש ידני)
+export const refreshUserPermissions = async (userId: string): Promise<void> => {
+  // ניקוי מטמון קיים
+  clearUserPermissionsCache(userId);
+  
+  // טעינה מחדש מהשרת
+  await getUserAllPermissions(userId);
 };
 
 // ===== יצירת תפקידים ומדיניות ברירת מחדל =====

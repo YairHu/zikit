@@ -7,21 +7,29 @@ import { Activity } from '../models/Activity';
 
 import { updateSoldier } from './soldierService';
 import { updateActivity } from './activityService';
+import { localStorageService, updateTableTimestamp } from './cacheService';
 
 const TRIPS_COLLECTION = 'trips';
 
 export const getAllTrips = async (): Promise<Trip[]> => {
-  try {
-    const q = query(collection(db, TRIPS_COLLECTION), orderBy('createdAt', 'desc'));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Trip[];
-  } catch (error) {
-    console.error('שגיאה בטעינת נסיעות:', error);
-    throw error;
-  }
+  console.log('🔍 [LOCAL_STORAGE] מבקש רשימת נסיעות');
+  return localStorageService.getFromLocalStorage('trips', async () => {
+    try {
+      console.log('📡 [DB] טוען נסיעות מהשרת');
+      const q = query(collection(db, TRIPS_COLLECTION), orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const trips = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Trip[];
+      
+      console.log(`✅ [DB] נטענו ${trips.length} נסיעות מהשרת`);
+      return trips;
+    } catch (error) {
+      console.error('❌ [DB] שגיאה בטעינת נסיעות:', error);
+      throw error;
+    }
+  });
 };
 
 export const getTripsByActivity = async (activityId: string): Promise<Trip[]> => {
@@ -88,6 +96,12 @@ export const addTrip = async (trip: Omit<Trip, 'id' | 'createdAt' | 'updatedAt'>
     };
     
     const docRef = await addDoc(collection(db, TRIPS_COLLECTION), tripData);
+    
+    // עדכון טבלת העדכונים וניקוי מטמון מקומי
+    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי נסיעות');
+    await updateTableTimestamp('trips');
+    localStorageService.invalidateLocalStorage('trips');
+    
     return docRef.id;
   } catch (error) {
     console.error('שגיאה בהוספת נסיעה:', error);
@@ -107,6 +121,11 @@ export const updateTrip = async (id: string, trip: Partial<Trip>): Promise<void>
       ...cleanedTrip,
       updatedAt: Timestamp.now().toDate().toISOString()
     });
+    
+    // עדכון טבלת העדכונים וניקוי מטמון מקומי
+    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי נסיעות');
+    await updateTableTimestamp('trips');
+    localStorageService.invalidateLocalStorage('trips');
     
     // אם משתנה הנהג, נעדכן את עמוד האישי של הנהגים
     if (trip.driverId) {
@@ -209,6 +228,11 @@ export const deleteTrip = async (id: string): Promise<void> => {
   try {
     const tripRef = doc(db, TRIPS_COLLECTION, id);
     await deleteDoc(tripRef);
+    
+    // עדכון טבלת העדכונים וניקוי מטמון מקומי
+    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי נסיעות');
+    await updateTableTimestamp('trips');
+    localStorageService.invalidateLocalStorage('trips');
   } catch (error) {
     console.error('שגיאה במחיקת נסיעה:', error);
     throw error;
