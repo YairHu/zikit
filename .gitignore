@@ -98,4 +98,9 @@ tmp/
 temp/
 
 # Local development
-.local/ 
+.local/
+
+# Service account keys and secrets
+serviceAccountKey.json
+*.json.key
+secrets/ 
