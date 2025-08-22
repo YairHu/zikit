@@ -627,4 +627,89 @@ export const getVehiclesCompatibleWithDriver = async (driverLicenses: string[]):
     console.error('שגיאה בסינון רכבים לפי היתר נהג:', error);
     return [];
   }
+};
+
+// פונקציה לעדכון סטטוס נסיעות אוטומטי
+export const updateTripStatusesAutomatically = async (): Promise<void> => {
+  try {
+    console.log('🔄 [AUTO] מתחיל עדכון סטטוס נסיעות אוטומטי');
+    
+    const trips = await getAllTrips();
+    const now = new Date();
+    let updatedTrips = 0;
+    
+    for (const trip of trips) {
+      let shouldUpdate = false;
+      let newStatus: 'מתוכננת' | 'בביצוע' | 'הסתיימה' = trip.status;
+      let autoStatusChanged = trip.autoStatusChanged || false;
+      
+      const departureTime = new Date(trip.departureTime);
+      const returnTime = new Date(trip.returnTime);
+      
+      // בדיקה אם צריך לעדכן סטטוס
+      if (trip.status === 'מתוכננת' && now >= departureTime) {
+        // זמן יציאה הגיע - עדכון לביצוע
+        newStatus = 'בביצוע';
+        autoStatusChanged = true;
+        shouldUpdate = true;
+        console.log(`🔄 [AUTO] עדכון נסיעה ${trip.id} מ-מתוכננת ל-בביצוע`);
+      } else if (trip.status === 'בביצוע' && now >= returnTime) {
+        // זמן חזרה הגיע - עדכון להסתיימה
+        newStatus = 'הסתיימה';
+        autoStatusChanged = true;
+        shouldUpdate = true;
+        console.log(`🔄 [AUTO] עדכון נסיעה ${trip.id} מ-בביצוע ל-הסתיימה`);
+      }
+      
+      if (shouldUpdate) {
+        await updateTrip(trip.id, {
+          status: newStatus,
+          autoStatusChanged: autoStatusChanged,
+          autoStatusUpdateTime: now.toISOString()
+        });
+        updatedTrips++;
+      }
+    }
+    
+    if (updatedTrips > 0) {
+      console.log(`✅ [AUTO] עדכון ${updatedTrips} נסיעות הושלם`);
+      // עדכון סטטוס נהגים אחרי עדכון נסיעות
+      await updateDriverStatuses();
+    } else {
+      console.log('✅ [AUTO] אין נסיעות שצריכות עדכון');
+    }
+  } catch (error) {
+    console.error('❌ [AUTO] שגיאה בעדכון סטטוס נסיעות:', error);
+  }
+};
+
+// פונקציה לעדכון זמנים בפועל
+export const updateTripActualTimes = async (
+  tripId: string, 
+  actualDepartureTime?: string, 
+  actualReturnTime?: string
+): Promise<void> => {
+  try {
+    const updateData: Partial<Trip> = {};
+    
+    if (actualDepartureTime) {
+      updateData.actualDepartureTime = actualDepartureTime;
+    }
+    
+    if (actualReturnTime) {
+      updateData.actualReturnTime = actualReturnTime;
+    }
+    
+    // אם שני הזמנים מעודכנים, ביטול הסימון האוטומטי
+    if (actualDepartureTime && actualReturnTime) {
+      updateData.autoStatusChanged = false;
+      updateData.autoStatusUpdateTime = undefined;
+    }
+    
+    await updateTrip(tripId, updateData);
+    console.log(`✅ [AUTO] עדכון זמנים בפועל לנסיעה ${tripId}`);
+  } catch (error) {
+    console.error('❌ [AUTO] שגיאה בעדכון זמנים בפועל:', error);
+    throw error;
+  }
 }; 

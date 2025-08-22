@@ -17,4 +17,9 @@ export interface Trip {
   frameworkId?: string; // מזהה המסגרת שמבצעת את הנסיעה
   createdAt: string;
   updatedAt: string;
+  // שדות חדשים לניהול אוטומטי
+  autoStatusChanged?: boolean; // האם הסטטוס השתנה אוטומטית
+  actualDepartureTime?: string; // זמן יציאה בפועל (מעודכן ידנית)
+  actualReturnTime?: string; // זמן חזרה בפועל (מעודכן ידנית)
+  autoStatusUpdateTime?: string; // זמן עדכון הסטטוס האוטומטי
 } 

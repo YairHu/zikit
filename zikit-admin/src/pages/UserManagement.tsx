@@ -193,6 +193,7 @@ const UserManagement: React.FC = () => {
 
   const loadSoldiers = async () => {
     try {
+      // טוען כל החיילים
       const soldiersData = await getAllSoldiers();
       setSoldiers(soldiersData);
     } catch (error) {
@@ -278,29 +279,36 @@ const UserManagement: React.FC = () => {
     }
 
     try {
-      // עדכון רשומת החייל אם יש
-      if (selectedUser.soldierDocId) {
-        const soldierRef = doc(db, 'soldiers', selectedUser.soldierDocId);
-        await updateDoc(soldierRef, {
-          name: selectedUser.displayName, // עדכון השדה name
-          role: assignmentData.role,
-          frameworkId: assignmentData.frameworkId,
-          status: 'assigned',
-          assignedBy: currentUser.uid,
-          assignedAt: Timestamp.now(),
-          updatedAt: Timestamp.now()
-        });
+      // עדכון רשומת החייל
+      const soldierRef = doc(db, 'soldiers', selectedUser.soldierDocId || selectedUser.uid);
+      await updateDoc(soldierRef, {
+        name: selectedUser.displayName, // עדכון השדה name
+        role: assignmentData.role,
+        frameworkId: assignmentData.frameworkId,
+        personalNumber: assignmentData.personalNumber,
+        status: 'assigned',
+        isActive: false, // חייל לא פעיל עד ההתחברות הראשונה
+        assignedBy: currentUser.uid,
+        assignedAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      });
+
+      // עדכון רשומת המשתמש רק אם המשתמש קיים במערכת
+      if (selectedUser.uid && selectedUser.uid !== selectedUser.soldierDocId) {
+        try {
+          await assignRoleByName(selectedUser.uid, assignmentData.role, currentUser.uid);
+        } catch (error) {
+          console.log('המשתמש לא קיים במערכת - רק החייל שובץ');
+        }
       }
 
-      // עדכון רשומת המשתמש
-      await assignRoleByName(selectedUser.uid, assignmentData.role, currentUser.uid);
-
       setTeamDialogOpen(false);
-      alert('המשתמש שובץ בהצלחה!');
+      alert('החייל שובץ בהצלחה!');
       loadUsers();
+      loadSoldiers(); // רענון רשימת החיילים
     } catch (error) {
-      console.error('שגיאה בשיבוץ המשתמש:', error);
-      alert('שגיאה בשיבוץ המשתמש: ' + (error instanceof Error ? error.message : String(error)));
+      console.error('שגיאה בשיבוץ החייל:', error);
+      alert('שגיאה בשיבוץ החייל: ' + (error instanceof Error ? error.message : String(error)));
     }
   };
 
@@ -342,6 +350,32 @@ const UserManagement: React.FC = () => {
       role: typeof user.role === 'string' ? user.role : user.role,
       frameworkId: currentFrameworkId,
       personalNumber: user.personalNumber || ''
+    });
+    setTeamDialogOpen(true);
+  };
+
+  const openTeamDialogForSoldier = (soldier: any) => {
+    // יצירת אובייקט משתמש זמני לחייל
+    const tempUser: User = {
+      uid: soldier.id,
+      email: soldier.email || '',
+      displayName: soldier.name || soldier.fullName || 'שם לא מוגדר',
+      role: soldier.role || 'טרם הוזנו פרטים',
+      personalNumber: soldier.personalNumber || '',
+      soldierDocId: soldier.id,
+      team: '',
+      pelaga: '',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      isActive: true
+    };
+    
+    setSelectedUser(tempUser);
+    
+    setAssignmentData({
+      role: soldier.role || '',
+      frameworkId: soldier.frameworkId || '',
+      personalNumber: soldier.personalNumber || ''
     });
     setTeamDialogOpen(true);
   };
@@ -603,6 +637,38 @@ const UserManagement: React.FC = () => {
     return 'לא מוגדר';
   };
 
+  // פונקציה לקבלת חיילים ממתינים לשיבוץ (לא שובצו למסגרת)
+  const getPendingSoldiers = () => {
+    return soldiers.filter(soldier => 
+      !soldier.frameworkId || soldier.frameworkId.trim() === '' || soldier.frameworkId === 'pending'
+    );
+  };
+
+  // פונקציה לקבלת חיילים שכבר שובצו למסגרת
+  const getAssignedSoldiers = () => {
+    return soldiers.filter(soldier => 
+      soldier.frameworkId && soldier.frameworkId.trim() !== '' && soldier.frameworkId !== 'pending'
+    );
+  };
+
+  // פונקציה לקבלת חיילים ממתינים שלא התחברו לאפליקציה
+  const getPendingSoldiersWithoutUsers = () => {
+    const pendingSoldiers = getPendingSoldiers();
+    const userEmails = users.map(user => user.email);
+    return pendingSoldiers.filter(soldier => 
+      soldier.email && !userEmails.includes(soldier.email)
+    );
+  };
+
+  // פונקציה לקבלת חיילים משובצים שלא התחברו לאפליקציה (משתמשים לא פעילים)
+  const getAssignedSoldiersWithoutUsers = () => {
+    const assignedSoldiers = getAssignedSoldiers();
+    const userEmails = users.map(user => user.email);
+    return assignedSoldiers.filter(soldier => 
+      soldier.email && !userEmails.includes(soldier.email)
+    );
+  };
+
   // בדיקת הרשאות
   const canAssignRoles = permissions.canEdit;
   const canRemoveUsers = permissions.canDelete;
@@ -638,7 +704,7 @@ const UserManagement: React.FC = () => {
             ניהול משתמשים ותפקידים
           </Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            {users.length} משתמשים במערכת
+            {users.length} משתמשים פעילים, {getAssignedSoldiersWithoutUsers().length} חיילים משובצים לא פעילים
           </Typography>
         </Box>
       </Box>
@@ -655,9 +721,21 @@ const UserManagement: React.FC = () => {
 
       {/* Tabs */}
       <Card sx={{ mb: 3 }}>
-        <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
+        <Tabs 
+          value={tabValue} 
+          onChange={(_, newValue) => setTabValue(newValue)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          sx={{
+            '& .MuiTabs-scrollButtons': {
+              '&.Mui-disabled': { opacity: 0.3 },
+            },
+          }}
+        >
           <Tab label="כל המשתמשים" icon={<PersonIcon />} />
           <Tab label="לפי תפקידים" icon={<SecurityIcon />} />
+          <Tab label="חיילים ממתינים לשיבוץ" icon={<GroupIcon />} />
           <Tab label="ניהול מדיניות הרשאות" icon={<PolicyIcon />} />
         </Tabs>
       </Card>
@@ -669,6 +747,7 @@ const UserManagement: React.FC = () => {
           gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, 
           gap: 2 
         }}>
+          {/* משתמשים רגילים */}
           {users.map((userData) => (
             <Card key={userData.uid} sx={{ 
               transition: 'all 0.3s ease',
@@ -765,7 +844,7 @@ const UserManagement: React.FC = () => {
                     disabled={!userData.soldierDocId || !permissions.canEdit}
                     title={!userData.soldierDocId ? "יש למלא טופס לפני שיבוץ חייל" : (!permissions.canEdit ? "אין לך הרשאה לערוך שיבוצים" : "")}
                    >
-                    שבץ חייל
+                    {userData.soldierDocId ? 'שבץ חייל' : 'שבץ למסגרת'}
                    </Button>
                      <Button
                        size="small"
@@ -793,15 +872,123 @@ const UserManagement: React.FC = () => {
                    <Alert severity="info" sx={{ mt: 2, fontSize: '0.875rem' }}>
                      <Typography variant="body2">
                        <strong>הערה:</strong> משתמש זה טרם מילא את טופס ההצטרפות. 
-                       יש למלא את הטופס לפני שניתן יהיה לשבץ חייל.
+                       ניתן לשבץ אותו למסגרת או למלא את הטופס לפני שיבוץ חייל.
+                     </Typography>
+                   </Alert>
+                 )}
+                 {userData.soldierDocId && !users.find(u => u.email === userData.email) && (
+                   <Alert severity="warning" sx={{ mt: 2, fontSize: '0.875rem' }}>
+                     <Typography variant="body2">
+                       <strong>הערה:</strong> חייל זה משובץ אך טרם התחבר לאפליקציה.
+                       הוא יופיע בכל המקומות במערכת אך יסומן כ"לא פעיל".
                      </Typography>
                    </Alert>
                  )}
               </CardContent>
             </Card>
+                      ))}
+
+          {/* חיילים משובצים שלא התחברו לאפליקציה */}
+          {getAssignedSoldiersWithoutUsers().map((soldier) => (
+            <Card key={soldier.id} sx={{ 
+              transition: 'all 0.3s ease',
+              '&:hover': { boxShadow: 4 },
+              border: '2px solid #ff9800',
+              opacity: 0.8
+            }}>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <Avatar sx={{ mr: 2, bgcolor: '#ff9800' }}>
+                    <PersonIcon />
+                  </Avatar>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography 
+                      variant="h6" 
+                      sx={{ 
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        '&:hover': { textDecoration: 'underline' }
+                      }}
+                      onClick={() => navigate(`/soldiers/${soldier.id}`)}
+                    >
+                      {soldier.name || soldier.fullName || 'שם לא מוגדר'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                      {soldier.email || 'אימייל לא מוגדר'}
+                    </Typography>
+                  </Box>
+                </Box>
+
+                <Box sx={{ mb: 2 }}>
+                  <Chip 
+                    label="משובץ - לא פעיל"
+                    sx={{ 
+                      bgcolor: '#ff9800',
+                      color: 'white',
+                      fontWeight: 600,
+                      mb: 1
+                    }}
+                  />
+                  {soldier.personalNumber && (
+                    <Chip 
+                      label={`מס' אישי: ${soldier.personalNumber}`}
+                      variant="outlined"
+                      size="small"
+                      sx={{ ml: 1 }}
+                    />
+                  )}
+                </Box>
+
+                <Box sx={{ mb: 2 }}>
+                  {soldier.role && (
+                    <Chip 
+                      label={`תפקיד: ${soldier.role}`}
+                      variant="outlined"
+                      size="small"
+                      sx={{ mb: 1 }}
+                    />
+                  )}
+                  <Chip 
+                    label={`מסגרת: ${getFrameworkName(soldier.email)}`}
+                    variant="outlined"
+                    size="small"
+                    sx={{ 
+                      bgcolor: '#e3f2fd',
+                      borderColor: '#2196f3',
+                      color: '#1976d2',
+                      fontWeight: 500,
+                      mb: 1
+                    }}
+                  />
+                </Box>
+
+                <Divider sx={{ my: 2 }} />
+
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  <Button
+                    size="small"
+                    startIcon={<EditIcon />}
+                    onClick={() => navigate(`/soldiers/${soldier.id}`)}
+                    variant="outlined"
+                  >
+                    ערוך פרטים
+                  </Button>
+                  <Button
+                    size="small"
+                    startIcon={<GroupIcon />}
+                    onClick={() => openTeamDialogForSoldier(soldier)}
+                    variant="outlined"
+                    color="secondary"
+                    disabled={!permissions.canEdit}
+                  >
+                    שנה שיבוץ
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
           ))}
-        </Box>
-      </TabPanel>
+          </Box>
+        </TabPanel>
 
       {/* Tab 2: לפי תפקידים */}
       <TabPanel value={tabValue} index={1}>
@@ -866,8 +1053,126 @@ const UserManagement: React.FC = () => {
         })}
       </TabPanel>
 
-      {/* Tab 3: ניהול מדיניות הרשאות */}
+      {/* Tab 3: חיילים ממתינים לשיבוץ */}
       <TabPanel value={tabValue} index={2}>
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+            <GroupIcon sx={{ mr: 1 }} />
+            חיילים ממתינים לשיבוץ
+          </Typography>
+          
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <Typography variant="body2">
+              חיילים שיובאו למערכת אך טרם שובצו למסגרת.
+              חיילים משובצים שלא התחברו יופיעו בטאב "כל המשתמשים" עם סימון "משובץ - לא פעיל".
+            </Typography>
+          </Alert>
+
+          <Box sx={{ 
+            display: 'grid', 
+            gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, 
+            gap: 2 
+          }}>
+            {getPendingSoldiersWithoutUsers().map((soldier) => (
+              <Card key={soldier.id} sx={{ 
+                transition: 'all 0.3s ease',
+                '&:hover': { boxShadow: 4 },
+                border: '2px solid #ff9800'
+              }}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <Avatar sx={{ mr: 2, bgcolor: '#ff9800' }}>
+                      <PersonIcon />
+                    </Avatar>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                        {soldier.name || soldier.fullName || 'שם לא מוגדר'}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                        {soldier.email || 'אימייל לא מוגדר'}
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  <Box sx={{ mb: 2 }}>
+                    <Chip 
+                      label="ממתין לשיבוץ"
+                      sx={{ 
+                        bgcolor: '#ff9800',
+                        color: 'white',
+                        fontWeight: 600,
+                        mb: 1
+                      }}
+                    />
+                    {soldier.personalNumber && (
+                      <Chip 
+                        label={`מס' אישי: ${soldier.personalNumber}`}
+                        variant="outlined"
+                        size="small"
+                        sx={{ ml: 1 }}
+                      />
+                    )}
+                  </Box>
+
+                  <Box sx={{ mb: 2 }}>
+                    {soldier.role && (
+                      <Chip 
+                        label={`תפקיד: ${soldier.role}`}
+                        variant="outlined"
+                        size="small"
+                        sx={{ mb: 1 }}
+                      />
+                    )}
+                    {soldier.rank && (
+                      <Chip 
+                        label={`דרגה: ${soldier.rank}`}
+                        variant="outlined"
+                        size="small"
+                        sx={{ ml: 1 }}
+                      />
+                    )}
+                  </Box>
+
+                  <Divider sx={{ my: 2 }} />
+
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    <Button
+                      size="small"
+                      startIcon={<GroupIcon />}
+                      onClick={() => openTeamDialogForSoldier(soldier)}
+                      variant="contained"
+                      color="primary"
+                      disabled={!permissions.canEdit}
+                      title={!permissions.canEdit ? "אין לך הרשאה לשבץ חיילים" : ""}
+                    >
+                      שבץ חייל
+                    </Button>
+                    <Button
+                      size="small"
+                      startIcon={<EditIcon />}
+                      onClick={() => navigate(`/soldiers/${soldier.id}`)}
+                      variant="outlined"
+                    >
+                      ערוך פרטים
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
+            ))}
+          </Box>
+
+          {getPendingSoldiersWithoutUsers().length === 0 && (
+            <Alert severity="success" sx={{ mt: 3 }}>
+              <Typography variant="body2">
+                אין חיילים ממתינים לשיבוץ. כל החיילים שובצו או התחברו לאפליקציה.
+              </Typography>
+            </Alert>
+          )}
+        </Box>
+      </TabPanel>
+
+      {/* Tab 4: ניהול מדיניות הרשאות */}
+      <TabPanel value={tabValue} index={3}>
         <Box sx={{ mb: 3 }}>
           <Typography variant="h6" sx={{ mb: 2 }}>
             ניהול מדיניות הרשאות ותפקידים
@@ -1047,6 +1352,20 @@ const UserManagement: React.FC = () => {
             <>
               <Typography variant="body1" sx={{ mb: 2 }}>
                 שיבוץ למסגרת עבור: <strong>{selectedUser.displayName}</strong>
+                {selectedUser.soldierDocId && selectedUser.uid === selectedUser.soldierDocId && (
+                  <Chip 
+                    label="חייל ממתין" 
+                    size="small" 
+                    sx={{ ml: 1, bgcolor: '#ff9800', color: 'white' }}
+                  />
+                )}
+                {selectedUser.soldierDocId && selectedUser.uid !== selectedUser.soldierDocId && (
+                  <Chip 
+                    label="משובץ - לא פעיל" 
+                    size="small" 
+                    sx={{ ml: 1, bgcolor: '#ff9800', color: 'white' }}
+                  />
+                )}
               </Typography>
               
               <TextField
@@ -1093,7 +1412,12 @@ const UserManagement: React.FC = () => {
         <DialogActions>
           <Button onClick={() => setTeamDialogOpen(false)}>ביטול</Button>
           <Button onClick={handleAssignTeam} variant="contained">
-            שבץ למסגרת
+            {selectedUser && selectedUser.soldierDocId && selectedUser.uid === selectedUser.soldierDocId 
+              ? 'שבץ חייל' 
+              : selectedUser && selectedUser.soldierDocId && selectedUser.uid !== selectedUser.soldierDocId
+              ? 'עדכן שיבוץ'
+              : 'שבץ למסגרת'
+            }
           </Button>
         </DialogActions>
       </Dialog>

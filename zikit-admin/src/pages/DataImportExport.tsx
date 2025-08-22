@@ -329,6 +329,12 @@ const DataImportExport: React.FC = () => {
           // הסרת BOM אם קיים
           const cleanCsv = csv.replace(/^\uFEFF/, '');
           
+          // בדיקה אם הקובץ מכיל תווים בעברית תקינים
+          const hebrewRegex = /[\u0590-\u05FF]/;
+          if (!hebrewRegex.test(cleanCsv)) {
+            console.warn('לא נמצאו תווים בעברית בקובץ - ייתכן שיש בעיה בקידוד');
+          }
+          
           const lines = cleanCsv.split(/\r?\n/); // תמיכה ב-CRLF ו-LF
           if (lines.length === 0) {
             throw new Error('הקובץ ריק או לא תקין');
@@ -339,7 +345,9 @@ const DataImportExport: React.FC = () => {
             throw new Error('לא נמצאו כותרות בקובץ');
           }
           
-          const data = lines.slice(1)
+          console.log('כותרות שנמצאו:', headers);
+          
+          const data = lines.slice(2)
             .filter(line => line.trim())
             .map((line, lineIndex) => {
               try {
@@ -352,6 +360,9 @@ const DataImportExport: React.FC = () => {
                   // ניקוי ערכים
                   if (typeof value === 'string') {
                     value = value.trim();
+                    
+                    // הסרת תווים לא תקינים (סימני שאלה)
+                    value = value.replace(/[\uFFFD]/g, '');
                   }
                   
                   // ניסיון לפרסר מערכים (מופרדים ב-;)
@@ -384,7 +395,158 @@ const DataImportExport: React.FC = () => {
         }
       };
       reader.onerror = () => reject(new Error('שגיאה בקריאת הקובץ'));
-      reader.readAsText(file, 'utf-8');
+      
+      // פונקציה לנסות קידודים שונים
+      const tryReadWithEncoding = (encoding: string): Promise<string> => {
+        return new Promise((resolve, reject) => {
+          const testReader = new FileReader();
+          testReader.onload = (e) => {
+            const result = e.target?.result as string;
+            if (result) {
+              // בדיקה אם יש תווים בעברית תקינים
+              const hebrewRegex = /[\u0590-\u05FF]/;
+              if (hebrewRegex.test(result)) {
+                console.log(`קידוד ${encoding} עובד עם תווים בעברית`);
+                resolve(result);
+              } else {
+                reject(new Error(`קידוד ${encoding} לא מכיל תווים בעברית תקינים`));
+              }
+            } else {
+              reject(new Error(`קידוד ${encoding} לא עובד`));
+            }
+          };
+          testReader.onerror = () => reject(new Error(`שגיאה בקידוד ${encoding}`));
+          testReader.readAsText(file, encoding);
+        });
+      };
+      
+      // ניסיון עם קידודים שונים
+      tryReadWithEncoding('utf-8')
+        .then((csvContent) => {
+          // עיבוד הקובץ עם התוכן שקראנו
+          try {
+            const cleanCsv = csvContent.replace(/^\uFEFF/, '');
+            const lines = cleanCsv.split(/\r?\n/);
+            if (lines.length === 0) {
+              throw new Error('הקובץ ריק או לא תקין');
+            }
+            
+            const headers = parseCSVLine(lines[0]);
+            if (headers.length === 0) {
+              throw new Error('לא נמצאו כותרות בקובץ');
+            }
+            
+            console.log('כותרות שנמצאו:', headers);
+            
+            const data = lines.slice(1)
+              .filter(line => line.trim())
+              .map((line, lineIndex) => {
+                try {
+                  const values = parseCSVLine(line);
+                  const row: any = {};
+                  
+                  headers.forEach((header, index) => {
+                    let value: any = values[index] || '';
+                    
+                    if (typeof value === 'string') {
+                      value = value.trim();
+                      value = value.replace(/[\uFFFD]/g, '');
+                    }
+                    
+                    if (typeof value === 'string' && value.includes(';') && !value.includes('{') && !value.includes('[')) {
+                      const arrayValues = value.split(';').map((v: string) => v.trim()).filter((v: string) => v);
+                      if (arrayValues.length > 1) {
+                        value = arrayValues;
+                      }
+                    }
+                    
+                    if (typeof value === 'string' && (value.startsWith('{') || value.startsWith('['))) {
+                      try {
+                        value = JSON.parse(value);
+                      } catch (e) {
+                        // אם לא מצליח לפרסר, נשאיר כמחרוזת
+                      }
+                    }
+                    
+                    row[header] = value;
+                  });
+                  return row;
+                } catch (error) {
+                  throw new Error(`שגיאה בעיבוד שורה ${lineIndex + 2}: ${error}`);
+                }
+              });
+            resolve(data);
+          } catch (error) {
+            reject(error);
+          }
+        })
+        .catch(() => {
+          // אם UTF-8 נכשל, ננסה עם windows-1255
+          console.log('ניסיון עם קידוד windows-1255...');
+          tryReadWithEncoding('windows-1255')
+            .then((csvContent) => {
+              try {
+                const cleanCsv = csvContent.replace(/^\uFEFF/, '');
+                const lines = cleanCsv.split(/\r?\n/);
+                if (lines.length === 0) {
+                  throw new Error('הקובץ ריק או לא תקין');
+                }
+                
+                const headers = parseCSVLine(lines[0]);
+                if (headers.length === 0) {
+                  throw new Error('לא נמצאו כותרות בקובץ');
+                }
+                
+                console.log('כותרות שנמצאו:', headers);
+                
+                const data = lines.slice(1)
+                  .filter(line => line.trim())
+                  .map((line, lineIndex) => {
+                    try {
+                      const values = parseCSVLine(line);
+                      const row: any = {};
+                      
+                      headers.forEach((header, index) => {
+                        let value: any = values[index] || '';
+                        
+                        if (typeof value === 'string') {
+                          value = value.trim();
+                          value = value.replace(/[\uFFFD]/g, '');
+                        }
+                        
+                        if (typeof value === 'string' && value.includes(';') && !value.includes('{') && !value.includes('[')) {
+                          const arrayValues = value.split(';').map((v: string) => v.trim()).filter((v: string) => v);
+                          if (arrayValues.length > 1) {
+                            value = arrayValues;
+                          }
+                        }
+                        
+                        if (typeof value === 'string' && (value.startsWith('{') || value.startsWith('['))) {
+                          try {
+                            value = JSON.parse(value);
+                          } catch (e) {
+                            // אם לא מצליח לפרסר, נשאיר כמחרוזת
+                          }
+                        }
+                        
+                        row[header] = value;
+                      });
+                      return row;
+                    } catch (error) {
+                      throw new Error(`שגיאה בעיבוד שורה ${lineIndex + 2}: ${error}`);
+                    }
+                  });
+                resolve(data);
+              } catch (error) {
+                reject(error);
+              }
+            })
+            .catch(() => {
+              // אם כל הקידודים נכשלו, ננסה עם UTF-8 רגיל
+              console.log('ניסיון עם UTF-8 רגיל...');
+              reader.readAsText(file, 'utf-8');
+            });
+        });
     });
   };
 
@@ -393,18 +555,26 @@ const DataImportExport: React.FC = () => {
     const result: string[] = [];
     let current = '';
     let inQuotes = false;
+    let i = 0;
     
-    for (let i = 0; i < line.length; i++) {
+    while (i < line.length) {
       const char = line[i];
       
       if (char === '"') {
-        if (inQuotes && line[i + 1] === '"') {
-          // גרשיים כפולים - נדפס גרשיים אחד
-          current += '"';
-          i++; // דלג על הגרשיים הבא
+        if (inQuotes) {
+          // אנחנו בתוך גרשיים - בדוק אם זה גרשיים כפול
+          if (i + 1 < line.length && line[i + 1] === '"') {
+            // גרשיים כפולים - נדפס גרשיים אחד
+            current += '"';
+            i += 2; // דלג על שני הגרשיים
+            continue;
+          } else {
+            // סיום גרשיים
+            inQuotes = false;
+          }
         } else {
-          // התחלה או סיום של גרשיים
-          inQuotes = !inQuotes;
+          // התחלת גרשיים
+          inQuotes = true;
         }
       } else if (char === ',' && !inQuotes) {
         // פסיק מחוץ לגרשיים - סוף שדה
@@ -413,6 +583,8 @@ const DataImportExport: React.FC = () => {
       } else {
         current += char;
       }
+      
+      i++;
     }
     
     // הוסף את השדה האחרון
@@ -464,16 +636,24 @@ const DataImportExport: React.FC = () => {
       
       // הוספת הודעת הצלחה
       console.log(`נטען בהצלחה קובץ עם ${data.length} שורות`);
-    } catch (error) {
-      console.error('שגיאה בקריאת הקובץ:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      alert(`שגיאה בקריאת הקובץ:\n${errorMessage}\n\nוודא שהקובץ הוא CSV תקין עם קידוד UTF-8`);
-      setUploadedData([]);
-      setPreviewData([]);
-      setActiveStep(0);
-    } finally {
-      setLoading(false);
-    }
+         } catch (error) {
+       console.error('שגיאה בקריאת הקובץ:', error);
+       const errorMessage = error instanceof Error ? error.message : String(error);
+       
+       let alertMessage = `שגיאה בקריאת הקובץ:\n${errorMessage}\n\n`;
+       alertMessage += '🔧 פתרונות אפשריים:\n';
+       alertMessage += '• וודא שהקובץ נשמר עם קידוד UTF-8\n';
+       alertMessage += '• ב-Excel: שמור כ-CSV עם קידוד UTF-8\n';
+       alertMessage += '• ב-Google Sheets: הורד כ-CSV (UTF-8)\n';
+       alertMessage += '• נסה לפתוח ולשמור מחדש את הקובץ';
+       
+       alert(alertMessage);
+       setUploadedData([]);
+       setPreviewData([]);
+       setActiveStep(0);
+     } finally {
+       setLoading(false);
+     }
   };
 
   // פונקציה לייצוא נתונים קיימים

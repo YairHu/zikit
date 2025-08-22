@@ -8,12 +8,18 @@ import {
   Tooltip,
   ToggleButton,
   ToggleButtonGroup,
-  Button
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton
 } from '@mui/material';
 import {
   DirectionsCar as VehicleIcon,
   Person as DriverIcon,
-  Hotel as RestIcon
+  Hotel as RestIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 import { Trip } from '../models/Trip';
 import { Vehicle } from '../models/Vehicle';
@@ -60,6 +66,15 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
     x: number;
     time: Date;
   } | null>(null);
+
+  // דיאלוג לפרטי נסיעה
+  const [tripDetailsDialog, setTripDetailsDialog] = useState<{
+    open: boolean;
+    item: TimelineItem | null;
+  }>({
+    open: false,
+    item: null
+  });
 
   
   // זום דינמי
@@ -472,6 +487,23 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
     const endX = Math.max(selectionStart.x, x);
     
     return x >= startX && x <= endX;
+  };
+
+  // טיפול בלחיצה על נסיעה
+  const handleTripClick = (event: React.MouseEvent, item: TimelineItem) => {
+    event.stopPropagation(); // מניעת הפעלת handleTimelineClick
+    setTripDetailsDialog({
+      open: true,
+      item: item
+    });
+  };
+
+  // סגירת דיאלוג פרטי נסיעה
+  const handleCloseTripDetails = () => {
+    setTripDetailsDialog({
+      open: false,
+      item: null
+    });
   };
 
   // הוספת event listener לגלילה חכמה
@@ -996,6 +1028,7 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
                            }
                          >
                            <Box
+                             onClick={(e) => handleTripClick(e, item)}
                              sx={{
                                position: 'absolute',
                                left: position.left,
@@ -1106,6 +1139,194 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
           </Box>
         </Box>
       </CardContent>
+
+      {/* דיאלוג פרטי נסיעה */}
+      <Dialog
+        open={tripDetailsDialog.open}
+        onClose={handleCloseTripDetails}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            m: { xs: 2, sm: 4 }
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          pb: 1
+        }}>
+          <Typography variant="h6" sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}>
+            פרטי {tripDetailsDialog.item?.isRest ? 'מנוחה' : 'נסיעה'}
+          </Typography>
+          <IconButton
+            onClick={handleCloseTripDetails}
+            size="small"
+            sx={{ color: 'text.secondary' }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        
+        <DialogContent sx={{ pt: 1 }}>
+          {tripDetailsDialog.item && (
+            <Box>
+              {/* כותרת */}
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                mb: 2,
+                p: 2,
+                backgroundColor: getStatusColor(tripDetailsDialog.item.trip?.status || '', tripDetailsDialog.item.isRest),
+                borderRadius: 1,
+                color: 'white'
+              }}>
+                {tripDetailsDialog.item.isRest ? (
+                  <RestIcon sx={{ mr: 1, fontSize: 24 }} />
+                ) : (
+                  <>
+                    {tripDetailsDialog.item.vehicle && (
+                      <VehicleIcon sx={{ mr: 1, fontSize: 24 }} />
+                    )}
+                    {tripDetailsDialog.item.driver && (
+                      <DriverIcon sx={{ mr: 1, fontSize: 24 }} />
+                    )}
+                  </>
+                )}
+                <Typography variant="h6" sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}>
+                  {tripDetailsDialog.item.title}
+                </Typography>
+              </Box>
+
+              {/* פרטי זמן */}
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1, fontSize: { xs: '1rem', sm: '1.1rem' } }}>
+                  זמנים:
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2" color="text.secondary">
+                      זמן התחלה:
+                    </Typography>
+                    <Typography variant="body2" fontWeight="bold">
+                      {tripDetailsDialog.item.start.toLocaleString('he-IL', { 
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit', 
+                        minute: '2-digit'
+                      })}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2" color="text.secondary">
+                      זמן סיום:
+                    </Typography>
+                    <Typography variant="body2" fontWeight="bold">
+                      {tripDetailsDialog.item.end.toLocaleString('he-IL', { 
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit', 
+                        minute: '2-digit'
+                      })}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2" color="text.secondary">
+                      משך:
+                    </Typography>
+                    <Typography variant="body2" fontWeight="bold">
+                      {Math.round((tripDetailsDialog.item.end.getTime() - tripDetailsDialog.item.start.getTime()) / (1000 * 60))} דקות
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+
+              {/* פרטי רכב ונהג */}
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1, fontSize: { xs: '1rem', sm: '1.1rem' } }}>
+                  פרטי {tripDetailsDialog.item.isRest ? 'נהג' : 'משתתפים'}:
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {tripDetailsDialog.item.vehicle && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" color="text.secondary">
+                        רכב:
+                      </Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        {tripDetailsDialog.item.vehicle.number} - {tripDetailsDialog.item.vehicle.type}
+                      </Typography>
+                    </Box>
+                  )}
+                  {tripDetailsDialog.item.driver && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2" color="text.secondary">
+                        נהג:
+                      </Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        {tripDetailsDialog.item.driver.name}
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+              </Box>
+
+              {/* סטטוס */}
+              {tripDetailsDialog.item.trip && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1, fontSize: { xs: '1rem', sm: '1.1rem' } }}>
+                    סטטוס:
+                  </Typography>
+                  <Chip
+                    label={tripDetailsDialog.item.trip.status}
+                    size="medium"
+                    sx={{
+                      backgroundColor: getStatusColor(tripDetailsDialog.item.trip.status),
+                      color: 'white',
+                      fontWeight: 'bold'
+                    }}
+                  />
+                </Box>
+              )}
+
+              {/* מטרה */}
+              {tripDetailsDialog.item.trip?.purpose && (
+                <Box>
+                  <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1, fontSize: { xs: '1rem', sm: '1.1rem' } }}>
+                    מטרה:
+                  </Typography>
+                  <Typography variant="body2" sx={{ 
+                    p: 2, 
+                    backgroundColor: 'grey.50', 
+                    borderRadius: 1,
+                    fontSize: { xs: '0.9rem', sm: '1rem' }
+                  }}>
+                    {tripDetailsDialog.item.trip.purpose}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        
+        <DialogActions sx={{ p: 2, pt: 0 }}>
+          <Button 
+            onClick={handleCloseTripDetails}
+            variant="contained"
+            fullWidth
+            sx={{ 
+              borderRadius: 2,
+              fontSize: { xs: '0.9rem', sm: '1rem' }
+            }}
+          >
+            סגור
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Card>
   );
 };

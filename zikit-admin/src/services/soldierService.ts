@@ -10,32 +10,13 @@ const soldiersCollection = collection(db, 'soldiers');
 export const getAllSoldiers = async (): Promise<Soldier[]> => {
   return localStorageService.getFromLocalStorage('soldiers', async () => {
     try {
-      console.log('📡 [DB] טוען חיילים מהשרת (עם מסגרת)');
-      // רק חיילים שכבר שובצו למסגרת (יש להם frameworkId)
+      console.log('📡 [DB] טוען כל החיילים מהשרת');
       const snapshot = await getDocs(soldiersCollection);
       const allSoldiers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Soldier));
-      const filteredSoldiers = allSoldiers.filter(soldier => soldier.frameworkId && soldier.frameworkId.trim() !== '');
-      console.log(`✅ [DB] נטענו ${filteredSoldiers.length} חיילים מהשרת`);
-      return filteredSoldiers;
-    } catch (error) {
-      console.error('❌ [DB] שגיאה בטעינת חיילים:', error);
-      return [];
-    }
-  });
-};
-
-// פונקציה נפרדת לקבלת כל החיילים (כולל ממתינים) - לשימוש פנימי
-export const getAllSoldiersIncludingPending = async (): Promise<Soldier[]> => {
-  console.log('🔍 [LOCAL_STORAGE] מבקש רשימת כל החיילים (כולל ממתינים)');
-  return localStorageService.getFromLocalStorage('soldiers_all', async () => {
-    try {
-      console.log('📡 [DB] טוען כל החיילים מהשרת (כולל ממתינים)');
-      const snapshot = await getDocs(soldiersCollection);
-      const allSoldiers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Soldier));
-      console.log(`✅ [DB] נטענו ${allSoldiers.length} חיילים מהשרת (כולל ממתינים)`);
+      console.log(`✅ [DB] נטענו ${allSoldiers.length} חיילים מהשרת`);
       return allSoldiers;
     } catch (error) {
-      console.error('❌ [DB] שגיאה בטעינת כל החיילים:', error);
+      console.error('❌ [DB] שגיאה בטעינת חיילים:', error);
       return [];
     }
   });
@@ -54,7 +35,6 @@ export const addSoldier = async (soldier: Omit<Soldier, 'id'>): Promise<string> 
   console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי חיילים');
   await updateTableTimestamp('soldiers');
   localStorageService.invalidateLocalStorage('soldiers');
-  localStorageService.invalidateLocalStorage('soldiers_all');
   localStorageService.invalidateLocalStorage('soldiers_with_frameworks');
   
   console.log(`✅ [DB] חייל נוסף בהצלחה עם ID: ${docRef.id}`);
@@ -83,7 +63,6 @@ export const updateSoldier = async (id: string, soldier: Partial<Soldier>) => {
     console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי חיילים');
     await updateTableTimestamp('soldiers');
     localStorageService.invalidateLocalStorage('soldiers');
-    localStorageService.invalidateLocalStorage('soldiers_all');
     localStorageService.invalidateLocalStorage('soldiers_with_frameworks');
     
     console.log(`✅ [DB] חייל ${id} עודכן בהצלחה`);
@@ -101,7 +80,6 @@ export const deleteSoldier = async (id: string) => {
   console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי חיילים');
   await updateTableTimestamp('soldiers');
   localStorageService.invalidateLocalStorage('soldiers');
-  localStorageService.invalidateLocalStorage('soldiers_all');
   localStorageService.invalidateLocalStorage('soldiers_with_frameworks');
   
   console.log(`✅ [DB] חייל ${id} נמחק בהצלחה`);

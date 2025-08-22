@@ -64,8 +64,8 @@ import { Vehicle } from '../models/Vehicle';
 
 import { Soldier } from '../models/Soldier';
 import { Activity } from '../models/Activity';
-import { getAllTrips, addTrip, updateTrip, deleteTrip, checkAvailability, checkAdvancedAvailability, setDriverRest, updateDriverStatuses, updateDriverStatusByTrip, getDriversWithRequiredLicense, getVehiclesCompatibleWithDriver } from '../services/tripService';
-import { getAllVehicles, addVehicle, updateVehicle } from '../services/vehicleService';
+import { getAllTrips, addTrip, updateTrip, deleteTrip, checkAvailability, checkAdvancedAvailability, setDriverRest, updateDriverStatuses, updateDriverStatusByTrip, getDriversWithRequiredLicense, getVehiclesCompatibleWithDriver, updateTripStatusesAutomatically, updateTripActualTimes } from '../services/tripService';
+import { getAllVehicles, addVehicle, updateVehicle, deleteVehicle } from '../services/vehicleService';
 import { getAllSoldiers, updateSoldier } from '../services/soldierService';
 import { getAllActivities, updateActivity } from '../services/activityService';
 import { getAllFrameworks } from '../services/frameworkService';
@@ -126,7 +126,8 @@ const Trips: React.FC = () => {
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
   const [statusAction, setStatusAction] = useState<'start' | 'end'>('start');
   const [statusFormData, setStatusFormData] = useState({
-    actualTime: ''
+    actualTime: '',
+    actualDepartureTime: ''
   });
   
   // צ'קבוקס להצגת נסיעות שהסתיימו
@@ -150,6 +151,19 @@ const Trips: React.FC = () => {
     show: false,
     message: '',
     conflicts: []
+  });
+
+  // דיאלוג עדכון זמנים בפועל
+  const [actualTimesDialog, setActualTimesDialog] = useState<{
+    open: boolean;
+    trip: Trip | null;
+    actualDepartureTime: string;
+    actualReturnTime: string;
+  }>({
+    open: false,
+    trip: null,
+    actualDepartureTime: '',
+    actualReturnTime: ''
   });
 
   // הרשאות
@@ -184,6 +198,9 @@ const Trips: React.FC = () => {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
+      
+      // עדכון אוטומטי של סטטוס נסיעות
+      await updateTripStatusesAutomatically();
       
       // בדיקת הרשאות המשתמש
       if (user) {
@@ -399,6 +416,45 @@ const Trips: React.FC = () => {
     const minutes = String(israelTime.getMinutes()).padStart(2, '0');
     
     return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
+  // פתיחת דיאלוג עדכון זמנים בפועל
+  const handleOpenActualTimesDialog = (trip: Trip) => {
+    setActualTimesDialog({
+      open: true,
+      trip: trip,
+      actualDepartureTime: trip.actualDepartureTime || trip.departureTime,
+      actualReturnTime: trip.actualReturnTime || trip.returnTime
+    });
+  };
+
+  // סגירת דיאלוג עדכון זמנים בפועל
+  const handleCloseActualTimesDialog = () => {
+    setActualTimesDialog({
+      open: false,
+      trip: null,
+      actualDepartureTime: '',
+      actualReturnTime: ''
+    });
+  };
+
+  // שמירת זמנים בפועל
+  const handleSaveActualTimes = async () => {
+    if (!actualTimesDialog.trip) return;
+
+    try {
+      await updateTripActualTimes(
+        actualTimesDialog.trip.id,
+        actualTimesDialog.actualDepartureTime,
+        actualTimesDialog.actualReturnTime
+      );
+      
+      // רענון הנתונים
+      await loadData();
+      handleCloseActualTimesDialog();
+    } catch (error) {
+      console.error('שגיאה בעדכון זמנים בפועל:', error);
+    }
   };
 
   const handleEditTrip = (trip: Trip) => {
@@ -797,6 +853,21 @@ const Trips: React.FC = () => {
     setOpenVehicleForm(true);
   };
 
+  const handleDeleteVehicle = async (vehicleId: string) => {
+    if (!window.confirm('האם אתה בטוח שברצונך למחוק רכב זה?')) {
+      return;
+    }
+
+    try {
+      await deleteVehicle(vehicleId);
+      await loadData();
+      alert('רכב נמחק בהצלחה!');
+    } catch (error) {
+      console.error('שגיאה במחיקת רכב:', error);
+      alert('שגיאה במחיקת רכב');
+    }
+  };
+
   const handleCloseVehicleForm = () => {
     setOpenVehicleForm(false);
     setEditVehicleId(null);
@@ -882,7 +953,10 @@ const Trips: React.FC = () => {
     setStatusAction('start');
     // שימוש בשעת יציאה מהכרטיס עם המרה לזמן ישראל
     const formattedTime = formatDateTimeForInput(trip.departureTime);
-    setStatusFormData({ actualTime: formattedTime });
+    setStatusFormData({ 
+      actualTime: formattedTime,
+      actualDepartureTime: ''
+    });
     setOpenStatusDialog(true);
   };
 
@@ -891,18 +965,27 @@ const Trips: React.FC = () => {
     setStatusAction('end');
     // שימוש בשעת חזרה מהכרטיס עם המרה לזמן ישראל
     const formattedTime = formatDateTimeForInput(trip.returnTime);
-    setStatusFormData({ actualTime: formattedTime });
+    setStatusFormData({ 
+      actualTime: formattedTime,
+      actualDepartureTime: trip.actualDepartureTime || trip.departureTime
+    });
     setOpenStatusDialog(true);
   };
 
   const handleCloseStatusDialog = () => {
     setOpenStatusDialog(false);
     setSelectedTrip(null);
-    setStatusFormData({ actualTime: '' });
+    setStatusFormData({ 
+      actualTime: '',
+      actualDepartureTime: ''
+    });
   };
 
   const handleStatusChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setStatusFormData({ actualTime: e.target.value });
+    setStatusFormData(prev => ({ 
+      ...prev,
+      actualTime: e.target.value 
+    }));
   };
 
   const handleStatusSubmit = async (e: React.FormEvent) => {
@@ -921,6 +1004,11 @@ const Trips: React.FC = () => {
         // סיום נסיעה
         updatedTrip.returnTime = statusFormData.actualTime;
         updatedTrip.status = 'הסתיימה';
+        
+        // עדכון זמן התחלה בפועל אם הוזן
+        if (statusFormData.actualDepartureTime) {
+          updatedTrip.actualDepartureTime = statusFormData.actualDepartureTime;
+        }
         
         // בדיקת התנגשויות שעות מנוחה
         if (selectedTrip.driverId) {
@@ -1235,8 +1323,10 @@ const Trips: React.FC = () => {
       key={trip.id} 
       sx={{ 
         mb: 2, 
-        border: isTripComplete(trip).isComplete ? '1px solid #e0e0e0' : '2px solid #f44336',
-        backgroundColor: isTripComplete(trip).isComplete ? 'white' : '#ffebee'
+        border: trip.autoStatusChanged ? '2px solid #ff9800' : 
+                isTripComplete(trip).isComplete ? '1px solid #e0e0e0' : '2px solid #f44336',
+        backgroundColor: trip.autoStatusChanged ? '#fff3e0' :
+                        isTripComplete(trip).isComplete ? 'white' : '#ffebee'
       }}
     >
       <CardContent>
@@ -1244,6 +1334,15 @@ const Trips: React.FC = () => {
           <Box>
             <Typography variant="h6" gutterBottom>
               {trip.purpose}
+              {/* סימון נסיעה ששינתה סטטוס אוטומטית */}
+              {trip.autoStatusChanged && (
+                <Chip 
+                  label="אוטומטי" 
+                  color="warning" 
+                  size="small" 
+                  sx={{ ml: 1, fontSize: '0.6rem' }}
+                />
+              )}
             </Typography>
             <Typography variant="body2" color="textSecondary" gutterBottom>
               מיקום: {trip.location}
@@ -1307,7 +1406,7 @@ const Trips: React.FC = () => {
                     onClick={() => handleStartTrip(trip)}
                     sx={{ mb: 0.5, fontSize: '0.7rem' }}
                   >
-                    נסיעה בביצוע
+                    התחל נסיעה
                   </Button>
                 )}
                 {trip.status === 'בביצוע' && (
@@ -1318,7 +1417,7 @@ const Trips: React.FC = () => {
                     onClick={() => handleEndTrip(trip)}
                     sx={{ mb: 0.5, fontSize: '0.7rem' }}
                   >
-                    נסיעה הסתיימה
+                    סיים נסיעה
                   </Button>
                 )}
               </Box>
@@ -1327,9 +1426,20 @@ const Trips: React.FC = () => {
             {(canEdit || canDelete) && (
               <Box>
                 {canEdit && (
-                  <IconButton size="small" onClick={() => handleEditTrip(trip)}>
-                    <EditIcon />
-                  </IconButton>
+                  <>
+                    <IconButton size="small" onClick={() => handleEditTrip(trip)}>
+                      <EditIcon />
+                    </IconButton>
+                    {/* כפתור עדכון זמנים בפועל */}
+                    <IconButton 
+                      size="small" 
+                      onClick={() => handleOpenActualTimesDialog(trip)}
+                      title="עדכון זמנים בפועל"
+                      sx={{ color: trip.autoStatusChanged ? 'warning.main' : 'action.active' }}
+                    >
+                      <ScheduleIcon />
+                    </IconButton>
+                  </>
                 )}
                 {canDelete && (
                   <IconButton size="small" onClick={() => handleDeleteTrip(trip.id)}>
@@ -1382,11 +1492,23 @@ const Trips: React.FC = () => {
               <TableRow 
                key={trip.id}
                sx={{ 
-                 backgroundColor: isTripComplete(trip).isComplete ? 'white' : '#ffebee',
-                 border: isTripComplete(trip).isComplete ? '1px solid #e0e0e0' : '2px solid #f44336'
+                 backgroundColor: trip.autoStatusChanged ? '#fff3e0' :
+                                 isTripComplete(trip).isComplete ? 'white' : '#ffebee',
+                 border: trip.autoStatusChanged ? '2px solid #ff9800' :
+                         isTripComplete(trip).isComplete ? '1px solid #e0e0e0' : '2px solid #f44336'
                }}
              >
-              <TableCell>{trip.purpose}</TableCell>
+              <TableCell>
+                {trip.purpose}
+                {trip.autoStatusChanged && (
+                  <Chip 
+                    label="אוטומטי" 
+                    color="warning" 
+                    size="small" 
+                    sx={{ ml: 1, fontSize: '0.6rem' }}
+                  />
+                )}
+              </TableCell>
               <TableCell>{trip.location}</TableCell>
               <TableCell>{trip.vehicleNumber || '-'}</TableCell>
               <TableCell>
@@ -1428,9 +1550,20 @@ const Trips: React.FC = () => {
                 {(canEdit || canDelete) && (
                   <>
                     {canEdit && (
-                      <IconButton size="small" onClick={() => handleEditTrip(trip)}>
-                        <EditIcon />
-                      </IconButton>
+                      <>
+                        <IconButton size="small" onClick={() => handleEditTrip(trip)}>
+                          <EditIcon />
+                        </IconButton>
+                        {/* כפתור עדכון זמנים בפועל */}
+                        <IconButton 
+                          size="small" 
+                          onClick={() => handleOpenActualTimesDialog(trip)}
+                          title="עדכון זמנים בפועל"
+                          sx={{ color: trip.autoStatusChanged ? 'warning.main' : 'action.active' }}
+                        >
+                          <ScheduleIcon />
+                        </IconButton>
+                      </>
                     )}
                     {canDelete && (
                       <IconButton size="small" onClick={() => handleDeleteTrip(trip.id)}>
@@ -1517,11 +1650,15 @@ const Trips: React.FC = () => {
           onChange={handleTabChange}
           variant="scrollable"
           scrollButtons="auto"
+          allowScrollButtonsMobile
           sx={{
             '& .MuiTab-root': {
               fontSize: { xs: '0.8rem', sm: '0.875rem' },
               minWidth: { xs: '80px', sm: '120px' }
-            }
+            },
+            '& .MuiTabs-scrollButtons': {
+              '&.Mui-disabled': { opacity: 0.3 },
+            },
           }}
         >
           <Tab label="דאשבורד" />
@@ -1700,6 +1837,9 @@ const Trips: React.FC = () => {
                           <IconButton size="small" onClick={() => handleEditVehicle(vehicle)}>
                             <EditIcon />
                           </IconButton>
+                          <IconButton size="small" onClick={() => handleDeleteVehicle(vehicle.id)}>
+                            <DeleteIcon />
+                          </IconButton>
                         </Box>
                       </Box>
                       <Chip 
@@ -1752,6 +1892,9 @@ const Trips: React.FC = () => {
                       <TableCell>
                         <IconButton size="small" onClick={() => handleEditVehicle(vehicle)}>
                           <EditIcon />
+                        </IconButton>
+                        <IconButton size="small" onClick={() => handleDeleteVehicle(vehicle.id)}>
+                          <DeleteIcon />
                         </IconButton>
                       </TableCell>
                     </TableRow>
@@ -1836,6 +1979,22 @@ const Trips: React.FC = () => {
                       <Typography variant="body2" color="textSecondary">
                         תפקיד: {driver.role}
                       </Typography>
+                      <Typography variant="body2" color="textSecondary">
+                        מסגרת: {driver.frameworkId ? frameworks.find(f => f.id === driver.frameworkId)?.name || driver.frameworkId : 'לא מוגדר'}
+                      </Typography>
+                      <Box sx={{ mt: 1, mb: 1 }}>
+                        <Chip
+                          label={driver.status === 'available' ? 'זמין' : driver.status === 'on_trip' ? 'בנסיעה' : 'במנוחה'}
+                          color={driver.status === 'available' ? 'success' : driver.status === 'on_trip' ? 'warning' : 'info'}
+                          size="small"
+                          sx={{ mr: 1 }}
+                        />
+                        {driver.restUntil && (
+                          <Typography variant="caption" color="textSecondary">
+                            מנוחה עד: {new Date(driver.restUntil).toLocaleString('he-IL')}
+                          </Typography>
+                        )}
+                      </Box>
 
                       {driver.drivingLicenses && driver.drivingLicenses.length > 0 && (
                         <Box sx={{ mt: 1 }}>
@@ -2211,6 +2370,22 @@ const Trips: React.FC = () => {
         <form onSubmit={handleStatusSubmit}>
           <DialogContent>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {/* שדה זמן התחלה בפועל - רק בסיום נסיעה */}
+              {statusAction === 'end' && (
+                <TextField
+                  fullWidth
+                  label="זמן התחלה בפועל"
+                  type="datetime-local"
+                  value={statusFormData.actualDepartureTime}
+                  onChange={(e) => setStatusFormData(prev => ({ 
+                    ...prev,
+                    actualDepartureTime: e.target.value 
+                  }))}
+                  InputLabelProps={{ shrink: true }}
+                  helperText="הזמן בפועל שבו התחילה הנסיעה"
+                />
+              )}
+              
               <TextField
                 fullWidth
                 label={statusAction === 'start' ? 'שעת יציאה (מתוך הכרטיס)' : 'שעת חזרה (מתוך הכרטיס)'}
@@ -2233,6 +2408,112 @@ const Trips: React.FC = () => {
             </Button>
           </DialogActions>
         </form>
+      </Dialog>
+
+      {/* דיאלוג עדכון זמנים בפועל */}
+      <Dialog open={actualTimesDialog.open} onClose={handleCloseActualTimesDialog} maxWidth="md" fullWidth>
+        <DialogTitle>
+          עדכון זמנים בפועל - {actualTimesDialog.trip?.purpose}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}>
+            {/* התראה על שינוי אוטומטי */}
+            {actualTimesDialog.trip?.autoStatusChanged && (
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                <Typography variant="body2" fontWeight="bold">
+                  ⚠️ נסיעה זו שינתה סטטוס אוטומטית
+                </Typography>
+                <Typography variant="body2">
+                  הסטטוס השתנה אוטומטית מ-{actualTimesDialog.trip.status === 'בביצוע' ? 'מתוכננת' : 'בביצוע'} ל-{actualTimesDialog.trip.status}
+                </Typography>
+                <Typography variant="body2">
+                  עדכן את הזמנים בפועל כדי לבטל את הסימון האוטומטי
+                </Typography>
+              </Alert>
+            )}
+
+            {/* זמנים מתוכננים */}
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2, color: 'text.secondary' }}>
+                זמנים מתוכננים:
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <TextField
+                  label="זמן יציאה מתוכנן"
+                  value={actualTimesDialog.trip?.departureTime ? 
+                    new Date(actualTimesDialog.trip.departureTime).toLocaleString('he-IL') : 
+                    'לא מוגדר'
+                  }
+                  InputProps={{ readOnly: true }}
+                  sx={{ flex: 1, minWidth: 200 }}
+                />
+                <TextField
+                  label="זמן חזרה מתוכנן"
+                  value={actualTimesDialog.trip?.returnTime ? 
+                    new Date(actualTimesDialog.trip.returnTime).toLocaleString('he-IL') : 
+                    'לא מוגדר'
+                  }
+                  InputProps={{ readOnly: true }}
+                  sx={{ flex: 1, minWidth: 200 }}
+                />
+              </Box>
+            </Box>
+
+            {/* זמנים בפועל */}
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2, color: 'primary.main' }}>
+                זמנים בפועל:
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <TextField
+                  label="זמן יציאה בפועל"
+                  type="datetime-local"
+                  value={actualTimesDialog.actualDepartureTime}
+                  onChange={(e) => setActualTimesDialog(prev => ({
+                    ...prev,
+                    actualDepartureTime: e.target.value
+                  }))}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ flex: 1, minWidth: 200 }}
+                  helperText="הזמן בפועל שבו יצאה הנסיעה"
+                />
+                <TextField
+                  label="זמן חזרה בפועל"
+                  type="datetime-local"
+                  value={actualTimesDialog.actualReturnTime}
+                  onChange={(e) => setActualTimesDialog(prev => ({
+                    ...prev,
+                    actualReturnTime: e.target.value
+                  }))}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ flex: 1, minWidth: 200 }}
+                  helperText="הזמן בפועל שבו חזרה הנסיעה"
+                />
+              </Box>
+            </Box>
+
+            {/* מידע נוסף */}
+            {actualTimesDialog.trip && (
+              <Box sx={{ p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>רכב:</strong> {vehicles.find(v => v.id === actualTimesDialog.trip?.vehicleId)?.number || 'לא מוגדר'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>נהג:</strong> {soldiers.find(s => s.id === actualTimesDialog.trip?.driverId)?.name || 'לא מוגדר'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>סטטוס נוכחי:</strong> {actualTimesDialog.trip.status}
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseActualTimesDialog}>ביטול</Button>
+          <Button onClick={handleSaveActualTimes} variant="contained">
+            שמור זמנים בפועל
+          </Button>
+        </DialogActions>
       </Dialog>
     </Container>
   );

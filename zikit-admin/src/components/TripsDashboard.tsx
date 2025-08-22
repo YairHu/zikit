@@ -16,7 +16,7 @@ import {
 import { Trip } from '../models/Trip';
 import { Vehicle } from '../models/Vehicle';
 import { Soldier } from '../models/Soldier';
-import { updateDriverStatuses } from '../services/tripService';
+import { updateDriverStatuses, updateTripStatusesAutomatically } from '../services/tripService';
 import TripsTimeline from './TripsTimeline';
 
 interface TripsDashboardProps {
@@ -71,7 +71,8 @@ const TripsDashboard: React.FC<TripsDashboardProps> = ({
 
 
   const handleRefresh = async () => {
-    await updateDriverStatuses();
+    // עדכון אוטומטי של סטטוס נסיעות
+    await updateTripStatusesAutomatically();
     onRefresh();
   };
 
@@ -99,56 +100,62 @@ const TripsDashboard: React.FC<TripsDashboardProps> = ({
       </Box>
 
       {/* סטטיסטיקות - נסיעות בביצוע, רכבים ונהגים זמינים */}
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: { xs: 1, sm: 3 }, mb: 3 }}>
+      <Box sx={{ 
+        display: 'flex', 
+        flexWrap: 'wrap', 
+        gap: { xs: 1, sm: 3 }, 
+        mb: 3,
+        justifyContent: { xs: 'space-between', sm: 'flex-start' }
+      }}>
         <Card sx={{ 
-          flex: { xs: '1 1 100%', sm: '1 1 250px' }, 
-          minWidth: { xs: '200px', sm: '250px' },
-          maxWidth: { xs: '100%', sm: 'none' }
+          flex: { xs: '1 1 calc(50% - 4px)', sm: '1 1 250px' }, 
+          minWidth: { xs: '140px', sm: '250px' },
+          maxWidth: { xs: 'calc(50% - 4px)', sm: 'none' }
         }}>
-          <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
+          <CardContent sx={{ p: { xs: 1, sm: 2 } }}>
             <Box display="flex" alignItems="center">
-              <TimeIcon color="warning" sx={{ mr: 1, fontSize: { xs: '1.5rem', sm: '2rem' } }} />
-              <Typography variant="h6" sx={{ fontSize: { xs: '1.2rem', sm: '1.25rem' } }}>{stats.activeTrips}</Typography>
+              <TimeIcon color="warning" sx={{ mr: 1, fontSize: { xs: '1.2rem', sm: '2rem' } }} />
+              <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>{stats.activeTrips}</Typography>
             </Box>
-            <Typography variant="body2" color="textSecondary" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+            <Typography variant="body2" color="textSecondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>
               נסיעות בביצוע
             </Typography>
           </CardContent>
         </Card>
         <Card sx={{ 
-          flex: { xs: '1 1 100%', sm: '1 1 250px' }, 
-          minWidth: { xs: '200px', sm: '250px' },
-          maxWidth: { xs: '100%', sm: 'none' }
+          flex: { xs: '1 1 calc(50% - 4px)', sm: '1 1 250px' }, 
+          minWidth: { xs: '140px', sm: '250px' },
+          maxWidth: { xs: 'calc(50% - 4px)', sm: 'none' }
         }}>
-          <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
+          <CardContent sx={{ p: { xs: 1, sm: 2 } }}>
             <Box display="flex" alignItems="center">
-              <VehicleIcon color="success" sx={{ mr: 1, fontSize: { xs: '1.5rem', sm: '2rem' } }} />
-              <Typography variant="h6" sx={{ fontSize: { xs: '1.2rem', sm: '1.25rem' } }}>{stats.availableVehicles}</Typography>
+              <VehicleIcon color="success" sx={{ mr: 1, fontSize: { xs: '1.2rem', sm: '2rem' } }} />
+              <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>{stats.availableVehicles}</Typography>
             </Box>
-            <Typography variant="body2" color="textSecondary" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+            <Typography variant="body2" color="textSecondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>
               רכבים זמינים
             </Typography>
-            <Typography variant="caption" color="textSecondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.75rem' } }}>
+            <Typography variant="caption" color="textSecondary" sx={{ fontSize: { xs: '0.6rem', sm: '0.75rem' } }}>
               מתוך {vehicles.length} רכבים
             </Typography>
           </CardContent>
         </Card>
         <Card sx={{ 
           flex: { xs: '1 1 100%', sm: '1 1 250px' }, 
-          minWidth: { xs: '200px', sm: '250px' },
+          minWidth: { xs: '140px', sm: '250px' },
           maxWidth: { xs: '100%', sm: 'none' }
         }}>
-          <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
+          <CardContent sx={{ p: { xs: 1, sm: 2 } }}>
             <Box display="flex" alignItems="center">
-              <DriverIcon color="success" sx={{ mr: 1, fontSize: { xs: '1.5rem', sm: '2rem' } }} />
-              <Typography variant="h6" sx={{ fontSize: { xs: '1.2rem', sm: '1.25rem' } }}>{stats.availableDrivers}</Typography>
+              <DriverIcon color="success" sx={{ mr: 1, fontSize: { xs: '1.2rem', sm: '2rem' } }} />
+              <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>{stats.availableDrivers}</Typography>
             </Box>
-            <Typography variant="body2" color="textSecondary" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+            <Typography variant="body2" color="textSecondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>
               נהגים זמינים
             </Typography>
             <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-              <Chip size="small" label={`${stats.driversOnTrip} בנסיעה`} color="warning" sx={{ fontSize: { xs: '0.7rem', sm: '0.75rem' } }} />
-              <Chip size="small" label={`${stats.driversResting} במנוחה`} color="info" sx={{ fontSize: { xs: '0.7rem', sm: '0.75rem' } }} />
+              <Chip size="small" label={`${stats.driversOnTrip} בנסיעה`} color="warning" sx={{ fontSize: { xs: '0.6rem', sm: '0.75rem' } }} />
+              <Chip size="small" label={`${stats.driversResting} במנוחה`} color="info" sx={{ fontSize: { xs: '0.6rem', sm: '0.75rem' } }} />
             </Box>
           </CardContent>
         </Card>
