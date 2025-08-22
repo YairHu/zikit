@@ -109,19 +109,15 @@ const DataImportExport: React.FC = () => {
           rank: 'דרגה',
           role: 'תפקיד',
           profile: 'פרופיל רפואי',
-          phone: 'טלפון',
-          email: 'אימייל',
-          birthDate: 'תאריך לידה',
-          address: 'כתובת',
-          family: 'משפחה',
-          medicalProfile: 'פרופיל רפואי מפורט',
           qualifications: 'כשירויות (מופרד בפסיקים)',
-          licenses: 'רישיונות (מופרד בפסיקים)',
-          certifications: 'הסמכות (מופרד בפסיקים)',
           drivingLicenses: 'היתרים לנהיגה (מופרד בפסיקים)',
           presence: 'נוכחות',
           presenceOther: 'פירוט נוכחות אחר',
-          notes: 'הערות',
+          family: 'משפחה',
+          email: 'אימייל',
+          phone: 'טלפון',
+          birthDate: 'תאריך לידה',
+          address: 'כתובת',
           additionalInfo: 'מידע נוסף'
         }
       ]
@@ -145,12 +141,10 @@ const DataImportExport: React.FC = () => {
         {
           vehicleNumber: 'מספר רכב',
           type: 'סוג רכב',
-          model: 'דגם',
-          year: 'שנת ייצור',
-          licensePlate: 'מספר רישוי',
-          status: 'סטטוס',
-          lastMaintenance: 'תחזוקה אחרונה',
-          notes: 'הערות'
+          mileage: 'קילומטרז',
+          nextMaintenance: 'תחזוקה הבאה (תאריך)',
+          seats: 'מספר מקומות',
+          requiredLicense: 'היתר נדרש לנהיגה'
         }
       ]
     },
@@ -172,10 +166,13 @@ const DataImportExport: React.FC = () => {
       getTemplate: () => [
         {
           name: 'שם המסגרת',
-          type: 'סוג מסגרת',
-          commander: 'מפקד',
+          parentFrameworkId: 'מזהה מסגרת אב',
+          commanderId: 'מזהה מפקד',
           description: 'תיאור',
-          status: 'סטטוס'
+          level: 'רמת מסגרת (company/platoon/squad/team/other)',
+          isActive: 'פעילה (true/false)',
+          createdAt: 'תאריך יצירה',
+          updatedAt: 'תאריך עדכון'
         }
       ]
     },
@@ -238,44 +235,67 @@ const DataImportExport: React.FC = () => {
     }
 
     const headers = Object.keys(data[0]);
+    
+    // פונקציה עזר לעיבוד ערכים
+    const processValue = (value: any): string => {
+      if (value === null || value === undefined) {
+        return '';
+      }
+      
+      // טיפול במערכים
+      if (Array.isArray(value)) {
+        const arrayString = value.map(v => String(v)).join('; ');
+        return `"${arrayString.replace(/"/g, '""')}"`;
+      }
+      
+      // טיפול באובייקטים (כמו timestamp, dates וכו')
+      if (typeof value === 'object') {
+        // טיפול מיוחד בתאריכים
+        if (value instanceof Date) {
+          return value.toISOString();
+        }
+        
+        // טיפול באובייקטים עם toDate (Firestore Timestamp)
+        if (value.toDate && typeof value.toDate === 'function') {
+          return value.toDate().toISOString();
+        }
+        
+        // טיפול באובייקטים אחרים
+        const objectString = JSON.stringify(value);
+        return `"${objectString.replace(/"/g, '""')}"`;
+      }
+      
+      // המרת הערך למחרוזת
+      const stringValue = String(value);
+      
+      // בדיקה אם צריך לעטוף בגרשיים
+      if (stringValue.includes(',') || 
+          stringValue.includes('"') || 
+          stringValue.includes('\n') || 
+          stringValue.includes('\r') ||
+          stringValue.includes(';')) {
+        return `"${stringValue.replace(/"/g, '""')}"`;
+      }
+      
+      return stringValue;
+    };
+
     const csvContent = [
-      headers.join(','),
+      headers.map(header => `"${header}"`).join(','), // עטיפת כותרות בגרשיים
       ...data.map(row => 
-        headers.map(header => {
-          const value = row[header];
-          
-          // טיפול במערכים
-          if (Array.isArray(value)) {
-            const arrayString = value.join('; ');
-            return `"${arrayString.replace(/"/g, '""')}"`;
-          }
-          
-          // טיפול באובייקטים (כמו timestamp)
-          if (typeof value === 'object' && value !== null) {
-            const objectString = JSON.stringify(value);
-            return `"${objectString.replace(/"/g, '""')}"`;
-          }
-          
-          // טיפול במחרוזות
-          if (typeof value === 'string') {
-            // אם הערך מכיל פסיקים, גרשיים או תווים מיוחדים, נעטוף אותו בגרשיים
-            if (value.includes(',') || value.includes('"') || value.includes('\n') || value.includes('\r')) {
-              return `"${value.replace(/"/g, '""')}"`;
-            }
-            return value;
-          }
-          
-          // טיפול בערכים אחרים
-          return value !== null && value !== undefined ? String(value) : '';
-        }).join(',')
+        headers.map(header => processValue(row[header])).join(',')
       )
     ].join('\n');
 
-    // הוספת BOM לתמיכה בעברית
+    // הוספת BOM לתמיכה מושלמת בעברית ב-Excel
     const BOM = '\uFEFF';
     const csvWithBOM = BOM + csvContent;
     
-    const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' });
+    // יצירת קובץ עם קידוד UTF-8 מפורש
+    const blob = new Blob([csvWithBOM], { 
+      type: 'text/csv;charset=utf-8;' 
+    });
+    
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
@@ -284,6 +304,9 @@ const DataImportExport: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    
+    // ניקוי זיכרון
+    URL.revokeObjectURL(url);
   };
 
   // פונקציה לייצוא תבנית ריקה
@@ -306,44 +329,61 @@ const DataImportExport: React.FC = () => {
           // הסרת BOM אם קיים
           const cleanCsv = csv.replace(/^\uFEFF/, '');
           
-          const lines = cleanCsv.split('\n');
+          const lines = cleanCsv.split(/\r?\n/); // תמיכה ב-CRLF ו-LF
+          if (lines.length === 0) {
+            throw new Error('הקובץ ריק או לא תקין');
+          }
+          
           const headers = parseCSVLine(lines[0]);
+          if (headers.length === 0) {
+            throw new Error('לא נמצאו כותרות בקובץ');
+          }
           
           const data = lines.slice(1)
             .filter(line => line.trim())
-            .map(line => {
-              const values = parseCSVLine(line);
-              const row: any = {};
-                             headers.forEach((header, index) => {
-                 let value: any = values[index] || '';
-                 
-                 // ניסיון לפרסר מערכים (מופרדים ב-;)
-                 if (typeof value === 'string' && value.includes(';') && !value.includes('{') && !value.includes('[')) {
-                   const arrayValues = value.split(';').map((v: string) => v.trim()).filter((v: string) => v);
-                   if (arrayValues.length > 1) {
-                     value = arrayValues;
-                   }
-                 }
-                 
-                 // ניסיון לפרסר JSON (אובייקטים)
-                 if (typeof value === 'string' && (value.startsWith('{') || value.startsWith('['))) {
-                   try {
-                     value = JSON.parse(value);
-                   } catch (e) {
-                     // אם לא מצליח לפרסר, נשאיר כמחרוזת
-                   }
-                 }
-                 
-                 row[header] = value;
-               });
-              return row;
+            .map((line, lineIndex) => {
+              try {
+                const values = parseCSVLine(line);
+                const row: any = {};
+                
+                headers.forEach((header, index) => {
+                  let value: any = values[index] || '';
+                  
+                  // ניקוי ערכים
+                  if (typeof value === 'string') {
+                    value = value.trim();
+                  }
+                  
+                  // ניסיון לפרסר מערכים (מופרדים ב-;)
+                  if (typeof value === 'string' && value.includes(';') && !value.includes('{') && !value.includes('[')) {
+                    const arrayValues = value.split(';').map((v: string) => v.trim()).filter((v: string) => v);
+                    if (arrayValues.length > 1) {
+                      value = arrayValues;
+                    }
+                  }
+                  
+                  // ניסיון לפרסר JSON (אובייקטים)
+                  if (typeof value === 'string' && (value.startsWith('{') || value.startsWith('['))) {
+                    try {
+                      value = JSON.parse(value);
+                    } catch (e) {
+                      // אם לא מצליח לפרסר, נשאיר כמחרוזת
+                    }
+                  }
+                  
+                  row[header] = value;
+                });
+                return row;
+              } catch (error) {
+                throw new Error(`שגיאה בעיבוד שורה ${lineIndex + 2}: ${error}`);
+              }
             });
           resolve(data);
         } catch (error) {
           reject(error);
         }
       };
-      reader.onerror = reject;
+      reader.onerror = () => reject(new Error('שגיאה בקריאת הקובץ'));
       reader.readAsText(file, 'utf-8');
     });
   };
@@ -386,20 +426,51 @@ const DataImportExport: React.FC = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith('.csv')) {
-      alert('אנא העלה קובץ CSV בלבד');
+    // איפוס שדה הקובץ כדי לאפשר העלאת אותו קובץ שוב
+    event.target.value = '';
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      alert('אנא העלה קובץ CSV בלבד (.csv)');
+      return;
+    }
+
+    // בדיקת גודל קובץ (מקסימום 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('גודל הקובץ גדול מדי. המקסימום הוא 10MB');
       return;
     }
 
     setLoading(true);
+    setValidationErrors([]);
+    
     try {
       const data = await readCSVFile(file);
+      
+      if (data.length === 0) {
+        throw new Error('הקובץ ריק או לא מכיל נתונים תקינים');
+      }
+      
+      if (data.length > 1000) {
+        const proceed = window.confirm(`הקובץ מכיל ${data.length} שורות. האם להמשיך? (מומלץ לחלק לקבצים קטנים יותר)`);
+        if (!proceed) {
+          setLoading(false);
+          return;
+        }
+      }
+      
       setUploadedData(data);
       setPreviewData(data.slice(0, 5)); // הצג 5 שורות ראשונות לתצוגה מקדימה
       setActiveStep(1);
-      setValidationErrors([]);
+      
+      // הוספת הודעת הצלחה
+      console.log(`נטען בהצלחה קובץ עם ${data.length} שורות`);
     } catch (error) {
-      alert('שגיאה בקריאת הקובץ: ' + error);
+      console.error('שגיאה בקריאת הקובץ:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      alert(`שגיאה בקריאת הקובץ:\n${errorMessage}\n\nוודא שהקובץ הוא CSV תקין עם קידוד UTF-8`);
+      setUploadedData([]);
+      setPreviewData([]);
+      setActiveStep(0);
     } finally {
       setLoading(false);
     }
@@ -447,13 +518,15 @@ const DataImportExport: React.FC = () => {
       const result = await table.importData(uploadedData);
       
       // הצגת תוצאות
-      if (result.success > 0) {
-        alert(`הייבוא הושלם בהצלחה!\n${result.success} שורות יובאו בהצלחה${result.errors.length > 0 ? `\n${result.errors.length} שגיאות` : ''}`);
-      }
+      let successMessage = `הייבוא הושלם!\n✅ ${result.success} שורות יובאו בהצלחה`;
       
       if (result.errors && result.errors.length > 0) {
+        successMessage += `\n⚠️ ${result.errors.length} שגיאות זוהו`;
         console.error('שגיאות בייבוא:', result.errors);
+        console.log('פרטי שגיאות:', result.errors.join('\n'));
       }
+      
+      alert(successMessage);
       
       setActiveStep(2);
       setImportProgress(100);
@@ -484,6 +557,21 @@ const DataImportExport: React.FC = () => {
         <Typography variant="body2">
           <strong>הוראות:</strong> בחר טבלה, הורד תבנית ריקה, מלא אותה בנתונים והעלה חזרה למערכת.
           או ייצא נתונים קיימים לעריכה חיצונית.
+        </Typography>
+      </Alert>
+
+      {/* CSV Encoding Warning */}
+      <Alert severity="warning" sx={{ mb: 3 }}>
+        <Typography variant="body2">
+          <strong>חשוב - תמיכה בעברית:</strong>
+          <br />
+          • קבצי CSV נוצרים עם קידוד UTF-8 ו-BOM לתמיכה מלאה בעברית
+          <br />
+          • ב-Excel: פתח את הקובץ באמצעות "נתונים" → "מטקסט/CSV" ובחר קידוד UTF-8
+          <br />
+          • ב-Google Sheets: הקובץ ייפתח אוטומטיך עם התמיכה הנכונה בעברית
+          <br />
+          • מערכים (רשימות) מופרדים בפסיק-נקודה (;) ואובייקטים מיוצגים כ-JSON
         </Typography>
       </Alert>
 
@@ -588,24 +676,55 @@ const DataImportExport: React.FC = () => {
                   <StepContent>
                     {uploadedData.length > 0 && (
                       <Box>
-                        <Typography variant="body2" sx={{ mb: 2 }}>
-                          נמצאו {uploadedData.length} שורות. תצוגה מקדימה של 5 שורות ראשונות:
-                        </Typography>
+                        <Box sx={{ mb: 2 }}>
+                          <Typography variant="body2" sx={{ mb: 1 }}>
+                            📊 <strong>סטטיסטיקות:</strong> {uploadedData.length} שורות, {Object.keys(uploadedData[0] || {}).length} עמודות
+                          </Typography>
+                          <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+                            {showPreview 
+                              ? `מציג ${Math.min(uploadedData.length, 10)} שורות ראשונות:` 
+                              : 'תצוגה מקדימה של 5 שורות ראשונות:'
+                            }
+                          </Typography>
+                        </Box>
                         
-                        <TableContainer component={Paper} sx={{ mb: 2 }}>
-                          <Table size="small">
+                        <TableContainer component={Paper} sx={{ mb: 2, maxHeight: showPreview ? 400 : 300 }}>
+                          <Table size="small" stickyHeader>
                             <TableHead>
                               <TableRow>
+                                <TableCell>#</TableCell>
                                 {Object.keys(uploadedData[0] || {}).map((header) => (
-                                  <TableCell key={header}>{header}</TableCell>
+                                  <TableCell key={header} sx={{ minWidth: 100 }}>
+                                    <strong>{header}</strong>
+                                  </TableCell>
                                 ))}
                               </TableRow>
                             </TableHead>
                             <TableBody>
-                              {previewData.map((row, index) => (
-                                <TableRow key={index}>
+                              {(showPreview ? uploadedData.slice(0, 10) : previewData).map((row, index) => (
+                                <TableRow key={index} hover>
+                                  <TableCell sx={{ backgroundColor: 'grey.100' }}>
+                                    {index + 1}
+                                  </TableCell>
                                   {Object.values(row).map((value, cellIndex) => (
-                                    <TableCell key={cellIndex}>{String(value)}</TableCell>
+                                    <TableCell key={cellIndex} sx={{ maxWidth: 200 }}>
+                                      <Typography 
+                                        variant="body2" 
+                                        sx={{ 
+                                          wordBreak: 'break-word',
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                          whiteSpace: showPreview ? 'normal' : 'nowrap'
+                                        }}
+                                      >
+                                        {Array.isArray(value) 
+                                          ? `[${value.length} פריטים]`
+                                          : typeof value === 'object' && value !== null
+                                          ? '[אובייקט]'
+                                          : String(value || '').substring(0, 100) + (String(value || '').length > 100 ? '...' : '')
+                                        }
+                                      </Typography>
+                                    </TableCell>
                                   ))}
                                 </TableRow>
                               ))}
@@ -631,24 +750,35 @@ const DataImportExport: React.FC = () => {
                           </Alert>
                         )}
 
-                        <Box sx={{ display: 'flex', gap: 2 }}>
+                        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                           <Button
                             variant="contained"
                             onClick={handleImport}
                             disabled={loading || validationErrors.length > 0}
-                            startIcon={<UploadIcon />}
+                            startIcon={loading ? <CircularProgress size={20} /> : <UploadIcon />}
                           >
-                            ייבא נתונים
+                            {loading ? 'מייבא...' : 'ייבא נתונים'}
                           </Button>
                           <Button
                             variant="outlined"
                             onClick={() => {
                               setActiveStep(0);
                               setUploadedData([]);
+                              setPreviewData([]);
                               setValidationErrors([]);
+                              setImportProgress(0);
                             }}
+                            disabled={loading}
                           >
                             התחל מחדש
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            color="secondary"
+                            onClick={() => setShowPreview(!showPreview)}
+                            disabled={loading}
+                          >
+                            {showPreview ? 'הסתר תצוגה מקדימה' : 'הראה עוד נתונים'}
                           </Button>
                         </Box>
                       </Box>

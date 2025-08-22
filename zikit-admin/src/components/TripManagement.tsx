@@ -30,7 +30,7 @@ import {
 } from '@mui/icons-material';
 import { Trip } from '../models/Trip';
 import { Vehicle } from '../models/Vehicle';
-import { Driver } from '../models/Driver';
+import { Soldier } from '../models/Soldier';
 import { Activity } from '../models/Activity';
 import { getAllTrips, updateTrip, deleteTrip } from '../services/tripService';
 import { getAllVehicles } from '../services/vehicleService';
@@ -51,7 +51,7 @@ const TripManagement: React.FC<TripManagementProps> = ({
 }) => {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [drivers, setDrivers] = useState<Soldier[]>([]);
   const [loading, setLoading] = useState(false);
   const [showExistingTrips, setShowExistingTrips] = useState(false);
   const [selectedTripId, setSelectedTripId] = useState<string>('');
@@ -81,7 +81,7 @@ const TripManagement: React.FC<TripManagementProps> = ({
       // סינון נהגים מתוך החיילים
       const driversData = soldiersData.filter(soldier => 
         soldier.qualifications?.includes('נהג')
-      ) as Driver[];
+      );
       setDrivers(driversData);
     } catch (error) {
       console.error('שגיאה בטעינת נתונים:', error);

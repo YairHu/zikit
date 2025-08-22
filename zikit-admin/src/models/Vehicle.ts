@@ -10,4 +10,5 @@ export interface Vehicle {
   driverId?: string;
   returnEstimate?: string; // צפי חזרה
   seats: number; // מספר מקומות ברכב
+  requiredLicense?: string; // היתר נדרש לנהיגה ברכב זה
 } 

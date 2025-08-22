@@ -36,7 +36,9 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  Checkbox,
+  FormControlLabel
 } from '@mui/material';
 import {
   Group as GroupIcon,
@@ -59,29 +61,33 @@ import {
 import { useUser } from '../contexts/UserContext';
 import { Trip } from '../models/Trip';
 import { Vehicle } from '../models/Vehicle';
-import { Driver } from '../models/Driver';
+
 import { Soldier } from '../models/Soldier';
 import { Activity } from '../models/Activity';
-import { getAllTrips, addTrip, updateTrip, deleteTrip, checkAvailability } from '../services/tripService';
+import { getAllTrips, addTrip, updateTrip, deleteTrip, checkAvailability, checkAdvancedAvailability, setDriverRest, updateDriverStatuses, updateDriverStatusByTrip, getDriversWithRequiredLicense, getVehiclesCompatibleWithDriver } from '../services/tripService';
 import { getAllVehicles, addVehicle, updateVehicle } from '../services/vehicleService';
 import { getAllSoldiers, updateSoldier } from '../services/soldierService';
 import { getAllActivities, updateActivity } from '../services/activityService';
 import { getAllFrameworks } from '../services/frameworkService';
 import { UserRole, SystemPath, PermissionLevel, DataScope } from '../models/UserRole';
 import { canUserAccessPath, getUserPermissions } from '../services/permissionService';
+import TripsDashboard from '../components/TripsDashboard';
+import TripsTimeline from '../components/TripsTimeline';
 
 const Trips: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useUser();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [filteredVehicles, setFilteredVehicles] = useState<Vehicle[]>([]);
+  const [drivers, setDrivers] = useState<Soldier[]>([]);
+  const [filteredDrivers, setFilteredDrivers] = useState<Soldier[]>([]);
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [frameworks, setFrameworks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTab] = useState(1); // ציר זמן ברירת מחדל
   const [openForm, setOpenForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -92,7 +98,7 @@ const Trips: React.FC = () => {
     departureTime: '',
     returnTime: '',
     purpose: '',
-    status: 'מתוכננת' as 'מתוכננת' | 'בביצוע' | 'הסתיימה' | 'בוטלה'
+    status: 'מתוכננת' as 'מתוכננת' | 'בביצוע' | 'הסתיימה'
   });
   const [error, setError] = useState<string | null>(null);
   const [openVehicleForm, setOpenVehicleForm] = useState(false);
@@ -104,14 +110,46 @@ const Trips: React.FC = () => {
     lastMaintenance: '',
     nextMaintenance: '',
     seats: 0,
-    status: 'available' as 'available' | 'on_mission' | 'maintenance'
+    status: 'available' as 'available' | 'on_mission' | 'maintenance',
+    requiredLicense: ''
   });
   
   // דיאלוג היתרי נהיגה
   const [openLicenseDialog, setOpenLicenseDialog] = useState(false);
-  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
+  const [selectedDriver, setSelectedDriver] = useState<Soldier | null>(null);
   const [licenseFormData, setLicenseFormData] = useState({
     drivingLicenses: ''
+  });
+
+  // דיאלוגי שינוי סטטוס נסיעה
+  const [openStatusDialog, setOpenStatusDialog] = useState(false);
+  const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
+  const [statusAction, setStatusAction] = useState<'start' | 'end'>('start');
+  const [statusFormData, setStatusFormData] = useState({
+    actualTime: ''
+  });
+  
+  // צ'קבוקס להצגת נסיעות שהסתיימו
+  const [showCompletedTrips, setShowCompletedTrips] = useState(false);
+  
+  // תצוגה של רכבים ונהגים
+  const [vehiclesViewMode, setVehiclesViewMode] = useState<'cards' | 'table'>('cards');
+  const [driversViewMode, setDriversViewMode] = useState<'cards' | 'table'>('cards');
+  
+  // התראה על התנגשות שעות מנוחה
+  const [restConflictAlert, setRestConflictAlert] = useState<{
+    show: boolean;
+    message: string;
+    conflicts: Array<{
+      tripId: string;
+      tripPurpose: string;
+      departureTime: string;
+      returnTime: string;
+    }>;
+  }>({
+    show: false,
+    message: '',
+    conflicts: []
   });
 
   // הרשאות
@@ -256,6 +294,7 @@ const Trips: React.FC = () => {
       
       setTrips(filteredTrips);
       setVehicles(vehiclesData);
+      setFilteredVehicles(vehiclesData); // התחלתי - כל הרכבים
       setSoldiers(soldiersData);
       setActivities(activitiesData);
       setFrameworks(frameworksData);
@@ -263,8 +302,9 @@ const Trips: React.FC = () => {
       // סינון נהגים מתוך החיילים
       const driversData = soldiersData.filter(soldier => 
         soldier.qualifications?.includes('נהג')
-      ) as Driver[];
+      );
       setDrivers(driversData);
+      setFilteredDrivers(driversData); // התחלתי - כל הנהגים
     } catch (error) {
       console.error('שגיאה בטעינת נתונים:', error);
     } finally {
@@ -275,6 +315,19 @@ const Trips: React.FC = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // עדכון סטטוס נהגים רק בטעינת העמוד
+  useEffect(() => {
+    const updateStatuses = async () => {
+      try {
+        await updateDriverStatuses();
+      } catch (error) {
+        console.error('שגיאה בעדכון סטטוס נהגים:', error);
+      }
+    };
+    
+    updateStatuses();
+  }, []); // רק בטעינת העמוד
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
@@ -302,6 +355,52 @@ const Trips: React.FC = () => {
     setOpenForm(true);
   };
 
+  const handleCreateTripFromTimeline = (tripData: {
+    departureTime: string;
+    returnTime: string;
+    vehicleId?: string;
+    driverId?: string;
+  }) => {
+    // בדיקת הרשאות
+    if (!permissions.canCreate) {
+      alert('אין לך הרשאה ליצור נסיעות');
+      return;
+    }
+    
+    setEditId(null);
+    setFormData({
+      vehicleId: tripData.vehicleId || '',
+      driverId: tripData.driverId || '',
+      commanderId: '',
+      location: '',
+      departureTime: formatDateTimeForInput(tripData.departureTime),
+      returnTime: formatDateTimeForInput(tripData.returnTime),
+      purpose: '',
+      status: 'מתוכננת'
+    });
+    setError(null);
+    setOpenForm(true);
+  };
+
+  // פונקציה להמרת זמן לפורמט datetime-local (זמן ישראל)
+  const formatDateTimeForInput = (dateString: string): string => {
+    if (!dateString) return '';
+    
+    const date = new Date(dateString);
+    
+    // המרה לזמן ישראל עם אזור זמן נכון
+    const israelTime = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }));
+    
+    // המרה לפורמט datetime-local
+    const year = israelTime.getFullYear();
+    const month = String(israelTime.getMonth() + 1).padStart(2, '0');
+    const day = String(israelTime.getDate()).padStart(2, '0');
+    const hours = String(israelTime.getHours()).padStart(2, '0');
+    const minutes = String(israelTime.getMinutes()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
   const handleEditTrip = (trip: Trip) => {
     // בדיקת הרשאות
     if (!permissions.canEdit) {
@@ -310,19 +409,6 @@ const Trips: React.FC = () => {
     }
     
     setEditId(trip.id);
-    
-    // המרת התאריכים לפורמט הנדרש ל-datetime-local
-    const formatDateTimeForInput = (dateString: string) => {
-      if (!dateString) return '';
-      const date = new Date(dateString);
-      // המרה לפורמט מקומי ללא המרת UTC
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      return `${year}-${month}-${day}T${hours}:${minutes}`;
-    };
     
     setFormData({
       vehicleId: trip.vehicleId || '',
@@ -360,6 +446,64 @@ const Trips: React.FC = () => {
       ...prev,
       [name]: value
     }));
+
+    // אם נבחר רכב, סנן נהגים לפי היתר נדרש
+    if (name === 'vehicleId' && value) {
+      filterDriversByVehicle(value);
+    } else if (name === 'vehicleId' && !value) {
+      // אם לא נבחר רכב, הצג את כל הנהגים
+      setFilteredDrivers(drivers);
+    }
+
+    // אם נבחר נהג, סנן רכבים לפי היתרי הנהג
+    if (name === 'driverId' && value) {
+      filterVehiclesByDriver(value);
+    } else if (name === 'driverId' && !value) {
+      // אם לא נבחר נהג, הצג את כל הרכבים
+      setFilteredVehicles(vehicles);
+    }
+  };
+
+  const filterDriversByVehicle = async (vehicleId: string) => {
+    try {
+      const selectedVehicle = vehicles.find(v => v.id === vehicleId);
+      if (selectedVehicle?.requiredLicense) {
+        const compatibleDrivers = await getDriversWithRequiredLicense(selectedVehicle.requiredLicense);
+        setFilteredDrivers(compatibleDrivers);
+        
+        // בדוק אם הנהג הנבחר עדיין תואם
+        if (formData.driverId && !compatibleDrivers.find(d => d.id === formData.driverId)) {
+          setFormData(prev => ({ ...prev, driverId: '' }));
+        }
+      } else {
+        // אם אין היתר נדרש, הצג את כל הנהגים
+        setFilteredDrivers(drivers);
+      }
+    } catch (error) {
+      console.error('שגיאה בסינון נהגים:', error);
+      setFilteredDrivers(drivers);
+    }
+  };
+
+  const filterVehiclesByDriver = async (driverId: string) => {
+    try {
+      const selectedDriver = drivers.find(d => d.id === driverId);
+      if (selectedDriver?.drivingLicenses && selectedDriver.drivingLicenses.length > 0) {
+        const compatibleVehicles = await getVehiclesCompatibleWithDriver(selectedDriver.drivingLicenses);
+        setFilteredVehicles(compatibleVehicles);
+        
+        // בדוק אם הרכב הנבחר עדיין תואם
+        if (formData.vehicleId && !compatibleVehicles.find(v => v.id === formData.vehicleId)) {
+          setFormData(prev => ({ ...prev, vehicleId: '' }));
+        }
+      } else {
+        // אם אין היתרים, הצג את כל הרכבים
+        setFilteredVehicles(vehicles);
+      }
+    } catch (error) {
+      console.error('שגיאה בסינון רכבים:', error);
+      setFilteredVehicles(vehicles);
+    }
   };
 
   const handleSelectChange = (name: string, value: any) => {
@@ -367,6 +511,22 @@ const Trips: React.FC = () => {
       ...prev,
       [name]: value
     }));
+
+    // אם נבחר רכב, סנן נהגים לפי היתר נדרש
+    if (name === 'vehicleId' && value) {
+      filterDriversByVehicle(value);
+    } else if (name === 'vehicleId' && !value) {
+      // אם לא נבחר רכב, הצג את כל הנהגים
+      setFilteredDrivers(drivers);
+    }
+
+    // אם נבחר נהג, סנן רכבים לפי היתרי הנהג
+    if (name === 'driverId' && value) {
+      filterVehiclesByDriver(value);
+    } else if (name === 'driverId' && !value) {
+      // אם לא נבחר נהג, הצג את כל הרכבים
+      setFilteredVehicles(vehicles);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -383,9 +543,23 @@ const Trips: React.FC = () => {
     }
     
     try {
-      // בדיקת זמינות אם יש רכב ונהג
-      if (formData.vehicleId && formData.driverId && formData.departureTime && formData.returnTime) {
-        const availability = await checkAvailability(
+      // בדיקת שדות חובה
+      if (!formData.departureTime || !formData.returnTime) {
+        setError('שעת יציאה ושעת חזרה הן שדות חובה');
+        return;
+      }
+
+      // בדיקת זמן חזרה אחרי זמן יציאה
+      const departureDate = new Date(formData.departureTime);
+      const returnDate = new Date(formData.returnTime);
+      if (returnDate <= departureDate) {
+        setError('זמן חזרה חייב להיות אחרי זמן יציאה');
+        return;
+      }
+
+      // בדיקת זמינות מתקדמת אם יש רכב ונהג
+      if (formData.vehicleId && formData.driverId) {
+        const availability = await checkAdvancedAvailability(
           formData.vehicleId,
           formData.driverId,
           formData.departureTime,
@@ -394,10 +568,7 @@ const Trips: React.FC = () => {
         );
         
         if (!availability.isAvailable) {
-          const conflictDetails = availability.conflicts.map(trip => 
-            `${trip.purpose} (${trip.vehicleNumber}, ${trip.driverName})`
-          ).join(', ');
-          setError(`הרכב או הנהג כבר משובץ לנסיעה אחרת בזמן זה: ${conflictDetails}`);
+          setError(availability.message || 'הרכב או הנהג לא זמינים לנסיעה בזמן זה');
           return;
         }
       }
@@ -418,6 +589,9 @@ const Trips: React.FC = () => {
         tripData.vehicleId = formData.vehicleId;
         if (selectedVehicle?.number) {
           tripData.vehicleNumber = selectedVehicle.number;
+        }
+        if (selectedVehicle?.type) {
+          tripData.vehicleType = selectedVehicle.type;
         }
       }
 
@@ -509,6 +683,25 @@ const Trips: React.FC = () => {
         }
       }
 
+      // עדכון סטטוס נהג אם הנסיעה הסתיימה
+      if (tripData.status === 'הסתיימה' && formData.driverId && formData.returnTime) {
+        await setDriverRest(formData.driverId, formData.returnTime);
+      }
+
+      // עדכון סטטוס נהג אם הנסיעה מתחילה
+      if (tripData.status === 'בביצוע' && formData.driverId) {
+        await updateSoldier(formData.driverId, {
+          status: 'on_trip'
+        });
+      }
+
+      // עדכון סטטוס נהג אם הנסיעה מבוטלת
+      if (tripData.status === 'בוטלה' && formData.driverId) {
+        await updateSoldier(formData.driverId, {
+          status: 'available'
+        });
+      }
+
       handleCloseForm();
       loadData();
     } catch (error) {
@@ -558,6 +751,13 @@ const Trips: React.FC = () => {
         // עדכון פעילויות מקושרות לפני המחיקה
         await updateLinkedActivities(tripId, tripToDelete);
         
+        // עדכון סטטוס נהג לפני המחיקה
+        if (tripToDelete?.driverId) {
+          await updateSoldier(tripToDelete.driverId, {
+            status: 'available'
+          });
+        }
+        
         await deleteTrip(tripId);
         loadData();
       } catch (error) {
@@ -576,7 +776,8 @@ const Trips: React.FC = () => {
       lastMaintenance: '',
       nextMaintenance: '',
       seats: 0,
-      status: 'available'
+      status: 'available',
+      requiredLicense: ''
     });
     setOpenVehicleForm(true);
   };
@@ -590,7 +791,8 @@ const Trips: React.FC = () => {
       lastMaintenance: vehicle.lastMaintenance,
       nextMaintenance: vehicle.nextMaintenance,
       seats: vehicle.seats,
-      status: vehicle.status
+      status: vehicle.status,
+      requiredLicense: vehicle.requiredLicense || ''
     });
     setOpenVehicleForm(true);
   };
@@ -605,7 +807,8 @@ const Trips: React.FC = () => {
       lastMaintenance: '',
       nextMaintenance: '',
       seats: 0,
-      status: 'available'
+      status: 'available',
+      requiredLicense: ''
     });
   };
 
@@ -625,7 +828,7 @@ const Trips: React.FC = () => {
   };
 
   // פונקציות לטיפול בהיתרי נהיגה
-  const handleOpenLicenseDialog = (driver: Driver) => {
+  const handleOpenLicenseDialog = (driver: Soldier) => {
     setSelectedDriver(driver);
     setLicenseFormData({
       drivingLicenses: (driver.drivingLicenses || []).join(', ')
@@ -670,6 +873,120 @@ const Trips: React.FC = () => {
     } catch (error) {
       console.error('שגיאה בעדכון היתרי נהיגה:', error);
       alert('שגיאה בעדכון היתרי נהיגה');
+    }
+  };
+
+  // פונקציות לשינוי סטטוס נסיעה
+  const handleStartTrip = (trip: Trip) => {
+    setSelectedTrip(trip);
+    setStatusAction('start');
+    // שימוש בשעת יציאה מהכרטיס עם המרה לזמן ישראל
+    const formattedTime = formatDateTimeForInput(trip.departureTime);
+    setStatusFormData({ actualTime: formattedTime });
+    setOpenStatusDialog(true);
+  };
+
+  const handleEndTrip = (trip: Trip) => {
+    setSelectedTrip(trip);
+    setStatusAction('end');
+    // שימוש בשעת חזרה מהכרטיס עם המרה לזמן ישראל
+    const formattedTime = formatDateTimeForInput(trip.returnTime);
+    setStatusFormData({ actualTime: formattedTime });
+    setOpenStatusDialog(true);
+  };
+
+  const handleCloseStatusDialog = () => {
+    setOpenStatusDialog(false);
+    setSelectedTrip(null);
+    setStatusFormData({ actualTime: '' });
+  };
+
+  const handleStatusChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setStatusFormData({ actualTime: e.target.value });
+  };
+
+  const handleStatusSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedTrip || !statusFormData.actualTime) return;
+    
+    try {
+      let updatedTrip: any = { ...selectedTrip };
+      
+      if (statusAction === 'start') {
+        // התחלת נסיעה
+        updatedTrip.departureTime = statusFormData.actualTime;
+        updatedTrip.status = 'בביצוע';
+      } else if (statusAction === 'end') {
+        // סיום נסיעה
+        updatedTrip.returnTime = statusFormData.actualTime;
+        updatedTrip.status = 'הסתיימה';
+        
+        // בדיקת התנגשויות שעות מנוחה
+        if (selectedTrip.driverId) {
+          const restEndTime = new Date(statusFormData.actualTime);
+          restEndTime.setHours(restEndTime.getHours() + 7);
+          
+          const conflicts = trips.filter(trip => 
+            trip.driverId === selectedTrip.driverId && 
+            trip.status === 'מתוכננת' &&
+            new Date(trip.departureTime) < restEndTime
+          );
+
+          if (conflicts.length > 0) {
+            const conflictDetails = conflicts.map(trip => ({
+              tripId: trip.id,
+              tripPurpose: trip.purpose,
+              departureTime: trip.departureTime,
+              returnTime: trip.returnTime
+            }));
+
+            const message = `הנהג נכנס למנוחה עד ${restEndTime.toLocaleString('he-IL')}. 
+            יש ${conflicts.length} נסיעות מתוכננות שמתנגשות עם שעות המנוחה:`;
+
+            setRestConflictAlert({
+              show: true,
+              message,
+              conflicts: conflictDetails
+            });
+          }
+        }
+      }
+
+      // עדכון הנסיעה
+      await updateTrip(selectedTrip.id, updatedTrip);
+
+      // עדכון סטטוס נהג ורכב
+      if (selectedTrip.driverId) {
+        if (statusAction === 'start') {
+          // נהג מתחיל נסיעה
+          await updateSoldier(selectedTrip.driverId, { status: 'on_trip' });
+        } else if (statusAction === 'end') {
+          // נהג מסיים נסיעה - מנוחה של 7 שעות
+          await setDriverRest(selectedTrip.driverId, statusFormData.actualTime);
+        }
+      }
+
+      // עדכון סטטוס רכב
+      if (selectedTrip.vehicleId) {
+        const vehicle = vehicles.find(v => v.id === selectedTrip.vehicleId);
+        if (vehicle) {
+          if (statusAction === 'start') {
+            await updateVehicle(selectedTrip.vehicleId, { status: 'on_mission' });
+          } else if (statusAction === 'end') {
+            await updateVehicle(selectedTrip.vehicleId, { status: 'available' });
+          }
+        }
+      }
+
+      handleCloseStatusDialog();
+      loadData();
+      
+      const actionText = statusAction === 'start' ? 'החלה' : 'הסתיימה';
+      alert(`הנסיעה ${actionText} בהצלחה!`);
+    } catch (error) {
+      console.error('שגיאה בעדכון סטטוס נסיעה:', error);
+      alert('שגיאה בעדכון סטטוס הנסיעה');
     }
   };
 
@@ -806,6 +1123,17 @@ const Trips: React.FC = () => {
           participants: updatedParticipants,
           mobility: updatedMobility
         });
+        
+        // עדכון סטטוס נהגים
+        if (oldTrip?.driverId && oldTrip.driverId !== newTrip?.driverId) {
+          await updateSoldier(oldTrip.driverId, {
+            status: 'available'
+          });
+        }
+        
+        if (newTrip?.driverId) {
+          await updateDriverStatusByTrip(newTrip);
+        }
 
         // עדכון עמוד האישי של המשתתפים
         const allParticipantIds = Array.from(new Set([
@@ -867,7 +1195,6 @@ const Trips: React.FC = () => {
       case 'מתוכננת': return 'primary';
       case 'בביצוע': return 'warning';
       case 'הסתיימה': return 'success';
-      case 'בוטלה': return 'error';
       default: return 'default';
     }
   };
@@ -877,7 +1204,6 @@ const Trips: React.FC = () => {
       case 'מתוכננת': return 'מתוכננת';
       case 'בביצוע': return 'בביצוע';
       case 'הסתיימה': return 'הסתיימה';
-      case 'בוטלה': return 'בוטלה';
       default: return status;
     }
   };
@@ -925,11 +1251,30 @@ const Trips: React.FC = () => {
             {trip.vehicleNumber && (
               <Typography variant="body2" color="textSecondary" gutterBottom>
                 רכב: {trip.vehicleNumber}
+                {trip.vehicleType && ` (${trip.vehicleType})`}
               </Typography>
             )}
             {trip.driverName && (
               <Typography variant="body2" color="textSecondary" gutterBottom>
                 נהג: {trip.driverName}
+                {(() => {
+                  const driver = drivers.find(d => d.id === trip.driverId);
+                  if (driver) {
+                    const statusColor = driver.status === 'available' ? 'success' : 
+                                       driver.status === 'on_trip' ? 'warning' : 'info';
+                    const statusText = driver.status === 'available' ? 'זמין' : 
+                                     driver.status === 'on_trip' ? 'בנסיעה' : 'במנוחה';
+                    return (
+                      <Chip 
+                        label={statusText} 
+                        color={statusColor as any} 
+                        size="small" 
+                        sx={{ ml: 1 }}
+                      />
+                    );
+                  }
+                  return null;
+                })()}
               </Typography>
             )}
             {trip.commanderName && (
@@ -939,7 +1284,7 @@ const Trips: React.FC = () => {
             )}
             {trip.departureTime && trip.returnTime && (
               <Typography variant="body2" color="textSecondary" gutterBottom>
-                {new Date(trip.departureTime).toLocaleString('he-IL')} - {new Date(trip.returnTime).toLocaleString('he-IL')}
+                {new Date(trip.returnTime).toLocaleString('he-IL')} - {new Date(trip.departureTime).toLocaleString('he-IL')}
               </Typography>
             )}
           </Box>
@@ -950,6 +1295,35 @@ const Trips: React.FC = () => {
               size="small"
               sx={{ mb: 1 }}
             />
+            
+            {/* כפתורי שינוי סטטוס */}
+            {canEdit && (
+              <Box sx={{ mb: 1 }}>
+                {trip.status === 'מתוכננת' && (
+                  <Button
+                    variant="contained"
+                    color="warning"
+                    size="small"
+                    onClick={() => handleStartTrip(trip)}
+                    sx={{ mb: 0.5, fontSize: '0.7rem' }}
+                  >
+                    נסיעה בביצוע
+                  </Button>
+                )}
+                {trip.status === 'בביצוע' && (
+                  <Button
+                    variant="contained"
+                    color="success"
+                    size="small"
+                    onClick={() => handleEndTrip(trip)}
+                    sx={{ mb: 0.5, fontSize: '0.7rem' }}
+                  >
+                    נסיעה הסתיימה
+                  </Button>
+                )}
+              </Box>
+            )}
+            
             {(canEdit || canDelete) && (
               <Box>
                 {canEdit && (
@@ -981,8 +1355,13 @@ const Trips: React.FC = () => {
   );
 
   const renderTripTable = () => (
-    <TableContainer component={Paper}>
-      <Table>
+    <TableContainer component={Paper} sx={{ 
+      overflowX: 'auto',
+      '& .MuiTable-root': {
+        minWidth: { xs: 800, sm: 1000 }
+      }
+    }}>
+      <Table size="small">
         <TableHead>
           <TableRow>
             <TableCell>מטרה</TableCell>
@@ -997,8 +1376,10 @@ const Trips: React.FC = () => {
           </TableRow>
         </TableHead>
         <TableBody>
-          {trips.map((trip) => (
-                         <TableRow 
+          {trips
+            .filter(trip => showCompletedTrips || trip.status !== 'הסתיימה')
+            .map((trip) => (
+              <TableRow 
                key={trip.id}
                sx={{ 
                  backgroundColor: isTripComplete(trip).isComplete ? 'white' : '#ffebee',
@@ -1008,7 +1389,27 @@ const Trips: React.FC = () => {
               <TableCell>{trip.purpose}</TableCell>
               <TableCell>{trip.location}</TableCell>
               <TableCell>{trip.vehicleNumber || '-'}</TableCell>
-              <TableCell>{trip.driverName || '-'}</TableCell>
+              <TableCell>
+                {trip.driverName || '-'}
+                {trip.driverId && (() => {
+                  const driver = drivers.find(d => d.id === trip.driverId);
+                  if (driver) {
+                    const statusColor = driver.status === 'available' ? 'success' : 
+                                       driver.status === 'on_trip' ? 'warning' : 'info';
+                    const statusText = driver.status === 'available' ? 'זמין' : 
+                                     driver.status === 'on_trip' ? 'בנסיעה' : 'במנוחה';
+                    return (
+                      <Chip 
+                        label={statusText} 
+                        color={statusColor as any} 
+                        size="small" 
+                        sx={{ ml: 1 }}
+                      />
+                    );
+                  }
+                  return null;
+                })()}
+              </TableCell>
               <TableCell>{trip.commanderName || '-'}</TableCell>
               <TableCell>
                 {trip.departureTime ? new Date(trip.departureTime).toLocaleString('he-IL') : '-'}
@@ -1055,7 +1456,45 @@ const Trips: React.FC = () => {
   }
 
   return (
-    <Container maxWidth="xl">
+    <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2 } }}>
+      {/* התראה על התנגשות שעות מנוחה */}
+      {restConflictAlert.show && (
+        <Alert 
+          severity="warning" 
+          sx={{ mb: 3 }}
+          onClose={() => setRestConflictAlert({ show: false, message: '', conflicts: [] })}
+        >
+          <Typography variant="h6" gutterBottom>
+            ⚠️ התנגשות שעות מנוחה
+          </Typography>
+          <Typography variant="body2" gutterBottom>
+            {restConflictAlert.message}
+          </Typography>
+          <Box sx={{ mt: 2 }}>
+            {restConflictAlert.conflicts.map((conflict, index) => (
+              <Box key={index} sx={{ mb: 1, p: 1, backgroundColor: 'rgba(255, 152, 0, 0.1)', borderRadius: 1 }}>
+                <Typography variant="body2" fontWeight="bold">
+                  נסיעה: {conflict.tripPurpose}
+                </Typography>
+                <Typography variant="caption" color="textSecondary">
+                  יציאה: {new Date(conflict.departureTime).toLocaleString('he-IL')} | 
+                  חזרה: {new Date(conflict.returnTime).toLocaleString('he-IL')}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+          <Box sx={{ mt: 2 }}>
+            <Button 
+              variant="outlined" 
+              size="small" 
+              onClick={() => setRestConflictAlert({ show: false, message: '', conflicts: [] })}
+            >
+              הבנתי
+            </Button>
+          </Box>
+        </Alert>
+      )}
+
       {/* הודעת שגיאה אם אין הרשאות */}
       {!permissions.canView && (
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -1067,13 +1506,25 @@ const Trips: React.FC = () => {
         <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
           <ArrowBackIcon />
         </IconButton>
-        <Typography variant="h4" component="h1">
+        <Typography variant="h4" component="h1" sx={{ fontSize: { xs: '1.5rem', sm: '2.125rem' } }}>
           ניהול נסיעות
         </Typography>
       </Box>
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={activeTab} onChange={handleTabChange}>
+        <Tabs 
+          value={activeTab} 
+          onChange={handleTabChange}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{
+            '& .MuiTab-root': {
+              fontSize: { xs: '0.8rem', sm: '0.875rem' },
+              minWidth: { xs: '80px', sm: '120px' }
+            }
+          }}
+        >
+          <Tab label="דאשבורד" />
           <Tab label="נסיעות" />
           <Tab label="רכבים" />
           <Tab label="נהגים" />
@@ -1081,37 +1532,87 @@ const Trips: React.FC = () => {
       </Box>
 
       {activeTab === 0 && (
+        <TripsDashboard
+          trips={trips}
+          vehicles={vehicles}
+          drivers={drivers}
+          onRefresh={loadData}
+          onAddTripFromTimeline={handleCreateTripFromTimeline}
+        />
+      )}
+
+      {activeTab === 1 && (
         <>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Box>
-              <Button
-                variant={viewMode === 'cards' ? 'contained' : 'outlined'}
-                onClick={() => setViewMode('cards')}
-                sx={{ mr: 1 }}
-              >
-                כרטיסים
-              </Button>
-              <Button
-                variant={viewMode === 'table' ? 'contained' : 'outlined'}
-                onClick={() => setViewMode('table')}
-              >
-                טבלה
-              </Button>
+          <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} mb={2} gap={{ xs: 2, sm: 0 }}>
+            <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} alignItems="center" gap={2}>
+              <Box display="flex" alignItems="center" gap={1}>
+                <Button
+                  variant={viewMode === 'cards' ? 'contained' : 'outlined'}
+                  onClick={() => setViewMode('cards')}
+                  size="small"
+                  sx={{ 
+                    minWidth: { xs: '80px', sm: '100px' },
+                    fontSize: { xs: '0.8rem', sm: '0.875rem' }
+                  }}
+                >
+                  כרטיסים
+                </Button>
+                <Button
+                  variant={viewMode === 'table' ? 'contained' : 'outlined'}
+                  onClick={() => setViewMode('table')}
+                  size="small"
+                  sx={{ 
+                    minWidth: { xs: '80px', sm: '100px' },
+                    fontSize: { xs: '0.8rem', sm: '0.875rem' }
+                  }}
+                >
+                  טבלה
+                </Button>
+              </Box>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={showCompletedTrips}
+                    onChange={(e) => setShowCompletedTrips(e.target.checked)}
+                    size="small"
+                  />
+                }
+                label="הצג נסיעות שהסתיימו"
+                sx={{ 
+                  fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                  '& .MuiFormControlLabel-label': {
+                    fontSize: { xs: '0.8rem', sm: '0.875rem' }
+                  }
+                }}
+              />
             </Box>
             {canCreate && (
-              <Fab color="primary" onClick={handleAddTrip}>
+              <Fab 
+                color="primary" 
+                onClick={handleAddTrip}
+                size="small"
+                sx={{ 
+                  alignSelf: { xs: 'flex-end', sm: 'center' }
+                }}
+              >
                 <AddIcon />
               </Fab>
             )}
           </Box>
 
           {viewMode === 'cards' ? (
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-              {trips.map(trip => (
-                <Box key={trip.id} sx={{ flex: '1 1 300px', maxWidth: '400px' }}>
-                  {renderTripCard(trip)}
-                </Box>
-              ))}
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: { xs: 1, sm: 2 } }}>
+              {trips
+                .filter(trip => showCompletedTrips || trip.status !== 'הסתיימה')
+                .map(trip => (
+                  <Box key={trip.id} sx={{ 
+                    flex: { xs: '1 1 100%', sm: '1 1 300px' }, 
+                    maxWidth: { xs: '100%', sm: '400px' },
+                    minWidth: { xs: '280px', sm: '300px' }
+                  }}>
+                    {renderTripCard(trip)}
+                  </Box>
+                ))}
             </Box>
           ) : (
             renderTripTable()
@@ -1119,115 +1620,319 @@ const Trips: React.FC = () => {
         </>
       )}
 
-      {activeTab === 1 && (
+      {activeTab === 2 && (
         <Box>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="h6">רכבים</Typography>
-            <Fab color="primary" onClick={handleAddVehicle}>
-              <AddIcon />
-            </Fab>
+          <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} mb={2} gap={{ xs: 2, sm: 0 }}>
+            <Typography variant="h6" sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}>רכבים</Typography>
+            <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} alignItems="center" gap={2}>
+              <Box display="flex" alignItems="center" gap={2}>
+                <Button
+                  variant={vehiclesViewMode === 'cards' ? 'contained' : 'outlined'}
+                  onClick={() => setVehiclesViewMode('cards')}
+                  size="small"
+                  sx={{ 
+                    minWidth: { xs: '80px', sm: '100px' },
+                    fontSize: { xs: '0.8rem', sm: '0.875rem' }
+                  }}
+                >
+                  כרטיסים
+                </Button>
+                <Button
+                  variant={vehiclesViewMode === 'table' ? 'contained' : 'outlined'}
+                  onClick={() => setVehiclesViewMode('table')}
+                  size="small"
+                  sx={{ 
+                    minWidth: { xs: '80px', sm: '100px' },
+                    fontSize: { xs: '0.8rem', sm: '0.875rem' }
+                  }}
+                >
+                  טבלה
+                </Button>
+              </Box>
+              <Fab 
+                color="primary" 
+                onClick={handleAddVehicle}
+                size="small"
+                sx={{ 
+                  alignSelf: { xs: 'flex-end', sm: 'center' }
+                }}
+              >
+                <AddIcon />
+              </Fab>
+            </Box>
           </Box>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-            {vehicles.map(vehicle => (
-              <Box key={vehicle.id} sx={{ flex: '1 1 300px', maxWidth: '400px' }}>
-                <Card>
-                  <CardContent>
-                    <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                      <Box>
-                        <Typography variant="h6">{vehicle.number}</Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          סוג: {vehicle.type}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          קילומטרז: {vehicle.mileage ? vehicle.mileage.toLocaleString() : 'לא מוגדר'}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          מקומות: {vehicle.seats || 'לא מוגדר'}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          טיפול אחרון: {new Date(vehicle.lastMaintenance).toLocaleDateString('he-IL')}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          טיפול הבא: {new Date(vehicle.nextMaintenance).toLocaleDateString('he-IL')}
-                        </Typography>
+
+          {vehiclesViewMode === 'cards' ? (
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: { xs: 1, sm: 2 } }}>
+              {vehicles.map(vehicle => (
+                <Box key={vehicle.id} sx={{ 
+                  flex: { xs: '1 1 100%', sm: '1 1 300px' }, 
+                  maxWidth: { xs: '100%', sm: '400px' },
+                  minWidth: { xs: '280px', sm: '300px' }
+                }}>
+                  <Card>
+                    <CardContent>
+                      <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                        <Box>
+                          <Typography variant="h6">{vehicle.number}</Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            סוג: {vehicle.type}
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            קילומטרז: {vehicle.mileage ? vehicle.mileage.toLocaleString() : 'לא מוגדר'}
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            מקומות: {vehicle.seats || 'לא מוגדר'}
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            טיפול אחרון: {new Date(vehicle.lastMaintenance).toLocaleDateString('he-IL')}
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            טיפול הבא: {new Date(vehicle.nextMaintenance).toLocaleDateString('he-IL')}
+                          </Typography>
+                          {vehicle.requiredLicense && (
+                            <Typography variant="body2" color="textSecondary">
+                              היתר נדרש: {vehicle.requiredLicense}
+                            </Typography>
+                          )}
+                        </Box>
+                        <Box>
+                          <IconButton size="small" onClick={() => handleEditVehicle(vehicle)}>
+                            <EditIcon />
+                          </IconButton>
+                        </Box>
                       </Box>
-                      <Box>
+                      <Chip 
+                        label={vehicle.status === 'available' ? 'זמין' : vehicle.status === 'on_mission' ? 'במשימה' : 'בטיפול'} 
+                        color={vehicle.status === 'available' ? 'success' : vehicle.status === 'on_mission' ? 'warning' : 'error'}
+                        size="small"
+                        sx={{ mt: 1 }}
+                      />
+                    </CardContent>
+                  </Card>
+                </Box>
+              ))}
+            </Box>
+          ) : (
+            <TableContainer component={Paper} sx={{ 
+              overflowX: 'auto',
+              '& .MuiTable-root': {
+                minWidth: { xs: 600, sm: 800 }
+              }
+            }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>מספר רכב</TableCell>
+                    <TableCell>סוג</TableCell>
+                    <TableCell>קילומטרז</TableCell>
+                    <TableCell>מקומות</TableCell>
+                    <TableCell>סטטוס</TableCell>
+                    <TableCell>טיפול הבא</TableCell>
+                    <TableCell>פעולות</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {vehicles.map(vehicle => (
+                    <TableRow key={vehicle.id}>
+                      <TableCell>{vehicle.number}</TableCell>
+                      <TableCell>{vehicle.type}</TableCell>
+                      <TableCell>{vehicle.mileage?.toLocaleString() || '-'}</TableCell>
+                      <TableCell>{vehicle.seats || '-'}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={vehicle.status === 'available' ? 'זמין' : vehicle.status === 'on_mission' ? 'במשימה' : 'בטיפול'}
+                          color={vehicle.status === 'available' ? 'success' : vehicle.status === 'on_mission' ? 'warning' : 'error'}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {vehicle.nextMaintenance ? new Date(vehicle.nextMaintenance).toLocaleDateString('he-IL') : '-'}
+                      </TableCell>
+                      <TableCell>
                         <IconButton size="small" onClick={() => handleEditVehicle(vehicle)}>
                           <EditIcon />
                         </IconButton>
-                      </Box>
-                    </Box>
-                    <Chip 
-                      label={vehicle.status === 'available' ? 'זמין' : vehicle.status === 'on_mission' ? 'במשימה' : 'בטיפול'} 
-                      color={vehicle.status === 'available' ? 'success' : vehicle.status === 'on_mission' ? 'warning' : 'error'}
-                      size="small"
-                      sx={{ mt: 1 }}
-                    />
-                  </CardContent>
-                </Card>
-              </Box>
-            ))}
-          </Box>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
         </Box>
       )}
 
-      {activeTab === 2 && (
+      {activeTab === 3 && (
         <Box>
-          <Typography variant="h6" gutterBottom>נהגים</Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-            {drivers.map(driver => (
-              <Box key={driver.id} sx={{ flex: '1 1 300px', maxWidth: '400px' }}>
-                <Card>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                      <Typography variant="h6" sx={{ cursor: 'pointer' }} onClick={() => navigate(`/soldiers/${driver.id}`)}>
-                        {driver.name}
-                      </Typography>
-                      <IconButton 
-                        size="small" 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenLicenseDialog(driver);
-                        }}
-                        sx={{ color: 'primary.main' }}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                    </Box>
-                    <Typography variant="body2" color="textSecondary">
-                      מספר אישי: {driver.personalNumber}
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      תפקיד: {driver.role}
-                    </Typography>
-                    {driver.drivingExperience && (
-                      <Typography variant="body2" color="textSecondary">
-                        ניסיון נהיגה: {driver.drivingExperience} שנים
-                      </Typography>
-                    )}
-                    {driver.drivingLicenses && driver.drivingLicenses.length > 0 && (
-                      <Box sx={{ mt: 1 }}>
-                        <Typography variant="body2" color="textSecondary" sx={{ mb: 0.5 }}>
-                          היתרים לנהיגה:
-                        </Typography>
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                          {driver.drivingLicenses.map((license, index) => (
-                            <Chip
-                              key={index}
-                              label={license}
-                              size="small"
-                              color="secondary"
-                              variant="outlined"
-                            />
-                          ))}
-                        </Box>
-                      </Box>
-                    )}
-                  </CardContent>
-                </Card>
+          <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} mb={2} gap={{ xs: 2, sm: 0 }}>
+            <Typography variant="h6" sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}>נהגים</Typography>
+            <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} alignItems="center" gap={2}>
+              <Box display="flex" alignItems="center" gap={2}>
+                <Button
+                  variant={driversViewMode === 'cards' ? 'contained' : 'outlined'}
+                  onClick={() => setDriversViewMode('cards')}
+                  size="small"
+                  sx={{ 
+                    minWidth: { xs: '80px', sm: '100px' },
+                    fontSize: { xs: '0.8rem', sm: '0.875rem' }
+                  }}
+                >
+                  כרטיסים
+                </Button>
+                <Button
+                  variant={driversViewMode === 'table' ? 'contained' : 'outlined'}
+                  onClick={() => setDriversViewMode('table')}
+                  size="small"
+                  sx={{ 
+                    minWidth: { xs: '80px', sm: '100px' },
+                    fontSize: { xs: '0.8rem', sm: '0.875rem' }
+                  }}
+                >
+                  טבלה
+                </Button>
               </Box>
-            ))}
+            </Box>
           </Box>
+
+          {driversViewMode === 'cards' ? (
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: { xs: 1, sm: 2 } }}>
+              {drivers.map(driver => (
+                <Box key={driver.id} sx={{ 
+                  flex: { xs: '1 1 100%', sm: '1 1 300px' }, 
+                  maxWidth: { xs: '100%', sm: '400px' },
+                  minWidth: { xs: '280px', sm: '300px' }
+                }}>
+                  <Card
+                    sx={{
+                      border: 2,
+                      borderColor: driver.status === 'available' ? 'success.main' : 
+                                   driver.status === 'on_trip' ? 'warning.main' : 'info.main',
+                      '&:hover': {
+                        borderColor: driver.status === 'available' ? 'success.dark' : 
+                                    driver.status === 'on_trip' ? 'warning.dark' : 'info.dark',
+                      }
+                    }}
+                  >
+                    <CardContent>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                        <Typography variant="h6" sx={{ cursor: 'pointer' }} onClick={() => navigate(`/soldiers/${driver.id}`)}>
+                          {driver.name}
+                        </Typography>
+                        <IconButton 
+                          size="small" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenLicenseDialog(driver);
+                          }}
+                          sx={{ color: 'primary.main' }}
+                        >
+                          <EditIcon />
+                        </IconButton>
+                      </Box>
+                      <Typography variant="body2" color="textSecondary">
+                        מספר אישי: {driver.personalNumber}
+                      </Typography>
+                      <Typography variant="body2" color="textSecondary">
+                        תפקיד: {driver.role}
+                      </Typography>
+
+                      {driver.drivingLicenses && driver.drivingLicenses.length > 0 && (
+                        <Box sx={{ mt: 1 }}>
+                          <Typography variant="body2" color="textSecondary" sx={{ mb: 0.5 }}>
+                            היתרים לנהיגה:
+                          </Typography>
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {driver.drivingLicenses.map((license, index) => (
+                              <Chip
+                                key={index}
+                                label={license}
+                                size="small"
+                                color="secondary"
+                                variant="outlined"
+                              />
+                            ))}
+                          </Box>
+                        </Box>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Box>
+              ))}
+            </Box>
+          ) : (
+            <TableContainer component={Paper} sx={{ 
+              overflowX: 'auto',
+              '& .MuiTable-root': {
+                minWidth: { xs: 700, sm: 900 }
+              }
+            }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>שם</TableCell>
+                    <TableCell>מספר אישי</TableCell>
+                    <TableCell>תפקיד</TableCell>
+                    <TableCell>מסגרת</TableCell>
+                    <TableCell>היתרים</TableCell>
+                    <TableCell>סטטוס</TableCell>
+                    <TableCell>מנוחה עד</TableCell>
+                    <TableCell>פעולות</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {drivers.map(driver => (
+                    <TableRow key={driver.id}>
+                      <TableCell>
+                        <Typography 
+                          sx={{ cursor: 'pointer', color: 'primary.main' }}
+                          onClick={() => navigate(`/soldiers/${driver.id}`)}
+                        >
+                          {driver.name}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{driver.personalNumber}</TableCell>
+                      <TableCell>{driver.role}</TableCell>
+                      <TableCell>
+                        {driver.frameworkId ? frameworks.find(f => f.id === driver.frameworkId)?.name || driver.frameworkId : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {driver.drivingLicenses?.map((license, index) => (
+                          <Chip
+                            key={index}
+                            label={license}
+                            size="small"
+                            variant="outlined"
+                            sx={{ mr: 0.5, mb: 0.5 }}
+                          />
+                        ))}
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={driver.status === 'available' ? 'זמין' : driver.status === 'on_trip' ? 'בנסיעה' : 'במנוחה'}
+                          color={driver.status === 'available' ? 'success' : driver.status === 'on_trip' ? 'warning' : 'info'}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {driver.restUntil ? new Date(driver.restUntil).toLocaleString('he-IL') : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => handleOpenLicenseDialog(driver)}
+                          sx={{ fontSize: '0.75rem' }}
+                        >
+                          ערוך היתרים
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
         </Box>
       )}
 
@@ -1249,9 +1954,10 @@ const Trips: React.FC = () => {
                     label="רכב"
                   >
                     <MenuItem value="">ללא רכב</MenuItem>
-                    {vehicles.map(vehicle => (
+                    {filteredVehicles.map(vehicle => (
                       <MenuItem key={vehicle.id} value={vehicle.id}>
                         {vehicle.number} - {vehicle.type}
+                        {vehicle.requiredLicense && ` (היתר: ${vehicle.requiredLicense})`}
                       </MenuItem>
                     ))}
                   </Select>
@@ -1265,9 +1971,11 @@ const Trips: React.FC = () => {
                     label="נהג"
                   >
                     <MenuItem value="">ללא נהג</MenuItem>
-                    {drivers.map(driver => (
+                    {filteredDrivers.map(driver => (
                       <MenuItem key={driver.id} value={driver.id}>
                         {driver.name} - {driver.role}
+                        {driver.drivingLicenses && driver.drivingLicenses.length > 0 && 
+                          ` (היתרים: ${driver.drivingLicenses.join(', ')})`}
                       </MenuItem>
                     ))}
                   </Select>
@@ -1301,21 +2009,27 @@ const Trips: React.FC = () => {
               <Box sx={{ display: 'flex', gap: 2 }}>
                 <TextField
                   fullWidth
-                  label="זמן יציאה"
+                  label="זמן יציאה *"
                   name="departureTime"
                   type="datetime-local"
                   value={formData.departureTime}
                   onChange={handleChange}
                   InputLabelProps={{ shrink: true }}
+                  required
+                  error={!formData.departureTime}
+                  helperText={!formData.departureTime ? 'שדה חובה' : ''}
                 />
                 <TextField
                   fullWidth
-                  label="זמן חזרה"
+                  label="זמן חזרה *"
                   name="returnTime"
                   type="datetime-local"
                   value={formData.returnTime}
                   onChange={handleChange}
                   InputLabelProps={{ shrink: true }}
+                  required
+                  error={!formData.returnTime}
+                  helperText={!formData.returnTime ? 'שדה חובה' : ''}
                 />
               </Box>
               <TextField
@@ -1338,7 +2052,6 @@ const Trips: React.FC = () => {
                   <MenuItem value="מתוכננת">מתוכננת</MenuItem>
                   <MenuItem value="בביצוע">בביצוע</MenuItem>
                   <MenuItem value="הסתיימה">הסתיימה</MenuItem>
-                  <MenuItem value="בוטלה">בוטלה</MenuItem>
                 </Select>
               </FormControl>
 
@@ -1426,19 +2139,30 @@ const Trips: React.FC = () => {
                   required
                 />
               </Box>
-              <FormControl fullWidth>
-                <InputLabel>סטטוס</InputLabel>
-                <Select
-                  name="status"
-                  value={vehicleFormData.status}
-                  onChange={(e) => handleVehicleSelectChange('status', e.target.value)}
-                  label="סטטוס"
-                >
-                  <MenuItem value="available">זמין</MenuItem>
-                  <MenuItem value="on_mission">במשימה</MenuItem>
-                  <MenuItem value="maintenance">בטיפול</MenuItem>
-                </Select>
-              </FormControl>
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <FormControl fullWidth>
+                  <InputLabel>סטטוס</InputLabel>
+                  <Select
+                    name="status"
+                    value={vehicleFormData.status}
+                    onChange={(e) => handleVehicleSelectChange('status', e.target.value)}
+                    label="סטטוס"
+                  >
+                    <MenuItem value="available">זמין</MenuItem>
+                    <MenuItem value="on_mission">במשימה</MenuItem>
+                    <MenuItem value="maintenance">בטיפול</MenuItem>
+                  </Select>
+                </FormControl>
+                <TextField
+                  fullWidth
+                  label="היתר נדרש"
+                  name="requiredLicense"
+                  value={vehicleFormData.requiredLicense}
+                  onChange={handleVehicleChange}
+                  placeholder="למשל: C, D, E"
+                  helperText="השאר ריק אם אין דרישה מיוחדת"
+                />
+              </Box>
             </Box>
           </DialogContent>
           <DialogActions>
@@ -1474,6 +2198,38 @@ const Trips: React.FC = () => {
             <Button onClick={handleCloseLicenseDialog}>ביטול</Button>
             <Button type="submit" variant="contained">
               עדכן היתרים
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
+
+      {/* דיאלוג שינוי סטטוס נסיעה */}
+      <Dialog open={openStatusDialog} onClose={handleCloseStatusDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {statusAction === 'start' ? 'התחלת נסיעה' : 'סיום נסיעה'} - {selectedTrip?.purpose}
+        </DialogTitle>
+        <form onSubmit={handleStatusSubmit}>
+          <DialogContent>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <TextField
+                fullWidth
+                label={statusAction === 'start' ? 'שעת יציאה (מתוך הכרטיס)' : 'שעת חזרה (מתוך הכרטיס)'}
+                type="datetime-local"
+                value={statusFormData.actualTime}
+                onChange={handleStatusChange}
+                InputLabelProps={{ shrink: true }}
+                required
+                helperText={statusAction === 'start' ? 
+                  'הזמן מתוך כרטיס הנסיעה - ניתן לערוך אם נדרש' : 
+                  'הזמן מתוך כרטיס הנסיעה - ניתן לערוך אם נדרש'
+                }
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseStatusDialog}>ביטול</Button>
+            <Button type="submit" variant="contained">
+              {statusAction === 'start' ? 'התחל נסיעה' : 'סיים נסיעה'}
             </Button>
           </DialogActions>
         </form>

@@ -2,10 +2,10 @@ import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, where, o
 import { db } from '../firebase';
 import { Trip } from '../models/Trip';
 import { Vehicle } from '../models/Vehicle';
-import { Driver } from '../models/Driver';
+import { Soldier } from '../models/Soldier';
 import { Activity } from '../models/Activity';
 
-import { updateSoldier } from './soldierService';
+import { updateSoldier, getAllSoldiers } from './soldierService';
 import { updateActivity } from './activityService';
 import { localStorageService, updateTableTimestamp } from './cacheService';
 
@@ -102,6 +102,12 @@ export const addTrip = async (trip: Omit<Trip, 'id' | 'createdAt' | 'updatedAt'>
     await updateTableTimestamp('trips');
     localStorageService.invalidateLocalStorage('trips');
     
+    // עדכון סטטוס נהג אם יש נהג
+    if ((tripData as any).driverId) {
+      const newTrip = { id: docRef.id, ...tripData } as Trip;
+      await updateDriverStatusByTrip(newTrip);
+    }
+    
     return docRef.id;
   } catch (error) {
     console.error('שגיאה בהוספת נסיעה:', error);
@@ -130,6 +136,12 @@ export const updateTrip = async (id: string, trip: Partial<Trip>): Promise<void>
     // אם משתנה הנהג, נעדכן את עמוד האישי של הנהגים
     if (trip.driverId) {
       await handleDriverChange(id, trip.driverId);
+    }
+    
+    // עדכון סטטוס נהג לפי הנסיעה
+    if (trip.driverId) {
+      const updatedTrip = { id, ...trip };
+      await updateDriverStatusByTrip(updatedTrip as Trip);
     }
   } catch (error) {
     console.error('שגיאה בעדכון נסיעה:', error);
@@ -219,6 +231,34 @@ const handleDriverChange = async (tripId: string, newDriverId: string): Promise<
     // עדכון הפעילות
     await updateActivity(linkedActivity.id, { participants: updatedParticipants });
     
+    // עדכון סטטוס נהגים
+    if (oldDriver) {
+              await updateSoldier(oldDriver.soldierId, {
+          status: 'available'
+        });
+    }
+    
+    if (newDriverSoldier) {
+      // בדיקה אם הנהג בנסיעה פעילה
+      const driverTrips = await getTripsBySoldier(newDriverSoldier.id);
+      const activeTrip = driverTrips.find(trip => {
+        const now = new Date();
+        const tripStart = new Date(trip.departureTime);
+        const tripEnd = new Date(trip.returnTime);
+        return now >= tripStart && now <= tripEnd && trip.status === 'בביצוע';
+      });
+      
+              if (activeTrip) {
+          await updateSoldier(newDriverSoldier.id, {
+            status: 'on_trip'
+          });
+        } else {
+          await updateSoldier(newDriverSoldier.id, {
+            status: 'available'
+          });
+        }
+    }
+    
   } catch (error) {
     console.error('שגיאה בעדכון נהגים:', error);
   }
@@ -226,6 +266,10 @@ const handleDriverChange = async (tripId: string, newDriverId: string): Promise<
 
 export const deleteTrip = async (id: string): Promise<void> => {
   try {
+    // קבלת פרטי הנסיעה לפני המחיקה
+    const allTrips = await getAllTrips();
+    const tripToDelete = allTrips.find(t => t.id === id);
+    
     const tripRef = doc(db, TRIPS_COLLECTION, id);
     await deleteDoc(tripRef);
     
@@ -233,6 +277,13 @@ export const deleteTrip = async (id: string): Promise<void> => {
     console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי נסיעות');
     await updateTableTimestamp('trips');
     localStorageService.invalidateLocalStorage('trips');
+    
+    // עדכון סטטוס נהג אם הנסיעה נמחקה
+    if (tripToDelete && tripToDelete.driverId) {
+      await updateSoldier(tripToDelete.driverId, {
+        status: 'available'
+      });
+    }
   } catch (error) {
     console.error('שגיאה במחיקת נסיעה:', error);
     throw error;
@@ -281,5 +332,299 @@ export const checkAvailability = async (
   } catch (error) {
     console.error('שגיאה בבדיקת זמינות:', error);
     throw error;
+  }
+}; 
+
+// בדיקת זמינות נהג ורכב מתקדמת
+export const checkAdvancedAvailability = async (
+  vehicleId: string,
+  driverId: string,
+  departureTime: string,
+  returnTime: string,
+  excludeTripId?: string
+): Promise<{ 
+  isAvailable: boolean; 
+  conflicts: Trip[]; 
+  driverRestConflict?: boolean;
+  vehicleConflict?: boolean;
+  driverConflict?: boolean;
+  licenseMismatch?: boolean;
+  message?: string;
+}> => {
+  try {
+    // קבלת כל הנסיעות - כולל הסתיימו לבדיקת מנוחה
+    const q = query(
+      collection(db, TRIPS_COLLECTION),
+      where('status', 'in', ['מתוכננת', 'בביצוע', 'הסתיימה'])
+    );
+    const querySnapshot = await getDocs(q);
+    
+    const allTrips = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Trip));
+    
+    // קבלת מידע על הנהג והרכב
+    const { getAllSoldiers } = await import('./soldierService');
+    const { getAllVehicles } = await import('./vehicleService');
+    const allSoldiers = await getAllSoldiers();
+    const allVehicles = await getAllVehicles();
+    const driver = allSoldiers.find(s => s.id === driverId);
+    const vehicle = allVehicles.find(v => v.id === vehicleId);
+    
+    const newStart = new Date(departureTime);
+    const newEnd = new Date(returnTime);
+    
+    let conflicts: Trip[] = [];
+    let driverRestConflict = false;
+    let vehicleConflict = false;
+    let driverConflict = false;
+    let licenseMismatch = false;
+    let message = '';
+    
+    // בדיקת התנגשויות נסיעות - רק נסיעות פעילות
+    const activeTrips = allTrips.filter(trip => trip.status === 'מתוכננת' || trip.status === 'בביצוע');
+    for (const trip of activeTrips) {
+      if (excludeTripId && trip.id === excludeTripId) continue;
+      
+      const tripStart = new Date(trip.departureTime);
+      const tripEnd = new Date(trip.returnTime);
+      
+      const timeOverlap = tripStart < newEnd && tripEnd > newStart;
+      
+      if (timeOverlap) {
+        // בדיקת התנגשות רכב
+        if (trip.vehicleId === vehicleId) {
+          vehicleConflict = true;
+          conflicts.push(trip);
+        }
+        
+        // בדיקת התנגשות נהג
+        if (trip.driverId === driverId) {
+          driverConflict = true;
+          conflicts.push(trip);
+        }
+      }
+    }
+    
+    // בדיקת התאמת היתר נהיגה
+    if (vehicle?.requiredLicense && driver?.drivingLicenses) {
+      if (!driver.drivingLicenses.includes(vehicle.requiredLicense)) {
+        licenseMismatch = true;
+        message = `הנהג אינו מחזיק בהיתר הנדרש: ${vehicle.requiredLicense}`;
+      }
+    }
+
+    // בדיקת מנוחת נהג - כולל כל סוגי הנסיעות
+    if (driver) {
+      // בדיקה אם יש נסיעות שהסתיימו לאחרונה
+      const recentCompletedTrips = allTrips.filter(trip => 
+        trip.driverId === driverId && 
+        trip.status === 'הסתיימה' &&
+        new Date(trip.returnTime) < newStart
+      );
+      
+      // בדיקה אם יש נסיעות מתוכננות או בביצוע שמסתיימות לפני הנסיעה החדשה
+      const upcomingTrips = allTrips.filter(trip => 
+        trip.driverId === driverId && 
+        (trip.status === 'מתוכננת' || trip.status === 'בביצוע') &&
+        new Date(trip.returnTime) < newStart &&
+        trip.id !== excludeTripId
+      );
+      
+      // מציאת הנסיעה האחרונה שהסתיימה או עומדת להסתיים
+      const allRelevantTrips = [...recentCompletedTrips, ...upcomingTrips];
+      const lastTrip = allRelevantTrips.sort((a, b) => 
+        new Date(b.returnTime).getTime() - new Date(a.returnTime).getTime()
+      )[0];
+      
+      if (lastTrip) {
+        const lastReturnTime = new Date(lastTrip.returnTime);
+        const restEndTime = new Date(lastReturnTime.getTime() + (7 * 60 * 60 * 1000)); // 7 שעות
+        
+        if (newStart < restEndTime) {
+          driverRestConflict = true;
+          const tripType = lastTrip.status === 'הסתיימה' ? 'הסתיימה' : 'מתוכננת להסתיים';
+          message = `הנהג במנוחה עד ${restEndTime.toLocaleString('he-IL')} (לאחר נסיעה ש${tripType} ב-${lastReturnTime.toLocaleString('he-IL')})`;
+        }
+      } else if (driver.status === 'resting' && driver.restUntil) {
+        // בדיקה של מנוחה קיימת
+        const restUntil = new Date(driver.restUntil);
+        if (newStart < restUntil) {
+          driverRestConflict = true;
+          message = `הנהג במנוחה עד ${restUntil.toLocaleString('he-IL')}`;
+        }
+      }
+    }
+    
+    // בניית הודעה
+    if (licenseMismatch) {
+      // ההודעה כבר נקבעה למעלה
+    } else if (vehicleConflict && driverConflict) {
+      message = 'הרכב והנהג כבר משובצים לנסיעה אחרת בזמן זה';
+    } else if (vehicleConflict) {
+      message = 'הרכב כבר משובץ לנסיעה אחרת בזמן זה';
+    } else if (driverConflict) {
+      message = 'הנהג כבר משובץ לנסיעה אחרת בזמן זה';
+    } else if (driverRestConflict) {
+      // ההודעה כבר נקבעה למעלה
+    }
+    
+    return {
+      isAvailable: conflicts.length === 0 && !driverRestConflict && !licenseMismatch,
+      conflicts,
+      driverRestConflict,
+      vehicleConflict,
+      driverConflict,
+      licenseMismatch,
+      message
+    };
+  } catch (error) {
+    console.error('שגיאה בבדיקת זמינות מתקדמת:', error);
+    throw error;
+  }
+};
+
+// פונקציה לעדכון סטטוס נהגים אוטומטית
+export const updateDriverStatuses = async (): Promise<void> => {
+  try {
+    const { getAllSoldiers } = await import('./soldierService');
+    const allSoldiers = await getAllSoldiers();
+    const drivers = allSoldiers.filter(s => s.qualifications?.includes('נהג'));
+    
+    const now = new Date();
+    
+    for (const driver of drivers) {
+      let newStatus: 'available' | 'on_trip' | 'resting' = 'available';
+      let restUntil: string | undefined;
+      
+      // בדיקה אם הנהג בנסיעה פעילה
+      const activeTrips = await getTripsBySoldier(driver.id);
+      const currentTrip = activeTrips.find(trip => {
+        const tripStart = new Date(trip.departureTime);
+        const tripEnd = new Date(trip.returnTime);
+        return now >= tripStart && now <= tripEnd && trip.status === 'בביצוע';
+      });
+      
+      if (currentTrip) {
+        newStatus = 'on_trip';
+      } else {
+        // בדיקה אם הנהג במנוחה
+        if (driver.status === 'resting' && driver.restUntil) {
+          const restUntilDate = new Date(driver.restUntil);
+          if (now < restUntilDate) {
+            newStatus = 'resting';
+            restUntil = driver.restUntil;
+          }
+        }
+      }
+      
+      // עדכון הסטטוס אם השתנה
+      if (driver.status !== newStatus || driver.restUntil !== restUntil) {
+        const updateData: any = {
+          status: newStatus
+        };
+        
+        if (restUntil) {
+          updateData.restUntil = restUntil;
+        } else {
+          // אם אין restUntil, נמחק את השדה
+          updateData.restUntil = null;
+        }
+        
+        await updateSoldier(driver.id, updateData);
+      }
+    }
+  } catch (error) {
+    console.error('שגיאה בעדכון סטטוס נהגים:', error);
+  }
+};
+
+// פונקציה לעדכון סטטוס נהגים לפי נסיעה ספציפית
+export const updateDriverStatusByTrip = async (trip: Trip): Promise<void> => {
+  try {
+    if (!trip.driverId) return;
+    
+    const now = new Date();
+    const tripStart = new Date(trip.departureTime);
+    const tripEnd = new Date(trip.returnTime);
+    
+    let newStatus: 'available' | 'on_trip' | 'resting' = 'available';
+    let restUntil: string | undefined;
+    
+    if (trip.status === 'בביצוע' && now >= tripStart && now <= tripEnd) {
+      newStatus = 'on_trip';
+    } else if (trip.status === 'הסתיימה' && now > tripEnd) {
+      // הגדרת מנוחה אוטומטית
+      const restEnd = new Date(tripEnd.getTime() + (7 * 60 * 60 * 1000)); // 7 שעות
+      if (now < restEnd) {
+        newStatus = 'resting';
+        restUntil = restEnd.toISOString();
+      }
+    }
+    
+    const updateData: any = {
+      status: newStatus
+    };
+    
+    if (restUntil) {
+      updateData.restUntil = restUntil;
+    } else {
+      // אם אין restUntil, נמחק את השדה
+      updateData.restUntil = null;
+    }
+    
+    await updateSoldier(trip.driverId, updateData);
+  } catch (error) {
+    console.error('שגיאה בעדכון סטטוס נהג לפי נסיעה:', error);
+  }
+};
+
+// פונקציה להגדרת מנוחת נהג אוטומטית
+export const setDriverRest = async (driverId: string, returnTime: string): Promise<void> => {
+  try {
+    const returnDate = new Date(returnTime);
+    const restUntil = new Date(returnDate.getTime() + (7 * 60 * 60 * 1000)); // 7 שעות
+    
+    await updateSoldier(driverId, {
+      status: 'resting',
+      restUntil: restUntil.toISOString()
+    });
+  } catch (error) {
+    console.error('שגיאה בהגדרת מנוחת נהג:', error);
+  }
+};
+
+// פונקציה לסינון נהגים לפי היתר נדרש לרכב
+export const getDriversWithRequiredLicense = async (requiredLicense: string): Promise<Soldier[]> => {
+  try {
+    const { getAllSoldiers } = await import('./soldierService');
+    const allSoldiers = await getAllSoldiers();
+    
+    return allSoldiers.filter(soldier => 
+      soldier.qualifications?.includes('נהג') && 
+      soldier.drivingLicenses?.includes(requiredLicense)
+    );
+  } catch (error) {
+    console.error('שגיאה בסינון נהגים לפי היתר:', error);
+    return [];
+  }
+};
+
+// פונקציה לסינון רכבים לפי היתרי נהג
+export const getVehiclesCompatibleWithDriver = async (driverLicenses: string[]): Promise<Vehicle[]> => {
+  try {
+    const { getAllVehicles } = await import('./vehicleService');
+    const allVehicles = await getAllVehicles();
+    
+    return allVehicles.filter(vehicle => {
+      // אם לרכב אין היתר נדרש - הוא תואם לכל נהג
+      if (!vehicle.requiredLicense) {
+        return true;
+      }
+      
+      // אם לרכב יש היתר נדרש - בדוק שהנהג מחזיק בו
+      return driverLicenses.includes(vehicle.requiredLicense);
+    });
+  } catch (error) {
+    console.error('שגיאה בסינון רכבים לפי היתר נהג:', error);
+    return [];
   }
 }; 

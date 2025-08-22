@@ -2,15 +2,16 @@ export interface Trip {
   id: string;
   vehicleId?: string;
   vehicleNumber?: string;
+  vehicleType?: string; // סוג הרכב
   driverId?: string;
   driverName?: string;
   commanderId?: string; // מפקד הנסיעה
   commanderName?: string; // שם מפקד הנסיעה
   location: string;
-  departureTime?: string;
-  returnTime?: string;
+  departureTime: string; // שדה חובה
+  returnTime: string; // שדה חובה
   purpose: string;
-  status: 'מתוכננת' | 'בביצוע' | 'הסתיימה' | 'בוטלה';
+  status: 'מתוכננת' | 'בביצוע' | 'הסתיימה';
   linkedActivityId?: string; // קישור לפעילות מבצעית
   team?: string; // צוות שמבצע את הנסיעה
   frameworkId?: string; // מזהה המסגרת שמבצעת את הנסיעה
