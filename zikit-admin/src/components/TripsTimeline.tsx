@@ -13,7 +13,11 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  IconButton
+  IconButton,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import {
   DirectionsCar as VehicleIcon,
@@ -24,11 +28,13 @@ import {
 import { Trip } from '../models/Trip';
 import { Vehicle } from '../models/Vehicle';
 import { Soldier } from '../models/Soldier';
+import { formatToIsraelString } from '../utils/dateUtils';
 
 interface TripsTimelineProps {
   trips: Trip[];
   vehicles: Vehicle[];
   drivers: Soldier[];
+  frameworks?: any[]; // הוספת frameworks לפילטרים
   onAddTripFromTimeline?: (tripData: {
     departureTime: string;
     returnTime: string;
@@ -53,10 +59,17 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
   trips,
   vehicles,
   drivers,
+  frameworks = [],
   onAddTripFromTimeline
 }) => {
-  const [yAxisType, setYAxisType] = useState<'vehicles' | 'drivers'>('vehicles');
+  const [yAxisType, setYAxisType] = useState<'vehicles' | 'drivers'>('drivers');
   const [selectionMode, setSelectionMode] = useState<'none' | 'selecting'>('none');
+  
+  // פילטרים לנהגים
+  const [driverFilters, setDriverFilters] = useState({
+    frameworkIds: [] as string[],
+    licenses: [] as string[]
+  });
   const [selectionStart, setSelectionStart] = useState<{
     x: number;
     yItem: Vehicle | Soldier;
@@ -145,7 +158,7 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [selectionMode]);
 
-  // יצירת פריטי ציר זמן כולל שעות מנוחה
+  // יצירת פריטי ציר זמן כולל שעות מנוחה, חופש וגימלים
   const timelineItems: TimelineItem[] = useMemo(() => {
     const items: TimelineItem[] = [];
     
@@ -155,11 +168,15 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
         const vehicle = vehicles.find(v => v.id === trip.vehicleId);
         const driver = drivers.find(d => d.id === trip.driverId);
         
+        // המרה לזמן ישראל
+        const departureTime = new Date(trip.departureTime);
+        const returnTime = new Date(trip.returnTime);
+        
         items.push({
           id: `trip-${trip.id}`,
           title: trip.purpose,
-          start: new Date(trip.departureTime),
-          end: new Date(trip.returnTime),
+          start: departureTime,
+          end: returnTime,
           type: 'trip',
           trip,
           vehicle,
@@ -168,26 +185,75 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
       }
     });
 
-    // הוספת שעות מנוחה לנהגים - כולל כאלה שהסתיימו
+    // הוספת שעות מנוחה, חופש וגימלים לנהגים
     drivers.forEach(driver => {
       if (driver.qualifications?.includes('נהג')) {
-        const driverTrips = trips.filter(t => t.driverId === driver.id);
-        
-        if (driverTrips.length > 0) {
-          const lastTrip = driverTrips.sort((a, b) => 
-            new Date(b.returnTime).getTime() - new Date(a.returnTime).getTime()
-          )[0];
+        // בדיקה אם הנהג במנוחה לפי שדה restUntil
+        if (driver.restUntil) {
+          // המרה לזמן ישראל
+          const restEndTime = new Date(driver.restUntil);
+          const now = new Date();
           
-          if (lastTrip) {
-            const lastReturnTime = new Date(lastTrip.returnTime);
-            const calculatedRestEnd = new Date(lastReturnTime.getTime() + (7 * 60 * 60 * 1000));
+          // מציאת זמן התחלת המנוחה (7 שעות לפני סיום המנוחה)
+          const restStartTime = new Date(restEndTime.getTime() - (7 * 60 * 60 * 1000));
+          
+          // הצג מנוחה
+          items.push({
+            id: `rest-${driver.id}`,
+            title: 'מנוחה',
+            start: restStartTime,
+            end: restEndTime,
+            type: 'rest',
+            driver,
+            isRest: true
+          });
+        } else {
+          // אם אין restUntil, נסה למצוא לפי נסיעות שהסתיימו
+          const driverTrips = trips.filter(t => t.driverId === driver.id);
+          
+          if (driverTrips.length > 0) {
+            const lastTrip = driverTrips.sort((a, b) => 
+              new Date(b.returnTime).getTime() - new Date(a.returnTime).getTime()
+            )[0];
             
-            // הצג שעות מנוחה גם אם הן הסתיימו
+                        if (lastTrip) {
+              // המרה לזמן ישראל
+              const lastReturnTime = new Date(lastTrip.returnTime);
+              const calculatedRestEnd = new Date(lastReturnTime.getTime() + (7 * 60 * 60 * 1000));
+              const now = new Date();
+              
+              // הצג שעות מנוחה
+              items.push({
+                id: `rest-${driver.id}`,
+                title: 'מנוחה',
+                start: lastReturnTime,
+                end: calculatedRestEnd,
+                type: 'rest',
+                driver,
+                isRest: true
+              });
+            }
+          }
+        }
+
+        // הוספת חופש וגימלים
+        if (driver.presence === 'חופש' || driver.presence === 'גימלים') {
+          if (driver.presenceUntil) {
+            // המרה לזמן ישראל
+            const untilDate = new Date(driver.presenceUntil);
+            
+            const now = new Date();
+            
+            // הצג חופש/גימלים
+            // נניח שהחופש/גימלים התחיל היום או אתמול אם אין תאריך התחלה
+            const startDate = new Date(now);
+            startDate.setDate(startDate.getDate() - 1); // אתמול
+            
             items.push({
-              id: `rest-${driver.id}`,
-              title: 'מנוחה',
-              start: lastReturnTime,
-              end: calculatedRestEnd,
+              id: `${driver.presence}-${driver.id}`,
+              title: driver.presence,
+              start: startDate,
+              end: untilDate,
               type: 'rest',
               driver,
               isRest: true
@@ -200,16 +266,73 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
     return items.sort((a, b) => a.start.getTime() - b.start.getTime());
   }, [trips, vehicles, drivers]);
 
+  // פונקציה למציאת כל המסגרות בהיררכיה כולל מסגרות-בנות
+  const getAllFrameworksInHierarchy = (frameworkId: string): string[] => {
+    const direct = [frameworkId];
+    const children = frameworks.filter(f => f.parentFrameworkId === frameworkId);
+    const childIds = children.flatMap(child => getAllFrameworksInHierarchy(child.id));
+    return [...direct, ...childIds];
+  };
+
+  // פונקציה למציאת כל המסגרות-ההורים של מסגרת נתונה
+  const getAllParentFrameworks = (frameworkId: string): string[] => {
+    const result = [frameworkId];
+    let currentFramework = frameworks.find(f => f.id === frameworkId);
+    
+    while (currentFramework?.parentFrameworkId) {
+      result.push(currentFramework.parentFrameworkId);
+      currentFramework = frameworks.find(f => f.id === currentFramework.parentFrameworkId);
+    }
+    
+    return result;
+  };
+
+  // פונקציה לסינון נהגים לפי פילטרים
+  const getFilteredDrivers = () => {
+    return drivers.filter(driver => {
+      // פילטר מסגרת - כולל היררכיה
+      if (driverFilters.frameworkIds.length > 0) {
+        if (!driver.frameworkId) {
+          return false; // אם אין מסגרת לנהג, לא להציג
+        }
+        
+        // מציאת כל המסגרות-ההורים של הנהג
+        const driverParentFrameworks = getAllParentFrameworks(driver.frameworkId);
+        
+        // בדיקה אם אחת מהמסגרות הנבחרות היא הורה של המסגרת של הנהג
+        const hasMatchingFramework = driverFilters.frameworkIds.some(selectedFrameworkId => 
+          driverParentFrameworks.includes(selectedFrameworkId)
+        );
+        
+        if (!hasMatchingFramework) {
+          return false;
+        }
+      }
+      
+      // פילטר היתר - בחירה מרובה
+      if (driverFilters.licenses.length > 0) {
+        const hasMatchingLicense = driverFilters.licenses.some(selectedLicense => 
+          driver.drivingLicenses && driver.drivingLicenses.includes(selectedLicense)
+        );
+        if (!hasMatchingLicense) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+  };
+
   // קבלת רשימת רכבים או נהגים לציר Y - כולל כולם
   const yAxisItems = useMemo(() => {
     if (yAxisType === 'vehicles') {
       // הצגת כל הרכבים, גם אם אין להם נסיעות
       return vehicles;
     } else {
-      // הצגת כל הנהגים, גם אם אין להם נסיעות
-      return drivers.filter(driver => driver.qualifications?.includes('נהג'));
+      // הצגת כל הנהגים, גם אם אין להם נסיעות - עם פילטרים
+      return getFilteredDrivers().filter(driver => driver.qualifications?.includes('נהג'));
     }
-  }, [yAxisType, vehicles, drivers]);
+  }, [yAxisType, vehicles, drivers, driverFilters, frameworks]);
 
   // חישוב טווח התאריכים דינמי
   const dateRange = useMemo(() => {
@@ -271,11 +394,34 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
     };
   };
 
-  // קבלת צבע לפי סטטוס
+  // קבלת צבע לפי סטטוס - אחידות עם שאר המערכת
   const getStatusColor = (status: string, isRest: boolean = false) => {
-    if (isRest) return '#9c27b0';
+    if (isRest) {
+      // בדיקה אם זה חופש או גימלים לפי הכותרת
+      if (status === 'חופש') return '#00BCD4'; // כחול בהיר
+      if (status === 'גימלים') return '#FFD600'; // צהוב
+      return '#2196F3'; // מנוחה רגילה - כחול
+    }
     
     switch (status) {
+      case 'מתוכננת': return '#1976d2';
+      case 'בביצוע': return '#ed6c02';
+      case 'הסתיימה': return '#2e7d32';
+      default: return '#757575';
+    }
+  };
+
+  // פונקציה לקבלת צבע לפי פריט טיימליין
+  const getTimelineItemColor = (item: TimelineItem) => {
+    if (item.isRest) {
+      // עבור פריטי מנוחה, חופש וגימלים - השתמש בכותרת
+      if (item.title === 'חופש') return '#00BCD4'; // כחול בהיר
+      if (item.title === 'גימלים') return '#FFD600'; // צהוב
+      return '#2196F3'; // מנוחה רגילה - כחול
+    }
+    
+    // עבור נסיעות - השתמש בסטטוס הנסיעה
+    switch (item.trip?.status) {
       case 'מתוכננת': return '#1976d2';
       case 'בביצוע': return '#ed6c02';
       case 'הסתיימה': return '#2e7d32';
@@ -720,6 +866,85 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
           </Box>
         </Box>
 
+        {/* פילטרים לנהגים - רק כשנבחר ציר Y של נהגים */}
+        {yAxisType === 'drivers' && (
+          <Card sx={{ mb: 2 }}>
+            <CardContent>
+              <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
+                פילטרים לנהגים
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                  <InputLabel>מסגרות (כולל תת-מסגרות)</InputLabel>
+                  <Select
+                    multiple
+                    value={driverFilters.frameworkIds}
+                    onChange={(e) => setDriverFilters(prev => ({ 
+                      ...prev, 
+                      frameworkIds: typeof e.target.value === 'string' ? [e.target.value] : e.target.value 
+                    }))}
+                    label="מסגרות (כולל תת-מסגרות)"
+                    renderValue={(selected) => (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {selected.map((value) => {
+                          const framework = frameworks.find(f => f.id === value);
+                          return (
+                            <Chip key={value} label={framework?.name || value} size="small" />
+                          );
+                        })}
+                      </Box>
+                    )}
+                  >
+                    {frameworks.map(framework => (
+                      <MenuItem key={framework.id} value={framework.id}>
+                        {framework.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                  <InputLabel>היתרי נהיגה</InputLabel>
+                  <Select
+                    multiple
+                    value={driverFilters.licenses}
+                    onChange={(e) => setDriverFilters(prev => ({ 
+                      ...prev, 
+                      licenses: typeof e.target.value === 'string' ? [e.target.value] : e.target.value 
+                    }))}
+                    label="היתרי נהיגה"
+                    renderValue={(selected) => (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {selected.map((value) => (
+                          <Chip key={value} label={value} size="small" />
+                        ))}
+                      </Box>
+                    )}
+                  >
+                    {/* איסוף כל ההיתרים מכל הנהגים */}
+                    {Array.from(new Set(
+                      drivers.flatMap(driver => driver.drivingLicenses || [])
+                    )).sort().map(license => (
+                      <MenuItem key={license} value={license}>
+                        {license}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => setDriverFilters({ frameworkIds: [], licenses: [] })}
+                  sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}
+                >
+                  נקה פילטרים
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        )}
+
         {/* ציר זמן */}
         <Box 
           ref={containerRef}
@@ -990,22 +1215,22 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
                                <Typography variant="body2" fontWeight="bold">
                                  {item.title}
                                </Typography>
-                               <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>
-                                 <strong>התחלה:</strong> {item.start.toLocaleTimeString('he-IL', { 
-                                   hour: '2-digit', 
-                                   minute: '2-digit',
-                                   day: '2-digit',
-                                   month: '2-digit'
-                                 })}
-                               </Typography>
-                               <Typography variant="caption" sx={{ display: 'block' }}>
-                                 <strong>סיום:</strong> {item.end.toLocaleTimeString('he-IL', { 
-                                   hour: '2-digit', 
-                                   minute: '2-digit',
-                                   day: '2-digit',
-                                   month: '2-digit'
-                                 })}
-                               </Typography>
+                                                               <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>
+                                  <strong>התחלה:</strong> {formatToIsraelString(item.start, {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    day: '2-digit',
+                                    month: '2-digit'
+                                  })}
+                                </Typography>
+                                <Typography variant="caption" sx={{ display: 'block' }}>
+                                  <strong>סיום:</strong> {formatToIsraelString(item.end, {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    day: '2-digit',
+                                    month: '2-digit'
+                                  })}
+                                </Typography>
                                <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>
                                  <strong>משך:</strong> {Math.round((item.end.getTime() - item.start.getTime()) / (1000 * 60))} דקות
                                </Typography>
@@ -1035,7 +1260,7 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
                                width: position.width,
                                                              top: 10,
                               height: 35,
-                               backgroundColor: getStatusColor(item.trip?.status || '', item.isRest),
+                               backgroundColor: getTimelineItemColor(item),
                                borderTopLeftRadius: position.roundedLeft ? 6 : 0,
                                borderBottomLeftRadius: position.roundedLeft ? 6 : 0,
                                borderTopRightRadius: position.roundedRight ? 6 : 0,
@@ -1080,7 +1305,7 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
                                width: '100%'
                              }}>
                               {item.isRest ? (
-                                <RestIcon sx={{ fontSize: 10, color: 'white', mr: 0.5 }} />
+                                <RestIcon sx={{ fontSize: 10, color: item.title === 'גימלים' ? '#000' : 'white', mr: 0.5 }} />
                               ) : (
                                 <>
                                   {item.vehicle && (
@@ -1092,13 +1317,13 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
                                 </>
                               )}
                               <Chip
-                                label={item.isRest ? 'מנוחה' : (item.trip?.status || '')}
+                                label={item.isRest ? (item.title === 'חופש' ? 'חופש' : item.title === 'גימלים' ? 'גימלים' : 'מנוחה') : (item.trip?.status || '')}
                                 size="small"
                                 sx={{
                                   height: 14,
                                   fontSize: '0.6rem',
                                   backgroundColor: 'rgba(255,255,255,0.2)',
-                                  color: 'white'
+                                  color: item.title === 'גימלים' ? '#000' : 'white'
                                 }}
                               />
                             </Box>
@@ -1134,8 +1359,16 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
             <Typography variant="caption" fontSize={{ xs: '0.7rem', sm: '0.75rem' }}>הסתיימה</Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Box sx={{ width: { xs: 12, sm: 16 }, height: { xs: 12, sm: 16 }, backgroundColor: '#9c27b0', borderRadius: 1, mr: 1 }} />
+            <Box sx={{ width: { xs: 12, sm: 16 }, height: { xs: 12, sm: 16 }, backgroundColor: '#2196F3', borderRadius: 1, mr: 1 }} />
             <Typography variant="caption" fontSize={{ xs: '0.7rem', sm: '0.75rem' }}>מנוחה</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ width: { xs: 12, sm: 16 }, height: { xs: 12, sm: 16 }, backgroundColor: '#00BCD4', borderRadius: 1, mr: 1 }} />
+            <Typography variant="caption" fontSize={{ xs: '0.7rem', sm: '0.75rem' }}>חופש</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ width: { xs: 12, sm: 16 }, height: { xs: 12, sm: 16 }, backgroundColor: '#FFD600', borderRadius: 1, mr: 1 }} />
+            <Typography variant="caption" fontSize={{ xs: '0.7rem', sm: '0.75rem' }}>גימלים</Typography>
           </Box>
         </Box>
       </CardContent>
@@ -1180,7 +1413,7 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
                 alignItems: 'center', 
                 mb: 2,
                 p: 2,
-                backgroundColor: getStatusColor(tripDetailsDialog.item.trip?.status || '', tripDetailsDialog.item.isRest),
+                backgroundColor: getTimelineItemColor(tripDetailsDialog.item),
                 borderRadius: 1,
                 color: 'white'
               }}>
@@ -1212,11 +1445,11 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
                       זמן התחלה:
                     </Typography>
                     <Typography variant="body2" fontWeight="bold">
-                      {tripDetailsDialog.item.start.toLocaleString('he-IL', { 
+                      {formatToIsraelString(tripDetailsDialog.item.start, {
                         year: 'numeric',
                         month: '2-digit',
                         day: '2-digit',
-                        hour: '2-digit', 
+                        hour: '2-digit',
                         minute: '2-digit'
                       })}
                     </Typography>
@@ -1226,11 +1459,11 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
                       זמן סיום:
                     </Typography>
                     <Typography variant="body2" fontWeight="bold">
-                      {tripDetailsDialog.item.end.toLocaleString('he-IL', { 
+                      {formatToIsraelString(tripDetailsDialog.item.end, {
                         year: 'numeric',
                         month: '2-digit',
                         day: '2-digit',
-                        hour: '2-digit', 
+                        hour: '2-digit',
                         minute: '2-digit'
                       })}
                     </Typography>
@@ -1285,7 +1518,7 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
                     label={tripDetailsDialog.item.trip.status}
                     size="medium"
                     sx={{
-                      backgroundColor: getStatusColor(tripDetailsDialog.item.trip.status),
+                      backgroundColor: getTimelineItemColor(tripDetailsDialog.item),
                       color: 'white',
                       fontWeight: 'bold'
                     }}

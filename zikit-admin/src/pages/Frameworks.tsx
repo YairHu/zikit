@@ -36,7 +36,8 @@ import {
   FormControl,
   Select,
   MenuItem,
-  Snackbar
+  Snackbar,
+  TextField
 } from '@mui/material';
 import {
   Group as GroupIcon,
@@ -169,6 +170,24 @@ const Frameworks: React.FC = () => {
     navigate(`/frameworks/${frameworkId}`);
   };
 
+  // פונקציה למיפוי הסטטוס לדוח (משותפת)
+  const mapStatusForReport = (status: string) => {
+    switch (status) {
+      case 'בבסיס':
+      case 'בפעילות':
+      case 'בתורנות':
+      case 'בנסיעה':
+      case 'במנוחה':
+        return 'בבסיס';
+      case 'גימלים':
+        return 'גימלים';
+      case 'חופש':
+        return 'בחופש';
+      default:
+        return 'בבסיס';
+    }
+  };
+
   const handleGenerateReport = (framework: FrameworkWithDetails) => {
     if (!framework || !framework.allSoldiersInHierarchy) {
       setSnackbarMessage('אין נתונים ליצירת דוח');
@@ -183,7 +202,8 @@ const Frameworks: React.FC = () => {
       personalNumber: soldier.personalNumber,
       frameworkName: frameworkNames[soldier.frameworkId] || soldier.frameworkId,
       presence: soldier.presence || 'לא מוגדר',
-      editedPresence: soldier.presence || 'לא מוגדר' // עותק לעריכה
+      editedPresence: mapStatusForReport(soldier.presence || 'לא מוגדר'), // מיפוי ראשוני
+      otherText: '' // שדה לטקסט חופשי
     }));
     
     setReportData(report);
@@ -194,7 +214,15 @@ const Frameworks: React.FC = () => {
   const handleUpdateReportPresence = (soldierId: string, newPresence: string) => {
     setReportData(prev => prev.map(item => 
       item.id === soldierId 
-        ? { ...item, editedPresence: newPresence }
+        ? { ...item, editedPresence: newPresence, otherText: newPresence === 'אחר' ? item.otherText : '' }
+        : item
+    ));
+  };
+
+  const handleUpdateReportOtherText = (soldierId: string, otherText: string) => {
+    setReportData(prev => prev.map(item => 
+      item.id === soldierId 
+        ? { ...item, otherText }
         : item
     ));
   };
@@ -202,9 +230,12 @@ const Frameworks: React.FC = () => {
   const handlePrintReport = () => {
     if (!selectedFramework) return;
     
-    const reportText = reportData.map(soldier => 
-      `${soldier.name} - ${soldier.role} - ${soldier.personalNumber} - ${soldier.frameworkName} - ${soldier.editedPresence}`
-    ).join('\n');
+    const reportText = reportData.map(soldier => {
+      const status = soldier.editedPresence === 'אחר' && soldier.otherText 
+        ? soldier.otherText 
+        : mapStatusForReport(soldier.editedPresence);
+      return `${soldier.name} - ${soldier.role} - ${soldier.personalNumber} - ${soldier.frameworkName} - ${status}`;
+    }).join('\n');
     
     alert(`דוח 1 - סטטוס נוכחות חיילים במסגרת ${selectedFramework.name}:\n\n${reportText}`);
     setReportDialogOpen(false);
@@ -497,17 +528,29 @@ const Frameworks: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <FormControl size="small" sx={{ minWidth: 120 }}>
-                        <Select
-                          value={soldier.editedPresence}
-                          onChange={(e) => handleUpdateReportPresence(soldier.id, e.target.value)}
-                          size="small"
-                        >
-                          <MenuItem value="בבסיס">בבסיס</MenuItem>
-                          <MenuItem value="בפעילות">בפעילות</MenuItem>
-                          <MenuItem value="חופש">חופש</MenuItem>
-                          <MenuItem value="גימלים">גימלים</MenuItem>
-                          <MenuItem value="אחר">אחר</MenuItem>
-                        </Select>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <FormControl size="small" sx={{ minWidth: 120 }}>
+                            <Select
+                              value={soldier.editedPresence}
+                              onChange={(e) => handleUpdateReportPresence(soldier.id, e.target.value)}
+                              size="small"
+                            >
+                              <MenuItem value="בבסיס">בבסיס</MenuItem>
+                              <MenuItem value="חופש">חופש</MenuItem>
+                              <MenuItem value="גימלים">גימלים</MenuItem>
+                              <MenuItem value="אחר">אחר</MenuItem>
+                            </Select>
+                          </FormControl>
+                          {soldier.editedPresence === 'אחר' && (
+                            <TextField
+                              size="small"
+                              placeholder="הזן טקסט חופשי"
+                              value={soldier.otherText || ''}
+                              onChange={(e) => handleUpdateReportOtherText(soldier.id, e.target.value)}
+                              sx={{ minWidth: 200 }}
+                            />
+                          )}
+                        </Box>
                       </FormControl>
                     </TableCell>
                   </TableRow>

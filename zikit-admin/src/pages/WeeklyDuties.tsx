@@ -49,6 +49,7 @@ import {
   Security as SecurityIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { getAllSoldiersWithAvailability, getUnavailableSoldierLabel } from '../utils/soldierUtils';
 
 interface WeeklyDutySlot {
   id: string;
@@ -1082,12 +1083,19 @@ const DutyFormDialog: React.FC<DutyFormDialogProps> = ({
           </Typography>
           
                      <Autocomplete
-             options={soldiers}
+             options={getAllSoldiersWithAvailability(soldiers, slot?.date || '')}
              getOptionLabel={(option) => {
+               if (option.isUnavailable) {
+                 return getUnavailableSoldierLabel(option);
+               }
                const framework = frameworks.find(f => f.id === option.frameworkId);
                return `${option.name} (${framework?.name || 'ללא צוות'})`;
              }}
-             onChange={(_, value) => handleAddParticipant(value)}
+             onChange={(_, value) => {
+               if (value && !value.isUnavailable) {
+                 handleAddParticipant(value);
+               }
+             }}
              renderInput={(params) => (
                <TextField
                  {...params}
@@ -1095,6 +1103,22 @@ const DutyFormDialog: React.FC<DutyFormDialogProps> = ({
                  variant="outlined"
                  fullWidth
                />
+             )}
+             isOptionEqualToValue={(option, value) => option.id === value.id}
+             renderOption={(props, option) => (
+               <li {...props} style={{ 
+                 opacity: option.isUnavailable ? 0.6 : 1,
+                 color: option.isUnavailable ? '#666' : 'inherit',
+                 pointerEvents: option.isUnavailable ? 'none' : 'auto'
+               }}>
+                 {option.isUnavailable 
+                   ? getUnavailableSoldierLabel(option)
+                   : (() => {
+                       const framework = frameworks.find(f => f.id === option.frameworkId);
+                       return `${option.name} (${framework?.name || 'ללא צוות'})`;
+                     })()
+                 }
+               </li>
              )}
            />
 

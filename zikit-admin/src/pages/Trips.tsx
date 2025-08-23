@@ -65,6 +65,9 @@ import { Vehicle } from '../models/Vehicle';
 import { Soldier } from '../models/Soldier';
 import { Activity } from '../models/Activity';
 import { getAllTrips, addTrip, updateTrip, deleteTrip, checkAvailability, checkAdvancedAvailability, setDriverRest, updateDriverStatuses, updateDriverStatusByTrip, getDriversWithRequiredLicense, getVehiclesCompatibleWithDriver, updateTripStatusesAutomatically, updateTripActualTimes } from '../services/tripService';
+import { updateDutyStatusesAutomatically } from '../services/dutyService';
+import { getPresenceColor } from '../utils/colors';
+import { getSoldierCurrentStatus, getStatusColor, getStatusText } from '../services/soldierService';
 import { getAllVehicles, addVehicle, updateVehicle, deleteVehicle } from '../services/vehicleService';
 import { getAllSoldiers, updateSoldier } from '../services/soldierService';
 import { getAllActivities, updateActivity } from '../services/activityService';
@@ -73,6 +76,8 @@ import { UserRole, SystemPath, PermissionLevel, DataScope } from '../models/User
 import { canUserAccessPath, getUserPermissions } from '../services/permissionService';
 import TripsDashboard from '../components/TripsDashboard';
 import TripsTimeline from '../components/TripsTimeline';
+import { getAllSoldiersWithAvailability, getUnavailableSoldierLabel } from '../utils/soldierUtils';
+import { formatDateTimeForInput, formatToIsraelString } from '../utils/dateUtils';
 
 const Trips: React.FC = () => {
   const navigate = useNavigate();
@@ -87,7 +92,7 @@ const Trips: React.FC = () => {
   const [frameworks, setFrameworks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
-  const [activeTab, setActiveTab] = useState(1); // ציר זמן ברירת מחדל
+  const [activeTab, setActiveTab] = useState(0); // דאשבורד ברירת מחדל
   const [openForm, setOpenForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -136,6 +141,12 @@ const Trips: React.FC = () => {
   // תצוגה של רכבים ונהגים
   const [vehiclesViewMode, setVehiclesViewMode] = useState<'cards' | 'table'>('cards');
   const [driversViewMode, setDriversViewMode] = useState<'cards' | 'table'>('cards');
+  
+  // פילטרים לנהגים
+  const [driverFilters, setDriverFilters] = useState({
+    frameworkIds: [] as string[],
+    licenses: [] as string[]
+  });
   
   // התראה על התנגשות שעות מנוחה
   const [restConflictAlert, setRestConflictAlert] = useState<{
@@ -199,8 +210,11 @@ const Trips: React.FC = () => {
     try {
       setLoading(true);
       
-      // עדכון אוטומטי של סטטוס נסיעות
-      await updateTripStatusesAutomatically();
+      // עדכון אוטומטי של סטטוס נסיעות ותורנויות
+      await Promise.all([
+        updateTripStatusesAutomatically(),
+        updateDutyStatusesAutomatically()
+      ]);
       
       // בדיקת הרשאות המשתמש
       if (user) {
@@ -399,24 +413,7 @@ const Trips: React.FC = () => {
     setOpenForm(true);
   };
 
-  // פונקציה להמרת זמן לפורמט datetime-local (זמן ישראל)
-  const formatDateTimeForInput = (dateString: string): string => {
-    if (!dateString) return '';
-    
-    const date = new Date(dateString);
-    
-    // המרה לזמן ישראל עם אזור זמן נכון
-    const israelTime = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }));
-    
-    // המרה לפורמט datetime-local
-    const year = israelTime.getFullYear();
-    const month = String(israelTime.getMonth() + 1).padStart(2, '0');
-    const day = String(israelTime.getDate()).padStart(2, '0');
-    const hours = String(israelTime.getHours()).padStart(2, '0');
-    const minutes = String(israelTime.getMinutes()).padStart(2, '0');
-    
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
-  };
+
 
   // פתיחת דיאלוג עדכון זמנים בפועל
   const handleOpenActualTimesDialog = (trip: Trip) => {
@@ -1029,7 +1026,7 @@ const Trips: React.FC = () => {
               returnTime: trip.returnTime
             }));
 
-            const message = `הנהג נכנס למנוחה עד ${restEndTime.toLocaleString('he-IL')}. 
+            const message = `הנהג נכנס למנוחה עד ${formatToIsraelString(restEndTime)}. 
             יש ${conflicts.length} נסיעות מתוכננות שמתנגשות עם שעות המנוחה:`;
 
             setRestConflictAlert({
@@ -1044,14 +1041,32 @@ const Trips: React.FC = () => {
       // עדכון הנסיעה
       await updateTrip(selectedTrip.id, updatedTrip);
 
-      // עדכון סטטוס נהג ורכב
+      // עדכון סטטוס נהג ומלווה
       if (selectedTrip.driverId) {
         if (statusAction === 'start') {
           // נהג מתחיל נסיעה
-          await updateSoldier(selectedTrip.driverId, { status: 'on_trip' });
+          await updateSoldier(selectedTrip.driverId, { 
+            status: 'on_trip',
+            presence: 'בנסיעה'
+          });
         } else if (statusAction === 'end') {
           // נהג מסיים נסיעה - מנוחה של 7 שעות
           await setDriverRest(selectedTrip.driverId, statusFormData.actualTime);
+        }
+      }
+
+      // עדכון סטטוס מלווה נסיעה
+      if (selectedTrip.commanderId) {
+        if (statusAction === 'start') {
+          // מלווה מתחיל נסיעה
+          await updateSoldier(selectedTrip.commanderId, { 
+            presence: 'בנסיעה'
+          });
+        } else if (statusAction === 'end') {
+          // מלווה מסיים נסיעה - חזרה לבסיס
+          await updateSoldier(selectedTrip.commanderId, { 
+            presence: 'בבסיס'
+          });
         }
       }
 
@@ -1278,7 +1293,7 @@ const Trips: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getTripStatusColor = (status: string) => {
     switch (status) {
       case 'מתוכננת': return 'primary';
       case 'בביצוע': return 'warning';
@@ -1287,7 +1302,7 @@ const Trips: React.FC = () => {
     }
   };
 
-  const getStatusText = (status: string) => {
+  const getTripStatusText = (status: string) => {
     switch (status) {
       case 'מתוכננת': return 'מתוכננת';
       case 'בביצוע': return 'בביצוע';
@@ -1297,6 +1312,63 @@ const Trips: React.FC = () => {
   };
 
   // בדיקת הרשאות למשתמש
+  // פונקציה למציאת כל המסגרות בהיררכיה כולל מסגרות-בנות
+  const getAllFrameworksInHierarchy = (frameworkId: string): string[] => {
+    const direct = [frameworkId];
+    const children = frameworks.filter(f => f.parentFrameworkId === frameworkId);
+    const childIds = children.flatMap(child => getAllFrameworksInHierarchy(child.id));
+    return [...direct, ...childIds];
+  };
+
+  // פונקציה למציאת כל המסגרות-ההורים של מסגרת נתונה
+  const getAllParentFrameworks = (frameworkId: string): string[] => {
+    const result = [frameworkId];
+    let currentFramework = frameworks.find(f => f.id === frameworkId);
+    
+    while (currentFramework?.parentFrameworkId) {
+      result.push(currentFramework.parentFrameworkId);
+      currentFramework = frameworks.find(f => f.id === currentFramework.parentFrameworkId);
+    }
+    
+    return result;
+  };
+
+  // פונקציה לסינון נהגים לפי פילטרים
+  const getFilteredDrivers = () => {
+    return drivers.filter(driver => {
+      // פילטר מסגרת - כולל היררכיה
+      if (driverFilters.frameworkIds.length > 0) {
+        if (!driver.frameworkId) {
+          return false; // אם אין מסגרת לנהג, לא להציג
+        }
+        
+        // מציאת כל המסגרות-ההורים של הנהג
+        const driverParentFrameworks = getAllParentFrameworks(driver.frameworkId);
+        
+        // בדיקה אם אחת מהמסגרות הנבחרות היא הורה של המסגרת של הנהג
+        const hasMatchingFramework = driverFilters.frameworkIds.some(selectedFrameworkId => 
+          driverParentFrameworks.includes(selectedFrameworkId)
+        );
+        
+        if (!hasMatchingFramework) {
+          return false;
+        }
+      }
+      
+      // פילטר היתר - בחירה מרובה
+      if (driverFilters.licenses.length > 0) {
+        const hasMatchingLicense = driverFilters.licenses.some(selectedLicense => 
+          driver.drivingLicenses && driver.drivingLicenses.includes(selectedLicense)
+        );
+        if (!hasMatchingLicense) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+  };
+
   const canEdit = permissions.canEdit;
   const canDelete = permissions.canDelete;
   const canCreate = permissions.canCreate;
@@ -1359,16 +1431,16 @@ const Trips: React.FC = () => {
                 {(() => {
                   const driver = drivers.find(d => d.id === trip.driverId);
                   if (driver) {
-                    const statusColor = driver.status === 'available' ? 'success' : 
-                                       driver.status === 'on_trip' ? 'warning' : 'info';
-                    const statusText = driver.status === 'available' ? 'זמין' : 
-                                     driver.status === 'on_trip' ? 'בנסיעה' : 'במנוחה';
+                    const currentStatus = getSoldierCurrentStatus(driver);
                     return (
                       <Chip 
-                        label={statusText} 
-                        color={statusColor as any} 
+                        label={getStatusText(currentStatus)} 
+                        sx={{ 
+                          ml: 1,
+                          bgcolor: getStatusColor(currentStatus),
+                          color: 'white'
+                        }}
                         size="small" 
-                        sx={{ ml: 1 }}
                       />
                     );
                   }
@@ -1383,14 +1455,14 @@ const Trips: React.FC = () => {
             )}
             {trip.departureTime && trip.returnTime && (
               <Typography variant="body2" color="textSecondary" gutterBottom>
-                {new Date(trip.returnTime).toLocaleString('he-IL')} - {new Date(trip.departureTime).toLocaleString('he-IL')}
+                {formatToIsraelString(trip.returnTime)} - {formatToIsraelString(trip.departureTime)}
               </Typography>
             )}
           </Box>
           <Box display="flex" flexDirection="column" alignItems="flex-end">
             <Chip 
-              label={getStatusText(trip.status)} 
-              color={getStatusColor(trip.status) as any}
+              label={getTripStatusText(trip.status)} 
+              color={getTripStatusColor(trip.status) as any}
               size="small"
               sx={{ mb: 1 }}
             />
@@ -1487,7 +1559,13 @@ const Trips: React.FC = () => {
         </TableHead>
         <TableBody>
           {trips
-            .filter(trip => showCompletedTrips || trip.status !== 'הסתיימה')
+            .filter(trip => {
+              // הצג נסיעות שהסתיימו אם הן אוטומטיות או אם הצ'קבוקס מסומן
+              if (trip.status === 'הסתיימה') {
+                return trip.autoStatusChanged || showCompletedTrips;
+              }
+              return true;
+            })
             .map((trip) => (
               <TableRow 
                key={trip.id}
@@ -1516,16 +1594,16 @@ const Trips: React.FC = () => {
                 {trip.driverId && (() => {
                   const driver = drivers.find(d => d.id === trip.driverId);
                   if (driver) {
-                    const statusColor = driver.status === 'available' ? 'success' : 
-                                       driver.status === 'on_trip' ? 'warning' : 'info';
-                    const statusText = driver.status === 'available' ? 'זמין' : 
-                                     driver.status === 'on_trip' ? 'בנסיעה' : 'במנוחה';
+                    const currentStatus = getSoldierCurrentStatus(driver);
                     return (
                       <Chip 
-                        label={statusText} 
-                        color={statusColor as any} 
+                        label={getStatusText(currentStatus)} 
+                        sx={{ 
+                          ml: 1,
+                          bgcolor: getStatusColor(currentStatus),
+                          color: 'white'
+                        }}
                         size="small" 
-                        sx={{ ml: 1 }}
                       />
                     );
                   }
@@ -1534,15 +1612,15 @@ const Trips: React.FC = () => {
               </TableCell>
               <TableCell>{trip.commanderName || '-'}</TableCell>
               <TableCell>
-                {trip.departureTime ? new Date(trip.departureTime).toLocaleString('he-IL') : '-'}
+                {trip.departureTime ? formatToIsraelString(trip.departureTime) : '-'}
               </TableCell>
               <TableCell>
-                {trip.returnTime ? new Date(trip.returnTime).toLocaleString('he-IL') : '-'}
+                {trip.returnTime ? formatToIsraelString(trip.returnTime) : '-'}
               </TableCell>
               <TableCell>
                 <Chip 
-                  label={getStatusText(trip.status)} 
-                  color={getStatusColor(trip.status) as any}
+                  label={getTripStatusText(trip.status)} 
+                  color={getTripStatusColor(trip.status) as any}
                   size="small"
                 />
               </TableCell>
@@ -1610,8 +1688,8 @@ const Trips: React.FC = () => {
                   נסיעה: {conflict.tripPurpose}
                 </Typography>
                 <Typography variant="caption" color="textSecondary">
-                  יציאה: {new Date(conflict.departureTime).toLocaleString('he-IL')} | 
-                  חזרה: {new Date(conflict.returnTime).toLocaleString('he-IL')}
+                  יציאה: {formatToIsraelString(conflict.departureTime)} | 
+                  חזרה: {formatToIsraelString(conflict.returnTime)}
                 </Typography>
               </Box>
             ))}
@@ -1673,6 +1751,7 @@ const Trips: React.FC = () => {
           trips={trips}
           vehicles={vehicles}
           drivers={drivers}
+          frameworks={frameworks}
           onRefresh={loadData}
           onAddTripFromTimeline={handleCreateTripFromTimeline}
         />
@@ -1740,7 +1819,13 @@ const Trips: React.FC = () => {
           {viewMode === 'cards' ? (
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: { xs: 1, sm: 2 } }}>
               {trips
-                .filter(trip => showCompletedTrips || trip.status !== 'הסתיימה')
+                .filter(trip => {
+                  // הצג נסיעות שהסתיימו אם הן אוטומטיות או אם הצ'קבוקס מסומן
+                  if (trip.status === 'הסתיימה') {
+                    return trip.autoStatusChanged || showCompletedTrips;
+                  }
+                  return true;
+                })
                 .map(trip => (
                   <Box key={trip.id} sx={{ 
                     flex: { xs: '1 1 100%', sm: '1 1 300px' }, 
@@ -1938,9 +2023,86 @@ const Trips: React.FC = () => {
             </Box>
           </Box>
 
+          {/* פילטרים לנהגים */}
+          <Card sx={{ mb: 2 }}>
+            <CardContent>
+              <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
+                פילטרים
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                  <InputLabel>מסגרות (כולל תת-מסגרות)</InputLabel>
+                  <Select
+                    multiple
+                    value={driverFilters.frameworkIds}
+                    onChange={(e) => setDriverFilters(prev => ({ 
+                      ...prev, 
+                      frameworkIds: typeof e.target.value === 'string' ? [e.target.value] : e.target.value 
+                    }))}
+                    label="מסגרות (כולל תת-מסגרות)"
+                    renderValue={(selected) => (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {selected.map((value) => {
+                          const framework = frameworks.find(f => f.id === value);
+                          return (
+                            <Chip key={value} label={framework?.name || value} size="small" />
+                          );
+                        })}
+                      </Box>
+                    )}
+                  >
+                    {frameworks.map(framework => (
+                      <MenuItem key={framework.id} value={framework.id}>
+                        {framework.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                  <InputLabel>היתרי נהיגה</InputLabel>
+                  <Select
+                    multiple
+                    value={driverFilters.licenses}
+                    onChange={(e) => setDriverFilters(prev => ({ 
+                      ...prev, 
+                      licenses: typeof e.target.value === 'string' ? [e.target.value] : e.target.value 
+                    }))}
+                    label="היתרי נהיגה"
+                    renderValue={(selected) => (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {selected.map((value) => (
+                          <Chip key={value} label={value} size="small" />
+                        ))}
+                      </Box>
+                    )}
+                  >
+                    {/* איסוף כל ההיתרים מכל הנהגים */}
+                    {Array.from(new Set(
+                      drivers.flatMap(driver => driver.drivingLicenses || [])
+                    )).sort().map(license => (
+                      <MenuItem key={license} value={license}>
+                        {license}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => setDriverFilters({ frameworkIds: [], licenses: [] })}
+                  sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}
+                >
+                  נקה פילטרים
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+
           {driversViewMode === 'cards' ? (
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: { xs: 1, sm: 2 } }}>
-              {drivers.map(driver => (
+              {getFilteredDrivers().map(driver => (
                 <Box key={driver.id} sx={{ 
                   flex: { xs: '1 1 100%', sm: '1 1 300px' }, 
                   maxWidth: { xs: '100%', sm: '400px' },
@@ -1948,12 +2110,11 @@ const Trips: React.FC = () => {
                 }}>
                   <Card
                     sx={{
-                      border: 2,
-                      borderColor: driver.status === 'available' ? 'success.main' : 
-                                   driver.status === 'on_trip' ? 'warning.main' : 'info.main',
+                      border: 1,
+                      borderColor: 'divider',
                       '&:hover': {
-                        borderColor: driver.status === 'available' ? 'success.dark' : 
-                                    driver.status === 'on_trip' ? 'warning.dark' : 'info.dark',
+                        borderColor: 'primary.main',
+                        boxShadow: 2
                       }
                     }}
                   >
@@ -1983,15 +2144,22 @@ const Trips: React.FC = () => {
                         מסגרת: {driver.frameworkId ? frameworks.find(f => f.id === driver.frameworkId)?.name || driver.frameworkId : 'לא מוגדר'}
                       </Typography>
                       <Box sx={{ mt: 1, mb: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                          סטטוס:
+                        </Typography>
                         <Chip
-                          label={driver.status === 'available' ? 'זמין' : driver.status === 'on_trip' ? 'בנסיעה' : 'במנוחה'}
-                          color={driver.status === 'available' ? 'success' : driver.status === 'on_trip' ? 'warning' : 'info'}
+                          label={getStatusText(getSoldierCurrentStatus(driver))}
+                          sx={{ 
+                            mr: 1,
+                            bgcolor: getStatusColor(getSoldierCurrentStatus(driver)),
+                            color: 'white',
+                            fontWeight: 'bold'
+                          }}
                           size="small"
-                          sx={{ mr: 1 }}
                         />
                         {driver.restUntil && (
-                          <Typography variant="caption" color="textSecondary">
-                            מנוחה עד: {new Date(driver.restUntil).toLocaleString('he-IL')}
+                          <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 0.5 }}>
+                            מנוחה עד: {formatToIsraelString(driver.restUntil)}
                           </Typography>
                         )}
                       </Box>
@@ -2040,7 +2208,7 @@ const Trips: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {drivers.map(driver => (
+                  {getFilteredDrivers().map(driver => (
                     <TableRow key={driver.id}>
                       <TableCell>
                         <Typography 
@@ -2067,14 +2235,25 @@ const Trips: React.FC = () => {
                         ))}
                       </TableCell>
                       <TableCell>
-                        <Chip
-                          label={driver.status === 'available' ? 'זמין' : driver.status === 'on_trip' ? 'בנסיעה' : 'במנוחה'}
-                          color={driver.status === 'available' ? 'success' : driver.status === 'on_trip' ? 'warning' : 'info'}
-                          size="small"
-                        />
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                          <Chip
+                            label={getStatusText(getSoldierCurrentStatus(driver))}
+                            sx={{ 
+                              bgcolor: getStatusColor(getSoldierCurrentStatus(driver)),
+                              color: 'white',
+                              fontWeight: 'bold'
+                            }}
+                            size="small"
+                          />
+                          {driver.restUntil && (
+                            <Typography variant="caption" color="textSecondary">
+                              מנוחה עד: {formatToIsraelString(driver.restUntil)}
+                            </Typography>
+                          )}
+                        </Box>
                       </TableCell>
                       <TableCell>
-                        {driver.restUntil ? new Date(driver.restUntil).toLocaleString('he-IL') : '-'}
+                        {driver.restUntil ? formatToIsraelString(driver.restUntil) : '-'}
                       </TableCell>
                       <TableCell>
                         <Button
@@ -2121,24 +2300,29 @@ const Trips: React.FC = () => {
                     ))}
                   </Select>
                 </FormControl>
-                <FormControl fullWidth>
-                  <InputLabel>נהג</InputLabel>
-                  <Select
-                    name="driverId"
-                    value={formData.driverId}
-                    onChange={(e) => handleSelectChange('driverId', e.target.value)}
-                    label="נהג"
-                  >
-                    <MenuItem value="">ללא נהג</MenuItem>
-                    {filteredDrivers.map(driver => (
-                      <MenuItem key={driver.id} value={driver.id}>
-                        {driver.name} - {driver.role}
-                        {driver.drivingLicenses && driver.drivingLicenses.length > 0 && 
-                          ` (היתרים: ${driver.drivingLicenses.join(', ')})`}
+                                  <FormControl fullWidth>
+                    <InputLabel>נהג</InputLabel>
+                    <Select
+                      name="driverId"
+                      value={formData.driverId}
+                      onChange={(e) => handleSelectChange('driverId', e.target.value)}
+                      label="נהג"
+                    >
+                                          <MenuItem value="">ללא נהג</MenuItem>
+                    {getAllSoldiersWithAvailability(filteredDrivers, formData.departureTime || '').map(driver => (
+                      <MenuItem 
+                        key={driver.id} 
+                        value={driver.id}
+                        disabled={driver.isUnavailable}
+                      >
+                        {driver.isUnavailable 
+                          ? getUnavailableSoldierLabel(driver)
+                          : `${driver.name} - ${driver.role}${driver.drivingLicenses && driver.drivingLicenses.length > 0 ? ` (היתרים: ${driver.drivingLicenses.join(', ')})` : ''}`
+                        }
                       </MenuItem>
                     ))}
-                  </Select>
-                </FormControl>
+                    </Select>
+                  </FormControl>
               </Box>
               <FormControl fullWidth>
                 <InputLabel>מפקד נסיעה</InputLabel>
@@ -2149,11 +2333,18 @@ const Trips: React.FC = () => {
                   label="מפקד נסיעה"
                 >
                   <MenuItem value="">בחר מפקד נסיעה</MenuItem>
-                  {soldiers
+                  {getAllSoldiersWithAvailability(soldiers, formData.departureTime || '')
                     .filter(soldier => soldier.id !== formData.driverId) // לא להציג את הנהג
                     .map(soldier => (
-                      <MenuItem key={soldier.id} value={soldier.id}>
-                        {soldier.name} - {soldier.role}
+                      <MenuItem 
+                        key={soldier.id} 
+                        value={soldier.id}
+                        disabled={soldier.isUnavailable}
+                      >
+                        {soldier.isUnavailable 
+                          ? getUnavailableSoldierLabel(soldier)
+                          : `${soldier.name} - ${soldier.role}`
+                        }
                       </MenuItem>
                     ))}
                 </Select>
@@ -2441,7 +2632,7 @@ const Trips: React.FC = () => {
                 <TextField
                   label="זמן יציאה מתוכנן"
                   value={actualTimesDialog.trip?.departureTime ? 
-                    new Date(actualTimesDialog.trip.departureTime).toLocaleString('he-IL') : 
+                    formatToIsraelString(actualTimesDialog.trip.departureTime) : 
                     'לא מוגדר'
                   }
                   InputProps={{ readOnly: true }}
@@ -2450,7 +2641,7 @@ const Trips: React.FC = () => {
                 <TextField
                   label="זמן חזרה מתוכנן"
                   value={actualTimesDialog.trip?.returnTime ? 
-                    new Date(actualTimesDialog.trip.returnTime).toLocaleString('he-IL') : 
+                    formatToIsraelString(actualTimesDialog.trip.returnTime) : 
                     'לא מוגדר'
                   }
                   InputProps={{ readOnly: true }}

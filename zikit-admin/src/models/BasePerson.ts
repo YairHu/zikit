@@ -13,6 +13,7 @@ export interface BasePerson {
   drivingLicenses?: string[]; // היתרים לנהיגה
   presence?: string;
   presenceOther?: string;
+  presenceUntil?: string; // תאריך עד מתי החייל בגימלים/חופש
   family?: string;
   militaryBackground?: string;
   notes?: string;

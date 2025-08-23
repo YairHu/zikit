@@ -13,6 +13,7 @@ import {
   MenuItem
 } from '@mui/material';
 import { BasePerson } from '../models/BasePerson';
+import { getFrameworkNameById } from '../services/frameworkService';
 
 interface BasePersonFormProps {
   open: boolean;
@@ -36,6 +37,7 @@ const emptyPerson: Omit<BasePerson, 'id'> = {
   drivingLicenses: [],
   presence: 'בבסיס',
   presenceOther: '',
+  presenceUntil: '',
   family: '',
   medicalProfile: '',
   
@@ -68,6 +70,7 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
 }) => {
   const [formData, setFormData] = useState<Omit<BasePerson, 'id'>>(emptyPerson);
   const [loading, setLoading] = useState(false);
+  const [frameworkName, setFrameworkName] = useState<string>('');
 
   useEffect(() => {
     if (person && mode === 'edit') {
@@ -80,8 +83,20 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
         certifications: rest.certifications || [],
         drivingLicenses: rest.drivingLicenses || []
       });
+      
+      // קבלת שם המסגרת אם יש מזהה
+      if (rest.frameworkId) {
+        getFrameworkNameById(rest.frameworkId).then(name => {
+          setFrameworkName(name);
+        }).catch(() => {
+          setFrameworkName('');
+        });
+      } else {
+        setFrameworkName('');
+      }
     } else {
       setFormData(emptyPerson);
+      setFrameworkName('');
     }
   }, [person, mode, open]);
 
@@ -206,8 +221,10 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
               fullWidth
               label="מסגרת"
               name="frameworkId"
-              value={formData.frameworkId}
+              value={frameworkName || formData.frameworkId}
               onChange={handleChange}
+              helperText="שדה זה אינו ניתן לעריכה"
+              disabled
             />
             <TextField
               fullWidth
@@ -248,6 +265,18 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
                 helperText="פרט את המיקום הספציפי"
               />
             )}
+            {(formData.presence === 'גימלים' || formData.presence === 'חופש') && (
+              <TextField
+                fullWidth
+                label={`${formData.presence} עד איזה יום? כולל`}
+                name="presenceUntil"
+                type="date"
+                value={formData.presenceUntil || ''}
+                onChange={handleChange}
+                InputLabelProps={{ shrink: true }}
+                helperText="בחר את התאריך האחרון של הגימלים/חופש"
+              />
+            )}
             <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
               <TextField
                 fullWidth
@@ -278,13 +307,6 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
               value={formData.family || ''}
               onChange={handleChange}
             />
-                         <TextField
-               fullWidth
-               label="פרופיל רפואי"
-               name="medicalProfile"
-               value={formData.medicalProfile || ''}
-               onChange={handleChange}
-             />
              <TextField
                fullWidth
                label="טלפון"

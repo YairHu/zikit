@@ -35,6 +35,7 @@ import { Activity } from '../models/Activity';
 import { getAllTrips, updateTrip, deleteTrip } from '../services/tripService';
 import { getAllVehicles } from '../services/vehicleService';
 import { getAllSoldiers } from '../services/soldierService';
+import { formatToIsraelString } from '../utils/dateUtils';
 
 interface TripManagementProps {
   open: boolean;
@@ -227,7 +228,7 @@ const TripManagement: React.FC<TripManagementProps> = ({
                         {trip.departureTime && trip.returnTime && (
                           <Typography variant="body2">
                             <ScheduleIcon sx={{ fontSize: 16, mr: 0.5 }} />
-                            {new Date(trip.departureTime).toLocaleString('he-IL')} - {new Date(trip.returnTime).toLocaleString('he-IL')}
+                            {formatToIsraelString(trip.departureTime)} - {formatToIsraelString(trip.returnTime)}
                           </Typography>
                         )}
                         {!isTripComplete(trip) && (

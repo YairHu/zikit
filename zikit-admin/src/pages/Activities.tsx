@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getAllSoldiersWithAvailability, getUnavailableSoldierLabel } from '../utils/soldierUtils';
 import { useUser } from '../contexts/UserContext';
+import { formatToIsraelString } from '../utils/dateUtils';
 import { Activity, ActivityParticipant } from '../models/Activity';
 import { Soldier } from '../models/Soldier';
 import { Vehicle } from '../models/Vehicle';
@@ -1625,7 +1627,7 @@ const Activities: React.FC = () => {
                           <Typography variant="caption" color="textSecondary" display="block" sx={{ 
                             fontSize: { xs: '0.7rem', sm: '0.75rem' }
                           }}>
-                            {new Date(trip.departureTime).toLocaleString('he-IL')} - {new Date(trip.returnTime).toLocaleString('he-IL')}
+                            {formatToIsraelString(trip.departureTime)} - {formatToIsraelString(trip.returnTime)}
                           </Typography>
                         )}
                         <Typography variant="caption" color="textSecondary" display="block" sx={{ 
@@ -1677,7 +1679,7 @@ const Activities: React.FC = () => {
                             <Typography variant="caption" color="textSecondary" display="block" sx={{ 
                               fontSize: { xs: '0.7rem', sm: '0.75rem' }
                             }}>
-                              {new Date(trip.departureTime).toLocaleString('he-IL')} - {new Date(trip.returnTime).toLocaleString('he-IL')}
+                              {formatToIsraelString(trip.departureTime)} - {formatToIsraelString(trip.returnTime)}
                             </Typography>
                           )}
                         </Box>
@@ -1759,14 +1761,19 @@ const Activities: React.FC = () => {
 
               <Box sx={{ mb: 2 }}>
                 <Autocomplete
-                  options={soldiers.filter(s => 
+                  options={getAllSoldiersWithAvailability(soldiers, formData.plannedDate || '').filter(s => 
                     !formData.participants.some(p => p.soldierId === s.id) &&
                     s.id !== formData.commanderId &&
                     s.id !== formData.taskLeaderId
                   )}
-                  getOptionLabel={(option) => `${option.name} (${option.personalNumber})`}
+                  getOptionLabel={(option) => {
+                    if (option.isUnavailable) {
+                      return getUnavailableSoldierLabel(option);
+                    }
+                    return `${option.name} (${option.personalNumber})`;
+                  }}
                   onChange={(_, newValue) => {
-                    if (newValue) {
+                    if (newValue && !newValue.isUnavailable) {
                       handleAddParticipant(newValue);
                     }
                   }}
@@ -1776,6 +1783,19 @@ const Activities: React.FC = () => {
                       label="הוסף משתתף"
                       sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
                     />
+                  )}
+                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                  renderOption={(props, option) => (
+                    <li {...props} style={{ 
+                      opacity: option.isUnavailable ? 0.6 : 1,
+                      color: option.isUnavailable ? '#666' : 'inherit',
+                      pointerEvents: option.isUnavailable ? 'none' : 'auto'
+                    }}>
+                      {option.isUnavailable 
+                        ? getUnavailableSoldierLabel(option)
+                        : `${option.name} (${option.personalNumber})`
+                      }
+                    </li>
                   )}
                 />
               </Box>

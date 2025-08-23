@@ -38,7 +38,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Snackbar
+  Snackbar,
+  TextField
 } from '@mui/material';
 import {
   Group as GroupIcon,
@@ -75,6 +76,8 @@ const FrameworkDetails: React.FC = () => {
   const [canEditPersonnel, setCanEditPersonnel] = useState<boolean>(false);
   const [editingSoldier, setEditingSoldier] = useState<string | null>(null);
   const [editingPresence, setEditingPresence] = useState<string>('');
+  const [editingPresenceUntil, setEditingPresenceUntil] = useState<string>('');
+  const [editingPresenceOther, setEditingPresenceOther] = useState<string>('');
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportData, setReportData] = useState<any[]>([]);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -173,16 +176,35 @@ const FrameworkDetails: React.FC = () => {
     navigate(`/frameworks/${frameworkId}`);
   };
 
-  const handleEditPresence = (soldierId: string, currentPresence: string) => {
+  const handleEditPresence = (soldierId: string, currentPresence: string, currentPresenceUntil?: string, currentPresenceOther?: string) => {
     setEditingSoldier(soldierId);
     setEditingPresence(currentPresence || '');
+    setEditingPresenceUntil(currentPresenceUntil || '');
+    setEditingPresenceOther(currentPresenceOther || '');
   };
 
   const handleSavePresence = async () => {
     if (!editingSoldier || !framework) return;
     
     try {
-      await updateSoldier(editingSoldier, { presence: editingPresence });
+      let finalPresence = editingPresence;
+      
+      // אם נבחר "אחר" ויש טקסט חופשי, השתמש בטקסט החופשי
+      if (editingPresence === 'אחר' && editingPresenceOther.trim()) {
+        finalPresence = editingPresenceOther.trim();
+      }
+      
+      const updateData: any = { presence: finalPresence };
+      
+      // אם נבחר גימלים או חופש, הוסף את התאריך
+      if ((editingPresence === 'גימלים' || editingPresence === 'חופש') && editingPresenceUntil) {
+        updateData.presenceUntil = editingPresenceUntil;
+      } else {
+        // אם לא גימלים/חופש, נקה את התאריך
+        updateData.presenceUntil = '';
+      }
+      
+      await updateSoldier(editingSoldier, updateData);
       
       // רענון הנתונים מהשרת
       await loadData();
@@ -196,6 +218,26 @@ const FrameworkDetails: React.FC = () => {
     } finally {
       setEditingSoldier(null);
       setEditingPresence('');
+      setEditingPresenceUntil('');
+      setEditingPresenceOther('');
+    }
+  };
+
+  // פונקציה למיפוי הסטטוס לדוח (משותפת)
+  const mapStatusForReport = (status: string) => {
+    switch (status) {
+      case 'בבסיס':
+      case 'בפעילות':
+      case 'בתורנות':
+      case 'בנסיעה':
+      case 'במנוחה':
+        return 'בבסיס';
+      case 'גימלים':
+        return 'גימלים';
+      case 'חופש':
+        return 'בחופש';
+      default:
+        return 'בבסיס';
     }
   };
 
@@ -209,7 +251,8 @@ const FrameworkDetails: React.FC = () => {
       personalNumber: soldier.personalNumber,
       frameworkName: frameworkNames[soldier.frameworkId] || soldier.frameworkId,
       presence: soldier.presence || 'לא מוגדר',
-      editedPresence: soldier.presence || 'לא מוגדר' // עותק לעריכה
+      editedPresence: mapStatusForReport(soldier.presence || 'לא מוגדר'), // מיפוי ראשוני
+      otherText: '' // שדה לטקסט חופשי
     }));
     
     setReportData(report);
@@ -219,15 +262,26 @@ const FrameworkDetails: React.FC = () => {
   const handleUpdateReportPresence = (soldierId: string, newPresence: string) => {
     setReportData(prev => prev.map(item => 
       item.id === soldierId 
-        ? { ...item, editedPresence: newPresence }
+        ? { ...item, editedPresence: newPresence, otherText: newPresence === 'אחר' ? item.otherText : '' }
+        : item
+    ));
+  };
+
+  const handleUpdateReportOtherText = (soldierId: string, otherText: string) => {
+    setReportData(prev => prev.map(item => 
+      item.id === soldierId 
+        ? { ...item, otherText }
         : item
     ));
   };
 
   const handlePrintReport = () => {
-    const reportText = reportData.map(soldier => 
-      `${soldier.name} - ${soldier.role} - ${soldier.personalNumber} - ${soldier.frameworkName} - ${soldier.editedPresence}`
-    ).join('\n');
+    const reportText = reportData.map(soldier => {
+      const status = soldier.editedPresence === 'אחר' && soldier.otherText 
+        ? soldier.otherText 
+        : mapStatusForReport(soldier.editedPresence);
+      return `${soldier.name} - ${soldier.role} - ${soldier.personalNumber} - ${soldier.frameworkName} - ${status}`;
+    }).join('\n');
     
     alert(`דוח 1 - סטטוס נוכחות חיילים במסגרת ${framework?.name}:\n\n${reportText}`);
     setReportDialogOpen(false);
@@ -387,7 +441,7 @@ const FrameworkDetails: React.FC = () => {
           <Tab label={`מסגרות בנות (${framework.childFrameworks.length})`} />
           <Tab label={`פעילויות (${framework.activities?.length || 0})`} />
           <Tab label={`תורנויות (${framework.duties?.length || 0})`} />
-          <Tab label={`נסיעות (${framework.trips?.length || 0})`} />
+          <Tab label={`נסיעות (${framework.trips?.filter(trip => trip.status !== 'הסתיימה').length || 0})`} />
         </Tabs>
       </Box>
 
@@ -442,28 +496,50 @@ const FrameworkDetails: React.FC = () => {
                         {canEditPersonnel && (
                           <TableCell>
                             {editingSoldier === soldier.id ? (
-                              <Box sx={{ display: 'flex', gap: 1 }}>
-                                <FormControl size="small" sx={{ minWidth: 120 }}>
-                                  <Select
-                                    value={editingPresence}
-                                    onChange={(e) => setEditingPresence(e.target.value)}
+                              <Box sx={{ display: 'flex', gap: 1, flexDirection: 'column' }}>
+                                <Box sx={{ display: 'flex', gap: 1 }}>
+                                  <FormControl size="small" sx={{ minWidth: 120 }}>
+                                    <Select
+                                      value={editingPresence}
+                                      onChange={(e) => setEditingPresence(e.target.value)}
+                                      size="small"
+                                    >
+                                      <MenuItem value="בבסיס">בבסיס</MenuItem>
+                                      <MenuItem value="בפעילות">בפעילות</MenuItem>
+                                      <MenuItem value="חופש">חופש</MenuItem>
+                                      <MenuItem value="גימלים">גימלים</MenuItem>
+                                      <MenuItem value="אחר">אחר</MenuItem>
+                                    </Select>
+                                  </FormControl>
+                                  <IconButton size="small" onClick={handleSavePresence} color="primary">
+                                    <SaveIcon />
+                                  </IconButton>
+                                </Box>
+                                {(editingPresence === 'גימלים' || editingPresence === 'חופש') && (
+                                  <TextField
                                     size="small"
-                                  >
-                                    <MenuItem value="בבסיס">בבסיס</MenuItem>
-                                    <MenuItem value="בפעילות">בפעילות</MenuItem>
-                                    <MenuItem value="חופש">חופש</MenuItem>
-                                    <MenuItem value="גימלים">גימלים</MenuItem>
-                                    <MenuItem value="אחר">אחר</MenuItem>
-                                  </Select>
-                                </FormControl>
-                                <IconButton size="small" onClick={handleSavePresence} color="primary">
-                                  <SaveIcon />
-                                </IconButton>
+                                    label={`${editingPresence} עד איזה יום? כולל`}
+                                    type="date"
+                                    value={editingPresenceUntil}
+                                    onChange={(e) => setEditingPresenceUntil(e.target.value)}
+                                    InputLabelProps={{ shrink: true }}
+                                    sx={{ minWidth: 200 }}
+                                  />
+                                )}
+                                {editingPresence === 'אחר' && (
+                                  <TextField
+                                    size="small"
+                                    label="הזן סטטוס מותאם אישית"
+                                    value={editingPresenceOther}
+                                    onChange={(e) => setEditingPresenceOther(e.target.value)}
+                                    sx={{ minWidth: 200 }}
+                                  />
+                                )}
                               </Box>
                             ) : (
                               <IconButton 
                                 size="small" 
-                                onClick={() => handleEditPresence(soldier.id, soldier.presence || '')}
+                                onClick={() => handleEditPresence(soldier.id, soldier.presence || '', soldier.presenceUntil, (soldier as any).presenceOther)}
                               >
                                 <EditIcon />
                               </IconButton>
@@ -536,28 +612,50 @@ const FrameworkDetails: React.FC = () => {
                         {canEditPersonnel && (
                           <TableCell>
                             {editingSoldier === soldier.id ? (
-                              <Box sx={{ display: 'flex', gap: 1 }}>
-                                <FormControl size="small" sx={{ minWidth: 120 }}>
-                                  <Select
-                                    value={editingPresence}
-                                    onChange={(e) => setEditingPresence(e.target.value)}
+                              <Box sx={{ display: 'flex', gap: 1, flexDirection: 'column' }}>
+                                <Box sx={{ display: 'flex', gap: 1 }}>
+                                  <FormControl size="small" sx={{ minWidth: 120 }}>
+                                    <Select
+                                      value={editingPresence}
+                                      onChange={(e) => setEditingPresence(e.target.value)}
+                                      size="small"
+                                    >
+                                      <MenuItem value="בבסיס">בבסיס</MenuItem>
+                                      <MenuItem value="בפעילות">בפעילות</MenuItem>
+                                      <MenuItem value="חופש">חופש</MenuItem>
+                                      <MenuItem value="גימלים">גימלים</MenuItem>
+                                      <MenuItem value="אחר">אחר</MenuItem>
+                                    </Select>
+                                  </FormControl>
+                                  <IconButton size="small" onClick={handleSavePresence} color="primary">
+                                    <SaveIcon />
+                                  </IconButton>
+                                </Box>
+                                {(editingPresence === 'גימלים' || editingPresence === 'חופש') && (
+                                  <TextField
                                     size="small"
-                                  >
-                                    <MenuItem value="בבסיס">בבסיס</MenuItem>
-                                    <MenuItem value="בפעילות">בפעילות</MenuItem>
-                                    <MenuItem value="חופש">חופש</MenuItem>
-                                    <MenuItem value="גימלים">גימלים</MenuItem>
-                                    <MenuItem value="אחר">אחר</MenuItem>
-                                  </Select>
-                                </FormControl>
-                                <IconButton size="small" onClick={handleSavePresence} color="primary">
-                                  <SaveIcon />
-                                </IconButton>
+                                    label={`${editingPresence} עד איזה יום? כולל`}
+                                    type="date"
+                                    value={editingPresenceUntil}
+                                    onChange={(e) => setEditingPresenceUntil(e.target.value)}
+                                    InputLabelProps={{ shrink: true }}
+                                    sx={{ minWidth: 200 }}
+                                  />
+                                )}
+                                {editingPresence === 'אחר' && (
+                                  <TextField
+                                    size="small"
+                                    label="הזן סטטוס מותאם אישית"
+                                    value={editingPresenceOther}
+                                    onChange={(e) => setEditingPresenceOther(e.target.value)}
+                                    sx={{ minWidth: 200 }}
+                                  />
+                                )}
                               </Box>
                             ) : (
                               <IconButton 
                                 size="small" 
-                                onClick={() => handleEditPresence(soldier.id, soldier.presence || '')}
+                                onClick={() => handleEditPresence(soldier.id, soldier.presence || '', soldier.presenceUntil, (soldier as any).presenceOther)}
                               >
                                 <EditIcon />
                               </IconButton>
@@ -712,9 +810,9 @@ const FrameworkDetails: React.FC = () => {
             <Typography variant="h6" gutterBottom>
               נסיעות
             </Typography>
-            {framework.trips && framework.trips.length > 0 ? (
+            {framework.trips && framework.trips.filter(trip => trip.status !== 'הסתיימה').length > 0 ? (
               <List>
-                {framework.trips.map((trip) => (
+                {framework.trips.filter(trip => trip.status !== 'הסתיימה').map((trip) => (
                   <ListItem key={trip.id} disablePadding>
                     <ListItemButton onClick={() => navigate(`/trips/${trip.id}`)}>
                       <ListItemAvatar>
@@ -786,17 +884,29 @@ const FrameworkDetails: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <FormControl size="small" sx={{ minWidth: 120 }}>
-                        <Select
-                          value={soldier.editedPresence}
-                          onChange={(e) => handleUpdateReportPresence(soldier.id, e.target.value)}
-                          size="small"
-                        >
-                          <MenuItem value="בבסיס">בבסיס</MenuItem>
-                          <MenuItem value="בפעילות">בפעילות</MenuItem>
-                          <MenuItem value="חופש">חופש</MenuItem>
-                          <MenuItem value="גימלים">גימלים</MenuItem>
-                          <MenuItem value="אחר">אחר</MenuItem>
-                        </Select>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <FormControl size="small" sx={{ minWidth: 120 }}>
+                            <Select
+                              value={soldier.editedPresence}
+                              onChange={(e) => handleUpdateReportPresence(soldier.id, e.target.value)}
+                              size="small"
+                            >
+                              <MenuItem value="בבסיס">בבסיס</MenuItem>
+                              <MenuItem value="חופש">חופש</MenuItem>
+                              <MenuItem value="גימלים">גימלים</MenuItem>
+                              <MenuItem value="אחר">אחר</MenuItem>
+                            </Select>
+                          </FormControl>
+                          {soldier.editedPresence === 'אחר' && (
+                            <TextField
+                              size="small"
+                              placeholder="הזן טקסט חופשי"
+                              value={soldier.otherText || ''}
+                              onChange={(e) => handleUpdateReportOtherText(soldier.id, e.target.value)}
+                              sx={{ minWidth: 200 }}
+                            />
+                          )}
+                        </Box>
                       </FormControl>
                     </TableCell>
                   </TableRow>

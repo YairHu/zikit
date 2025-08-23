@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getAllSoldiersWithAvailability } from '../utils/soldierUtils';
 import mermaid from 'mermaid';
 import {
   Container,
@@ -71,7 +72,7 @@ const Hamal: React.FC = () => {
       flowchart: {
         useMaxWidth: false,
         htmlLabels: true,
-        curve: 'basis'
+        curve: 'linear'
       },
       securityLevel: 'loose'
     } as any);
@@ -204,10 +205,13 @@ const Hamal: React.FC = () => {
     mermaidCode += '    classDef frameworkClass fill:#e3f2fd,stroke:#1976d2,stroke-width:2px\n';
     mermaidCode += '    classDef soldierClass fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px\n';
     mermaidCode += '    classDef presenceBase fill:#4caf50,stroke:#2e7d32,stroke-width:1px,color:#fff\n';
-    mermaidCode += '    classDef presenceActivity fill:#2196f3,stroke:#1565c0,stroke-width:1px,color:#fff\n';
-    mermaidCode += '    classDef presenceLeave fill:#ff9800,stroke:#e65100,stroke-width:1px,color:#fff\n';
-    mermaidCode += '    classDef presenceGimel fill:#9c27b0,stroke:#6a1b9a,stroke-width:1px,color:#fff\n';
-    mermaidCode += '    classDef presenceOther fill:#f44336,stroke:#c62828,stroke-width:1px,color:#fff\n';
+    mermaidCode += '    classDef presenceActivity fill:#f44336,stroke:#c62828,stroke-width:1px,color:#fff\n';
+    mermaidCode += '    classDef presenceTrip fill:#ff9800,stroke:#e65100,stroke-width:1px,color:#fff\n';
+    mermaidCode += '    classDef presenceDuty fill:#9c27b0,stroke:#6a1b9a,stroke-width:1px,color:#fff\n';
+    mermaidCode += '    classDef presenceRest fill:#2196f3,stroke:#1565c0,stroke-width:1px,color:#fff\n';
+    mermaidCode += '    classDef presenceLeave fill:#00bcd4,stroke:#008ba3,stroke-width:1px,color:#fff\n';
+    mermaidCode += '    classDef presenceGimel fill:#ffd600,stroke:#f57f17,stroke-width:1px,color:#000\n';
+    mermaidCode += '    classDef presenceOther fill:#9c27b0,stroke:#6a1b9a,stroke-width:1px,color:#fff\n';
     mermaidCode += '    classDef presenceUnknown fill:#9e9e9e,stroke:#616161,stroke-width:1px,color:#fff\n';
     
     // יצירת מפה של מסגרות לפי ID
@@ -232,6 +236,9 @@ const Hamal: React.FC = () => {
       switch (presence) {
         case 'בבסיס': return 'presenceBase';
         case 'בפעילות': return 'presenceActivity';
+        case 'בנסיעה': return 'presenceTrip';
+        case 'בתורנות': return 'presenceDuty';
+        case 'במנוחה': return 'presenceRest';
         case 'חופש': return 'presenceLeave';
         case 'גימלים': return 'presenceGimel';
         case 'אחר': return 'presenceOther';
@@ -254,11 +261,18 @@ const Hamal: React.FC = () => {
     
     // הוספת חיילים למסגרות
     if (showSoldiers) {
-      soldiers.forEach(soldier => {
+      const soldiersWithAvailability = getAllSoldiersWithAvailability(soldiers, '');
+      soldiersWithAvailability.forEach(soldier => {
         if (soldier.frameworkId) {
           const soldierId = `soldier_${soldier.id}`;
           const presenceClass = showPresence ? getPresenceClass(soldier.presence || '') : 'soldierClass';
-          const soldierLabel = cleanTextForMermaid(soldier.name);
+          
+          // הוספת תאריך סיום לגימלים/חופש
+          let soldierLabel = cleanTextForMermaid(soldier.name);
+          if (soldier.isUnavailable && soldier.unavailabilityUntil && soldier.unavailabilityUntil.trim() !== '') {
+            // שימוש ב-HTML line break במקום \n
+            soldierLabel += `<br/><small>עד ${cleanTextForMermaid(soldier.unavailabilityUntil)}</small>`;
+          }
           
           mermaidCode += `    ${soldierId}("${soldierLabel}"):::${presenceClass}\n`;
           
@@ -284,7 +298,7 @@ const Hamal: React.FC = () => {
       
       // הוספת אירועי לחיצה
       const frameworkNodes = mermaidRef.current.querySelectorAll('.frameworkClass');
-      const soldierNodes = mermaidRef.current.querySelectorAll('.soldierClass, .presenceBase, .presenceActivity, .presenceLeave, .presenceGimel, .presenceOther, .presenceUnknown');
+      const soldierNodes = mermaidRef.current.querySelectorAll('.soldierClass, .presenceBase, .presenceActivity, .presenceTrip, .presenceDuty, .presenceRest, .presenceLeave, .presenceGimel, .presenceOther, .presenceUnknown');
       
       frameworkNodes.forEach((node) => {
         (node as HTMLElement).style.cursor = 'pointer';
@@ -576,19 +590,31 @@ const Hamal: React.FC = () => {
                 <Typography variant="body2">בבסיס</Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box sx={{ width: 20, height: 20, bgcolor: '#2196f3', border: '1px solid #1565c0', borderRadius: 1 }} />
+                <Box sx={{ width: 20, height: 20, bgcolor: '#f44336', border: '1px solid #c62828', borderRadius: 1 }} />
                 <Typography variant="body2">בפעילות</Typography>
-                    </Box>
+              </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Box sx={{ width: 20, height: 20, bgcolor: '#ff9800', border: '1px solid #e65100', borderRadius: 1 }} />
-                <Typography variant="body2">חופש</Typography>
-                        </Box>
+                <Typography variant="body2">בנסיעה</Typography>
+              </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Box sx={{ width: 20, height: 20, bgcolor: '#9c27b0', border: '1px solid #6a1b9a', borderRadius: 1 }} />
-                <Typography variant="body2">גימלים</Typography>
-                      </Box>
+                <Typography variant="body2">בתורנות</Typography>
+              </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box sx={{ width: 20, height: 20, bgcolor: '#f44336', border: '1px solid #c62828', borderRadius: 1 }} />
+                <Box sx={{ width: 20, height: 20, bgcolor: '#2196f3', border: '1px solid #1565c0', borderRadius: 1 }} />
+                <Typography variant="body2">במנוחה</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 20, height: 20, bgcolor: '#00bcd4', border: '1px solid #008ba3', borderRadius: 1 }} />
+                <Typography variant="body2">חופש</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 20, height: 20, bgcolor: '#ffd600', border: '1px solid #f57f17', borderRadius: 1 }} />
+                <Typography variant="body2">גימלים</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 20, height: 20, bgcolor: '#9c27b0', border: '1px solid #6a1b9a', borderRadius: 1 }} />
                 <Typography variant="body2">אחר</Typography>
               </Box>
             </Box>

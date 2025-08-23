@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useUser } from '../contexts/UserContext';
 import { Duty, DutyParticipant } from '../models/Duty';
 import { Soldier } from '../models/Soldier';
-import { getAllDuties, addDuty, updateDuty, deleteDuty, getDutiesBySoldier } from '../services/dutyService';
+import { getAllDuties, addDuty, updateDuty, deleteDuty, getDutiesBySoldier, updateDutyStatusesAutomatically } from '../services/dutyService';
 import { getAllSoldiers } from '../services/soldierService';
 import { getAllFrameworks } from '../services/frameworkService';
 import { SystemPath, PermissionLevel, DataScope } from '../models/UserRole';
@@ -54,6 +54,7 @@ import {
   Person as PersonIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { getAllSoldiersWithAvailability, getUnavailableSoldierLabel } from '../utils/soldierUtils';
 
 const emptyDuty: Omit<Duty, 'id' | 'createdAt' | 'updatedAt'> = {
   type: '',
@@ -116,6 +117,9 @@ const Duties: React.FC = () => {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
+      // עדכון אוטומטי של סטטוס תורנויות
+      await updateDutyStatusesAutomatically();
+      
       const [soldiersData, frameworksData] = await Promise.all([
         getAllSoldiers(),
         getAllFrameworks()
@@ -716,17 +720,35 @@ const Duties: React.FC = () => {
               </Typography>
               <Box sx={{ mb: 2 }}>
                 <Autocomplete
-                  options={soldiers.filter(s => 
+                  options={getAllSoldiersWithAvailability(soldiers, formData.startDate || '').filter(s => 
                     !formData.participants.some(p => p.soldierId === s.id)
                   )}
-                  getOptionLabel={(option) => `${option.name} (${option.personalNumber})`}
+                  getOptionLabel={(option) => {
+                    if (option.isUnavailable) {
+                      return getUnavailableSoldierLabel(option);
+                    }
+                    return `${option.name} (${option.personalNumber})`;
+                  }}
                   onChange={(_, newValue) => {
-                    if (newValue) {
+                    if (newValue && !newValue.isUnavailable) {
                       handleAddParticipant(newValue);
                     }
                   }}
                   renderInput={(params) => (
                     <TextField {...params} label="הוסף משתתף" />
+                  )}
+                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                  renderOption={(props, option) => (
+                    <li {...props} style={{ 
+                      opacity: option.isUnavailable ? 0.6 : 1,
+                      color: option.isUnavailable ? '#666' : 'inherit',
+                      pointerEvents: option.isUnavailable ? 'none' : 'auto'
+                    }}>
+                      {option.isUnavailable 
+                        ? getUnavailableSoldierLabel(option)
+                        : `${option.name} (${option.personalNumber})`
+                      }
+                    </li>
                   )}
                 />
               </Box>

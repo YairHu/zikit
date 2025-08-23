@@ -4,8 +4,9 @@ import { Trip } from '../models/Trip';
 import { Vehicle } from '../models/Vehicle';
 import { Soldier } from '../models/Soldier';
 import { Activity } from '../models/Activity';
+import { formatToIsraelString } from '../utils/dateUtils';
 
-import { updateSoldier, getAllSoldiers } from './soldierService';
+import { updateSoldier, getAllSoldiers, updateSoldierStatus } from './soldierService';
 import { updateActivity } from './activityService';
 import { localStorageService, updateTableTimestamp } from './cacheService';
 
@@ -442,14 +443,14 @@ export const checkAdvancedAvailability = async (
         if (newStart < restEndTime) {
           driverRestConflict = true;
           const tripType = lastTrip.status === 'הסתיימה' ? 'הסתיימה' : 'מתוכננת להסתיים';
-          message = `הנהג במנוחה עד ${restEndTime.toLocaleString('he-IL')} (לאחר נסיעה ש${tripType} ב-${lastReturnTime.toLocaleString('he-IL')})`;
+          message = `הנהג במנוחה עד ${formatToIsraelString(restEndTime)} (לאחר נסיעה ש${tripType} ב-${formatToIsraelString(lastReturnTime)})`;
         }
       } else if (driver.status === 'resting' && driver.restUntil) {
         // בדיקה של מנוחה קיימת
         const restUntil = new Date(driver.restUntil);
         if (newStart < restUntil) {
           driverRestConflict = true;
-          message = `הנהג במנוחה עד ${restUntil.toLocaleString('he-IL')}`;
+          message = `הנהג במנוחה עד ${formatToIsraelString(restUntil)}`;
         }
       }
     }
@@ -492,9 +493,6 @@ export const updateDriverStatuses = async (): Promise<void> => {
     const now = new Date();
     
     for (const driver of drivers) {
-      let newStatus: 'available' | 'on_trip' | 'resting' = 'available';
-      let restUntil: string | undefined;
-      
       // בדיקה אם הנהג בנסיעה פעילה
       const activeTrips = await getTripsBySoldier(driver.id);
       const currentTrip = activeTrips.find(trip => {
@@ -504,32 +502,34 @@ export const updateDriverStatuses = async (): Promise<void> => {
       });
       
       if (currentTrip) {
-        newStatus = 'on_trip';
+        // הנהג בנסיעה
+        await updateSoldierStatus(driver.id, 'בנסיעה', { tripId: currentTrip.id });
       } else {
         // בדיקה אם הנהג במנוחה
         if (driver.status === 'resting' && driver.restUntil) {
           const restUntilDate = new Date(driver.restUntil);
           if (now < restUntilDate) {
-            newStatus = 'resting';
-            restUntil = driver.restUntil;
+            // הנהג עדיין במנוחה
+            await updateSoldierStatus(driver.id, 'במנוחה');
+          } else {
+            // המנוחה הסתיימה - חזרה לבסיס רק אם לא בגימלים/חופש/אחר
+            if (driver.presence === 'גימלים' || driver.presence === 'חופש' || driver.presence === 'אחר') {
+              // אל תעדכן - השאר בסטטוס הנוכחי
+              console.log(`🚫 [AUTO] נהג ${driver.id} בסטטוס ${driver.presence} - לא מעדכן`);
+            } else {
+              await updateSoldierStatus(driver.id, 'בבסיס');
+            }
+          }
+        } else {
+          // בדיקה אם הנהג בגימלים, חופש או אחר
+          if (driver.presence === 'גימלים' || driver.presence === 'חופש' || driver.presence === 'אחר') {
+            // אל תעדכן נהגים שבגימלים, חופש או אחר
+            console.log(`🚫 [AUTO] נהג ${driver.id} בסטטוס ${driver.presence} - לא מעדכן`);
+          } else {
+            // הנהג זמין - עדכון לבבסיס רק אם לא בסטטוס מיוחד
+            await updateSoldierStatus(driver.id, 'בבסיס');
           }
         }
-      }
-      
-      // עדכון הסטטוס אם השתנה
-      if (driver.status !== newStatus || driver.restUntil !== restUntil) {
-        const updateData: any = {
-          status: newStatus
-        };
-        
-        if (restUntil) {
-          updateData.restUntil = restUntil;
-        } else {
-          // אם אין restUntil, נמחק את השדה
-          updateData.restUntil = null;
-        }
-        
-        await updateSoldier(driver.id, updateData);
       }
     }
   } catch (error) {
@@ -546,32 +546,20 @@ export const updateDriverStatusByTrip = async (trip: Trip): Promise<void> => {
     const tripStart = new Date(trip.departureTime);
     const tripEnd = new Date(trip.returnTime);
     
-    let newStatus: 'available' | 'on_trip' | 'resting' = 'available';
-    let restUntil: string | undefined;
-    
     if (trip.status === 'בביצוע' && now >= tripStart && now <= tripEnd) {
-      newStatus = 'on_trip';
+      // הנהג בנסיעה
+      await updateSoldierStatus(trip.driverId, 'בנסיעה', { tripId: trip.id });
     } else if (trip.status === 'הסתיימה' && now > tripEnd) {
-      // הגדרת מנוחה אוטומטית
-      const restEnd = new Date(tripEnd.getTime() + (7 * 60 * 60 * 1000)); // 7 שעות
-      if (now < restEnd) {
-        newStatus = 'resting';
-        restUntil = restEnd.toISOString();
-      }
-    }
-    
-    const updateData: any = {
-      status: newStatus
-    };
-    
-    if (restUntil) {
-      updateData.restUntil = restUntil;
+      // הנסיעה הסתיימה - חזרה לבסיס (עם מנוחה אם נדרש)
+      await updateSoldierStatus(trip.driverId, 'בבסיס', { 
+        tripId: trip.id,
+        isEnding: true,
+        tripEndTime: trip.returnTime
+      });
     } else {
-      // אם אין restUntil, נמחק את השדה
-      updateData.restUntil = null;
+      // הנסיעה לא פעילה - חזרה לבסיס
+      await updateSoldierStatus(trip.driverId, 'בבסיס', { tripId: trip.id });
     }
-    
-    await updateSoldier(trip.driverId, updateData);
   } catch (error) {
     console.error('שגיאה בעדכון סטטוס נהג לפי נסיעה:', error);
   }
@@ -580,12 +568,9 @@ export const updateDriverStatusByTrip = async (trip: Trip): Promise<void> => {
 // פונקציה להגדרת מנוחת נהג אוטומטית
 export const setDriverRest = async (driverId: string, returnTime: string): Promise<void> => {
   try {
-    const returnDate = new Date(returnTime);
-    const restUntil = new Date(returnDate.getTime() + (7 * 60 * 60 * 1000)); // 7 שעות
-    
-    await updateSoldier(driverId, {
-      status: 'resting',
-      restUntil: restUntil.toISOString()
+    await updateSoldierStatus(driverId, 'בבסיס', {
+      isEnding: true,
+      tripEndTime: returnTime
     });
   } catch (error) {
     console.error('שגיאה בהגדרת מנוחת נהג:', error);

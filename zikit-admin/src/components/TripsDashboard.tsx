@@ -17,12 +17,14 @@ import { Trip } from '../models/Trip';
 import { Vehicle } from '../models/Vehicle';
 import { Soldier } from '../models/Soldier';
 import { updateDriverStatuses, updateTripStatusesAutomatically } from '../services/tripService';
+import { getSoldierCurrentStatus } from '../services/soldierService';
 import TripsTimeline from './TripsTimeline';
 
 interface TripsDashboardProps {
   trips: Trip[];
   vehicles: Vehicle[];
   drivers: Soldier[];
+  frameworks?: any[];
   onRefresh: () => void;
   onAddTripFromTimeline?: (tripData: {
     departureTime: string;
@@ -38,15 +40,40 @@ interface DashboardStats {
   availableDrivers: number;
   driversOnTrip: number;
   driversResting: number;
+  driversOnSickLeave: number;
+  driversOnVacation: number;
+  driversOther: number;
 }
 
 const TripsDashboard: React.FC<TripsDashboardProps> = ({
   trips,
   vehicles,
   drivers,
+  frameworks = [],
   onRefresh,
   onAddTripFromTimeline
 }) => {
+  // עדכון תקופתי של סטטוסים (כל 5 דקות)
+  useEffect(() => {
+    const updateStatuses = async () => {
+      try {
+        await Promise.all([
+          updateTripStatusesAutomatically(),
+          updateDriverStatuses()
+        ]);
+      } catch (error) {
+        console.error('שגיאה בעדכון תקופתי של סטטוסים:', error);
+      }
+    };
+
+    // עדכון ראשוני
+    updateStatuses();
+
+    // עדכון תקופתי כל 5 דקות
+    const interval = setInterval(updateStatuses, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
 
   // חישוב סטטיסטיקות - רק נסיעות בביצוע
@@ -54,15 +81,23 @@ const TripsDashboard: React.FC<TripsDashboardProps> = ({
     // רק נסיעות בביצוע
     const activeTrips = trips.filter(t => t.status === 'בביצוע');
     
+    // חישוב סטטוס נהגים לפי המערכת החדשה
+    const driversOnTrip = drivers.filter(d => getSoldierCurrentStatus(d) === 'בנסיעה').length;
+    const driversResting = drivers.filter(d => getSoldierCurrentStatus(d) === 'במנוחה').length;
+    const driversOnSickLeave = drivers.filter(d => getSoldierCurrentStatus(d) === 'גימלים').length;
+    const driversOnVacation = drivers.filter(d => getSoldierCurrentStatus(d) === 'חופש').length;
+    const driversOther = drivers.filter(d => getSoldierCurrentStatus(d) === 'אחר').length;
+    const availableDrivers = drivers.filter(d => getSoldierCurrentStatus(d) === 'בבסיס').length;
+    
     return {
-      totalTrips: activeTrips.length,
       activeTrips: activeTrips.length,
-      plannedTrips: 0,
-      completedTrips: 0,
       availableVehicles: vehicles.filter(v => v.status === 'available').length,
-      availableDrivers: drivers.filter(d => d.status === 'available').length,
-      driversOnTrip: drivers.filter(d => d.status === 'on_trip').length,
-      driversResting: drivers.filter(d => d.status === 'resting').length
+      availableDrivers: availableDrivers,
+      driversOnTrip: driversOnTrip,
+      driversResting: driversResting,
+      driversOnSickLeave: driversOnSickLeave,
+      driversOnVacation: driversOnVacation,
+      driversOther: driversOther
     };
   }, [trips, vehicles, drivers]);
 
@@ -71,8 +106,11 @@ const TripsDashboard: React.FC<TripsDashboardProps> = ({
 
 
   const handleRefresh = async () => {
-    // עדכון אוטומטי של סטטוס נסיעות
-    await updateTripStatusesAutomatically();
+    // עדכון אוטומטי של סטטוס נסיעות ונהגים
+    await Promise.all([
+      updateTripStatusesAutomatically(),
+      updateDriverStatuses()
+    ]);
     onRefresh();
   };
 
@@ -156,6 +194,23 @@ const TripsDashboard: React.FC<TripsDashboardProps> = ({
             <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
               <Chip size="small" label={`${stats.driversOnTrip} בנסיעה`} color="warning" sx={{ fontSize: { xs: '0.6rem', sm: '0.75rem' } }} />
               <Chip size="small" label={`${stats.driversResting} במנוחה`} color="info" sx={{ fontSize: { xs: '0.6rem', sm: '0.75rem' } }} />
+              <Chip size="small" label={`${stats.driversOnSickLeave} בגימלים`} sx={{ 
+                fontSize: { xs: '0.6rem', sm: '0.75rem' },
+                backgroundColor: '#FFD600',
+                color: '#000'
+              }} />
+              <Chip size="small" label={`${stats.driversOnVacation} בחופש`} sx={{ 
+                fontSize: { xs: '0.6rem', sm: '0.75rem' },
+                backgroundColor: '#00BCD4',
+                color: '#fff'
+              }} />
+              {stats.driversOther > 0 && (
+                <Chip size="small" label={`${stats.driversOther} אחר`} sx={{ 
+                  fontSize: { xs: '0.6rem', sm: '0.75rem' },
+                  backgroundColor: '#9C27B0',
+                  color: '#fff'
+                }} />
+              )}
             </Box>
           </CardContent>
         </Card>
@@ -169,6 +224,7 @@ const TripsDashboard: React.FC<TripsDashboardProps> = ({
           trips={trips}
           vehicles={vehicles}
           drivers={drivers}
+          frameworks={frameworks}
           onAddTripFromTimeline={onAddTripFromTimeline}
         />
       </Box>

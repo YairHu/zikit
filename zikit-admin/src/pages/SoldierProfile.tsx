@@ -63,7 +63,11 @@ import { getActivitiesBySoldier } from '../services/activityService';
 import { getDutiesBySoldier } from '../services/dutyService';
 import { getReferralsBySoldier } from '../services/referralService';
 import { getTripsBySoldier } from '../services/tripService';
+import { updateTripStatusesAutomatically, updateDriverStatuses } from '../services/tripService';
+import { updateDutyStatusesAutomatically } from '../services/dutyService';
 import { getPresenceColor, getProfileColor, getRoleColor, getStatusColor } from '../utils/colors';
+import { formatToIsraelString } from '../utils/dateUtils';
+import { getSoldierCurrentStatus, getStatusColor as getSoldierStatusColor, getStatusText } from '../services/soldierService';
 import { Soldier } from '../models/Soldier';
 import { Activity } from '../models/Activity';
 import { Duty } from '../models/Duty';
@@ -109,17 +113,24 @@ const SoldierProfile: React.FC = () => {
         }
       };
       
-      checkPermissions();
-      
-      Promise.all([
-        getSoldierById(id),
-        getActivitiesBySoldier(id),
-        getDutiesBySoldier(id),
-        getReferralsBySoldier(id),
-        getTripsBySoldier(id),
-        getAllTrips(),
-        getAllVehicles()
-      ]).then(async ([soldierData, activitiesData, dutiesData, referralsData, tripsData, allTripsData, allVehiclesData]) => {
+      const loadData = async () => {
+        // עדכון אוטומטי של סטטוסים
+        await Promise.all([
+          updateTripStatusesAutomatically(),
+          updateDutyStatusesAutomatically(),
+          updateDriverStatuses()
+        ]);
+
+        const [soldierData, activitiesData, dutiesData, referralsData, tripsData, allTripsData, allVehiclesData] = await Promise.all([
+          getSoldierById(id),
+          getActivitiesBySoldier(id),
+          getDutiesBySoldier(id),
+          getReferralsBySoldier(id),
+          getTripsBySoldier(id),
+          getAllTrips(),
+          getAllVehicles()
+        ]);
+        
         setSoldier(soldierData);
         setActivities(activitiesData);
         setDuties(dutiesData);
@@ -133,7 +144,12 @@ const SoldierProfile: React.FC = () => {
           const name = await getFrameworkNameById(soldierData.frameworkId);
           setFrameworkName(name);
         }
-      }).finally(() => setLoading(false));
+        
+                setLoading(false);
+      };
+      
+      checkPermissions();
+      loadData();
     }
   }, [id, user]);
 
@@ -356,7 +372,7 @@ const SoldierProfile: React.FC = () => {
                   )}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography variant="body2" color="text.secondary">מסגרת:</Typography>
-                    <Typography variant="body2" fontWeight="bold">{frameworkName || soldier.frameworkId || 'לא שויך למסגרת'}</Typography>
+                    <Typography variant="body2" fontWeight="bold">{frameworkName || 'לא שויך למסגרת'}</Typography>
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography variant="body2" color="text.secondary">תפקיד:</Typography>
@@ -394,6 +410,14 @@ const SoldierProfile: React.FC = () => {
                       }}
                     />
                   </Box>
+                  {(soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.presenceUntil && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" color="text.secondary">עד:</Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        {new Date(soldier.presenceUntil).toLocaleDateString('he-IL')}
+                      </Typography>
+                    </Box>
+                  )}
                   {soldier.phone && (
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Typography variant="body2" color="text.secondary">טלפון:</Typography>
@@ -503,6 +527,31 @@ const SoldierProfile: React.FC = () => {
                     ) : (
                       <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
                         אין היתרים מוגדרים
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+              )}
+
+              {/* Driver Status */}
+              {isDriver && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="h6" sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+                    <DirectionsCarIcon sx={{ mr: 1, fontSize: 20 }} />
+                    סטטוס
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    <Chip
+                      label={getStatusText(getSoldierCurrentStatus(soldier))}
+                      sx={{ 
+                        bgcolor: getSoldierStatusColor(getSoldierCurrentStatus(soldier)),
+                        color: 'white'
+                      }}
+                      size="small"
+                    />
+                    {soldier.restUntil && (
+                      <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                        מנוחה עד: {formatToIsraelString(soldier.restUntil)}
                       </Typography>
                     )}
                   </Box>
@@ -833,15 +882,17 @@ const SoldierProfile: React.FC = () => {
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                     <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
                       <DirectionsCarIcon sx={{ mr: 1, fontSize: 20 }} />
-                      נסיעות ({trips.length})
+                      נסיעות ({trips.filter(trip => trip.status !== 'הסתיימה').length})
                     </Typography>
-                    <Badge badgeContent={trips.length} color="info">
+                    <Badge badgeContent={trips.filter(trip => trip.status !== 'הסתיימה').length} color="info">
                       <DirectionsCarIcon />
                     </Badge>
                   </Box>
 
                   <List>
-                    {trips.map((trip) => (
+                    {trips
+                      .filter(trip => trip.status !== 'הסתיימה')
+                      .map((trip) => (
                       <ListItem 
                         key={trip.id} 
                         sx={{ 
@@ -878,7 +929,7 @@ const SoldierProfile: React.FC = () => {
                               </Typography>
                               {trip.departureTime && trip.returnTime && (
                                 <Typography variant="body2" color="text.secondary">
-                                  <strong>זמן:</strong> {new Date(trip.departureTime).toLocaleString('he-IL')} - {new Date(trip.returnTime).toLocaleString('he-IL')}
+                                  <strong>זמן:</strong> {formatToIsraelString(trip.departureTime)} - {formatToIsraelString(trip.returnTime)}
                                 </Typography>
                               )}
                               {trip.vehicleNumber && (

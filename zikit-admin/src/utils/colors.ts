@@ -5,10 +5,16 @@ export const getPresenceColor = (presence?: string) => {
       return '#4CAF50'; // ירוק
     case 'בפעילות':
       return '#F44336'; // אדום
-    case 'חופש':
+    case 'בנסיעה':
       return '#FF9800'; // כתום
-    case 'גימלים':
+    case 'בתורנות':
+      return '#9C27B0'; // סגול
+    case 'במנוחה':
       return '#2196F3'; // כחול
+    case 'חופש':
+      return '#00BCD4'; // טורקיז ייחודי לחופש
+    case 'גימלים':
+      return '#FFD600'; // צהוב ייחודי לגימלים
     case 'אחר':
       return '#9C27B0'; // סגול
     default:
@@ -55,5 +61,33 @@ export const getVacationStatusColor = (status: 'good' | 'warning' | 'critical') 
     case 'warning': return '#FF9800';
     case 'critical': return '#F44336';
     default: return '#9E9E9E';
+  }
+};
+
+// פונקציה לצבעי סטטוס נהגים
+export const getDriverStatusColor = (status?: string) => {
+  switch (status) {
+    case 'available':
+      return '#4CAF50'; // ירוק - זמין
+    case 'on_trip':
+      return '#FF9800'; // כתום - בנסיעה
+    case 'resting':
+      return '#2196F3'; // כחול - במנוחה
+    default:
+      return '#9E9E9E'; // אפור - לא מוגדר
+  }
+};
+
+// פונקציה לטקסט סטטוס נהגים
+export const getDriverStatusText = (status?: string) => {
+  switch (status) {
+    case 'available':
+      return 'זמין';
+    case 'on_trip':
+      return 'בנסיעה';
+    case 'resting':
+      return 'במנוחה';
+    default:
+      return 'לא מוגדר';
   }
 }; 

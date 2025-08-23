@@ -4,6 +4,8 @@ import { Soldier } from '../models/Soldier';
 import { getAllSoldiers, getAllSoldiersWithFrameworkNames, deleteSoldier } from '../services/soldierService';
 import { getAllFrameworks, getFrameworkWithDetails } from '../services/frameworkService';
 import { getPresenceColor, getProfileColor } from '../utils/colors';
+import { formatToIsraelString } from '../utils/dateUtils';
+import { getSoldierCurrentStatus, getStatusColor, getStatusText } from '../services/soldierService';
 import { Link } from 'react-router-dom';
 import SoldierForm from '../components/SoldierForm';
 import HierarchicalChart from '../components/HierarchicalChart';
@@ -847,6 +849,30 @@ const Soldiers: React.FC = () => {
                       ) : (
                         <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
                           אין היתרים מוגדרים
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+                )}
+
+                {/* סטטוס */}
+                {soldier.qualifications?.includes('נהג') && (
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                      סטטוס:
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      <Chip 
+                        label={getStatusText(getSoldierCurrentStatus(soldier))}
+                        sx={{ 
+                          bgcolor: getStatusColor(getSoldierCurrentStatus(soldier)),
+                          color: 'white'
+                        }}
+                        size="small"
+                      />
+                      {soldier.restUntil && (
+                        <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                          מנוחה עד: {formatToIsraelString(soldier.restUntil)}
                         </Typography>
                       )}
                     </Box>
