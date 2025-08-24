@@ -750,7 +750,7 @@ const FrameworkDetails: React.FC = () => {
               <List>
                 {framework.activities.map((activity) => (
                   <ListItem key={activity.id} disablePadding>
-                    <ListItemButton onClick={() => navigate(`/activities/${activity.id}`)}>
+                    <ListItemButton>
                       <ListItemAvatar>
                         <Avatar sx={{ bgcolor: getPresenceColor(activity.status) }}>
                           <AssignmentIcon />

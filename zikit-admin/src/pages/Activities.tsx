@@ -71,7 +71,9 @@ import {
   Search as SearchIcon,
   DirectionsCar as DirectionsCarIcon,
   ViewList as ViewListIcon,
-  ViewModule as ViewModuleIcon
+  ViewModule as ViewModuleIcon,
+  Image as ImageIcon,
+  Description as DescriptionIcon
 } from '@mui/icons-material';
 
 const emptyActivity: Omit<Activity, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -150,6 +152,19 @@ const Activities: React.FC = () => {
     activity: null,
     linkedTrips: [],
     tripStartTimes: {}
+  });
+
+  // State for deliverables dialog
+  const [deliverablesDialog, setDeliverablesDialog] = useState<{
+    open: boolean;
+    activity: Activity | null;
+    selectedFiles: File[];
+    descriptions: { [fileName: string]: string };
+  }>({
+    open: false,
+    activity: null,
+    selectedFiles: [],
+    descriptions: {}
   });
 
   // פונקציה למציאת החייל של המשתמש
@@ -1041,6 +1056,76 @@ const Activities: React.FC = () => {
     });
   };
 
+  // פונקציה לפתיחת דיאלוג תוצרים
+  const handleOpenDeliverablesDialog = (activity: Activity) => {
+    setDeliverablesDialog({
+      open: true,
+      activity,
+      selectedFiles: [],
+      descriptions: {}
+    });
+  };
+
+  // פונקציה לשמירת תוצרים
+  const handleSaveDeliverables = async () => {
+    if (!deliverablesDialog.activity || deliverablesDialog.selectedFiles.length === 0) return;
+    
+    try {
+      const { activity, selectedFiles, descriptions } = deliverablesDialog;
+      
+      // המרת הקבצים ל-Base64 ושמירה בזיכרון
+      const deliverables = await Promise.all(
+        selectedFiles.map(async (file) => {
+          const base64 = await fileToBase64(file);
+          return {
+            id: `deliverable_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            type: 'image' as const,
+            title: file.name,
+            content: base64,
+            description: descriptions[file.name] || '',
+            createdBy: user?.displayName || user?.email || 'משתמש לא ידוע',
+            createdAt: new Date().toISOString()
+          };
+        })
+      );
+      
+      // הוספת התוצרים לפעילות
+      const updatedDeliverables = [
+        ...(activity.deliverables || []),
+        ...deliverables
+      ];
+      
+      await updateActivity(activity.id, {
+        deliverables: updatedDeliverables
+      });
+      
+      // סגירת הדיאלוג ורענון הנתונים
+      setDeliverablesDialog({ open: false, activity: null, selectedFiles: [], descriptions: {} });
+      await refresh();
+      
+      alert('התוצרים נשמרו בהצלחה!');
+    } catch (error) {
+      console.error('שגיאה בשמירת תוצרים:', error);
+      alert('שגיאה בשמירת התוצרים');
+    }
+  };
+
+  // פונקציה להמרת קובץ ל-Base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result);
+        } else {
+          reject(new Error('שגיאה בהמרת הקובץ'));
+        }
+      };
+      reader.onerror = error => reject(error);
+    });
+  };
+
   // פונקציה לאישור התחלת פעילות
   const handleConfirmStartActivity = async () => {
     if (!startActivityDialog.activity) return;
@@ -1298,6 +1383,20 @@ const Activities: React.FC = () => {
                           <EditIcon fontSize="small" />
                         </IconButton>
                       )}
+                      {permissions.canEdit && (
+                        <IconButton
+                          size="small"
+                          color="secondary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenDeliverablesDialog(activity);
+                          }}
+                          sx={{ padding: { xs: 0.5, sm: 1 } }}
+                          title="הוסף תוצרים"
+                        >
+                          <ImageIcon fontSize="small" />
+                        </IconButton>
+                      )}
                       {permissions.canDelete && (
                         <IconButton
                           size="small"
@@ -1519,6 +1618,63 @@ const Activities: React.FC = () => {
                         </ListItem>
                       ))}
                     </List>
+                  </AccordionDetails>
+                </Accordion>
+
+                {/* תוצרים */}
+                <Accordion sx={{ mt: 2 }}>
+                  <AccordionSummary 
+                    expandIcon={<ExpandMoreIcon />}
+                    onClick={(e) => e.stopPropagation()}
+                    sx={{ 
+                      '& .MuiAccordionSummary-content': {
+                        fontSize: { xs: '0.8rem', sm: '0.875rem' }
+                      }
+                    }}
+                  >
+                    <Typography variant="body2" fontWeight="bold">
+                      תוצרים ({activity.deliverables?.length || 0})
+                    </Typography>
+                  </AccordionSummary>
+                  <AccordionDetails onClick={(e) => e.stopPropagation()}>
+                    {activity.deliverables && activity.deliverables.length > 0 ? (
+                      <List dense>
+                        {activity.deliverables.map((deliverable, index) => (
+                          <ListItem key={deliverable.id}>
+                            <ListItemText
+                              primary={
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  {deliverable.type === 'image' ? (
+                                    <ImageIcon fontSize="small" color="primary" />
+                                  ) : (
+                                    <DescriptionIcon fontSize="small" color="primary" />
+                                  )}
+                                  <Typography variant="body2" fontWeight="bold">
+                                    {deliverable.title}
+                                  </Typography>
+                                </Box>
+                              }
+                              secondary={
+                                <Box>
+                                  {deliverable.description && (
+                                    <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
+                                      {deliverable.description}
+                                    </Typography>
+                                  )}
+                                  <Typography variant="caption" color="text.secondary">
+                                    נוצר על ידי: {deliverable.createdBy} • {new Date(deliverable.createdAt).toLocaleDateString('he-IL')}
+                                  </Typography>
+                                </Box>
+                              }
+                            />
+                          </ListItem>
+                        ))}
+                      </List>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+                        אין תוצרים לפעילות זו
+                      </Typography>
+                    )}
                   </AccordionDetails>
                 </Accordion>
                               </CardContent>
@@ -2579,6 +2735,126 @@ const Activities: React.FC = () => {
           </Button>
           <Button onClick={handleConfirmEndActivity} variant="contained" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
             אישור סיום פעילות
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Deliverables Dialog */}
+      <Dialog 
+        open={deliverablesDialog.open} 
+        onClose={() => setDeliverablesDialog({ open: false, activity: null, selectedFiles: [], descriptions: {} })}
+        maxWidth="md"
+        fullWidth
+        sx={{
+          '& .MuiDialog-paper': {
+            margin: { xs: 1, sm: 2 },
+            width: { xs: 'calc(100% - 2px)', sm: 'auto' }
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          p: { xs: 1.5, sm: 2 },
+          fontSize: { xs: '1.1rem', sm: '1.25rem' }
+        }}>
+          הוספת תוצרים - {deliverablesDialog.activity?.name}
+        </DialogTitle>
+        <DialogContent sx={{ p: { xs: 1.5, sm: 2 } }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {/* File Upload */}
+            <Box>
+              <Typography variant="subtitle1" sx={{ mb: 2, fontSize: { xs: '0.9rem', sm: '1rem' } }}>
+                העלאת תמונות:
+              </Typography>
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  setDeliverablesDialog(prev => ({
+                    ...prev,
+                    selectedFiles: files,
+                    descriptions: {
+                      ...prev.descriptions,
+                      ...Object.fromEntries(files.map(file => [file.name, '']))
+                    }
+                  }));
+                }}
+                style={{ display: 'none' }}
+                id="file-upload"
+              />
+              <label htmlFor="file-upload">
+                <Button
+                  variant="outlined"
+                  component="span"
+                  startIcon={<ImageIcon />}
+                  sx={{ mb: 2 }}
+                >
+                  בחר תמונות
+                </Button>
+              </label>
+              
+              {/* Selected Files */}
+              {deliverablesDialog.selectedFiles.length > 0 && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                    תמונות נבחרות:
+                  </Typography>
+                  {deliverablesDialog.selectedFiles.map((file, index) => (
+                    <Box key={index} sx={{ 
+                      p: 2, 
+                      border: '1px solid #e0e0e0', 
+                      borderRadius: 1, 
+                      mb: 1,
+                      backgroundColor: '#f9f9f9'
+                    }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                        <ImageIcon sx={{ mr: 1, color: 'primary.main' }} />
+                        <Typography variant="body2" fontWeight="bold">
+                          {file.name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                          ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                        </Typography>
+                      </Box>
+                      <TextField
+                        fullWidth
+                        label="תיאור התמונה"
+                        value={deliverablesDialog.descriptions[file.name] || ''}
+                        onChange={(e) => {
+                          setDeliverablesDialog(prev => ({
+                            ...prev,
+                            descriptions: {
+                              ...prev.descriptions,
+                              [file.name]: e.target.value
+                            }
+                          }));
+                        }}
+                        size="small"
+                        placeholder="הוסף תיאור לתמונה..."
+                        sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                      />
+                    </Box>
+                  ))}
+                </Box>
+              )}
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: { xs: 1.5, sm: 2 } }}>
+          <Button 
+            onClick={() => setDeliverablesDialog({ open: false, activity: null, selectedFiles: [], descriptions: {} })}
+            sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+          >
+            ביטול
+          </Button>
+          <Button 
+            onClick={handleSaveDeliverables} 
+            variant="contained" 
+            disabled={deliverablesDialog.selectedFiles.length === 0}
+            sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+          >
+            שמור תוצרים
           </Button>
         </DialogActions>
       </Dialog>

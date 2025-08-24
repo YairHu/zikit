@@ -17,7 +17,7 @@ import Referrals from './pages/Referrals';
 import Login from './pages/Login';
 import SoldierProfile from './pages/SoldierProfile';
 import UserManagement from './pages/UserManagement';
-import ActivityDetails from './pages/ActivityDetails';
+
 import ActivityStatistics from './pages/ActivityStatistics';
 import DutyDetails from './pages/DutyDetails';
 import FrameworkManagement from './pages/FrameworkManagement';
@@ -320,11 +320,7 @@ const AppRoutes: React.FC = () => {
               <Activities />
             </ProtectedRoute>
           } />
-          <Route path="/activities/:id" element={
-            <ProtectedRoute userRole={user.role as UserRole}>
-              <ActivityDetails />
-            </ProtectedRoute>
-          } />
+
           <Route path="/activity-statistics" element={
             <ProtectedRoute userRole={user.role as UserRole}>
               <ActivityStatistics />

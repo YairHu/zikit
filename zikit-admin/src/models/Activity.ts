@@ -36,6 +36,7 @@ export interface ActivityDeliverable {
   type: 'text' | 'image';
   content: string; // טקסט או URL של תמונה
   title: string;
+  description?: string; // תיאור נוסף לתוצר
   createdAt: string;
   createdBy: string;
 } 
