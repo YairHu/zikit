@@ -8,7 +8,7 @@ import { Soldier } from '../models/Soldier';
 import { Vehicle } from '../models/Vehicle';
 import { Trip } from '../models/Trip';
 import { getAllActivities, addActivity, updateActivity, deleteActivity, getActivityById } from '../services/activityService';
-import { getAllSoldiers, updateSoldier, getSoldierById } from '../services/soldierService';
+import { getAllSoldiers, updateSoldier, getSoldierById, updateSoldierStatus } from '../services/soldierService';
 import { getAllVehicles } from '../services/vehicleService';
 import { getAllTrips, updateTrip } from '../services/tripService';
 import { getAllFrameworks } from '../services/frameworkService';
@@ -54,7 +54,9 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper
+  Paper,
+  FormControlLabel,
+  Checkbox
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -88,7 +90,8 @@ const emptyActivity: Omit<Activity, 'id' | 'createdAt' | 'updatedAt'> = {
   taskLeaderName: '',
   mobility: '',
   participants: [],
-  status: 'מתוכננת'
+  status: 'מתוכננת',
+  activitySummary: ''
 };
 
 const regions = ['מנשה', 'אפרים', 'שומרון', 'יהודה', 'בנימין', 'עציון', 'הבקעה והעמקים'];
@@ -110,8 +113,7 @@ const Activities: React.FC = () => {
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<string>('');
-  const [filterActivityType, setFilterActivityType] = useState<string>('');
+  const [showCompletedActivities, setShowCompletedActivities] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   // הרשאות
@@ -120,6 +122,34 @@ const Activities: React.FC = () => {
     canCreate: false,
     canEdit: false,
     canDelete: false
+  });
+  
+  // State for activity end dialog
+  const [endActivityDialog, setEndActivityDialog] = useState<{
+    open: boolean;
+    activity: Activity | null;
+    linkedTrips: Trip[];
+    tripEndTimes: { [tripId: string]: string };
+    activitySummary: string;
+  }>({
+    open: false,
+    activity: null,
+    linkedTrips: [],
+    tripEndTimes: {},
+    activitySummary: ''
+  });
+
+  // State for activity start dialog
+  const [startActivityDialog, setStartActivityDialog] = useState<{
+    open: boolean;
+    activity: Activity | null;
+    linkedTrips: Trip[];
+    tripStartTimes: { [tripId: string]: string };
+  }>({
+    open: false,
+    activity: null,
+    linkedTrips: [],
+    tripStartTimes: {}
   });
 
   // פונקציה למציאת החייל של המשתמש
@@ -169,6 +199,9 @@ const Activities: React.FC = () => {
           return;
         }
       }
+
+      // עדכון סטטוס פעילויות אוטומטי - בוטל לפי בקשה
+      // await updateActivityStatusesAutomatically();
 
       // טעינת נתונים - עכשיו מהמטמון המקומי
       const [allActivitiesData, soldiersData, vehiclesData, tripsData, frameworksData] = await Promise.all([
@@ -740,9 +773,10 @@ const Activities: React.FC = () => {
     }
   };
 
-  const handleActivityClick = (activityId: string) => {
-    navigate(`/activities/${activityId}`);
-  };
+  // ביטול עמוד הפעילות - לא נשתמש בפונקציה זו יותר
+  // const handleActivityClick = (activityId: string) => {
+  //   navigate(`/activities/${activityId}`);
+  // };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -833,16 +867,316 @@ const Activities: React.FC = () => {
   };
 
   const filteredActivities = activities.filter(activity => {
-    const matchesSearch = activity.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         activity.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         activity.commanderName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = !filterStatus || activity.status === filterStatus;
-    const matchesActivityType = !filterActivityType || 
-      (filterActivityType === 'אחר' ? 
-        activity.activityType === 'אחר' : 
-        activity.activityType === filterActivityType);
-    return matchesSearch && matchesStatus && matchesActivityType;
+    // הצג פעילויות שהסתיימו רק אם הצ'קבוקס מסומן
+    if (activity.status === 'הסתיימה' && !showCompletedActivities) {
+      return false;
+    }
+    
+    // חיפוש דינמי בכל השדות
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = !searchTerm || 
+      activity.name.toLowerCase().includes(searchLower) ||
+      activity.location.toLowerCase().includes(searchLower) ||
+      activity.commanderName.toLowerCase().includes(searchLower) ||
+      activity.taskLeaderName?.toLowerCase().includes(searchLower) ||
+      activity.activityType.toLowerCase().includes(searchLower) ||
+      (activity.activityType === 'אחר' && activity.activityTypeOther?.toLowerCase().includes(searchLower)) ||
+      activity.region.toLowerCase().includes(searchLower) ||
+      activity.frameworkId && frameworks.find(f => f.id === activity.frameworkId)?.name.toLowerCase().includes(searchLower);
+    
+    return matchesSearch;
   });
+
+  // פונקציה להתחלת פעילות
+  const handleStartActivity = async (activity: Activity) => {
+    try {
+      // מציאת נסיעות מקושרות
+      const linkedTripIds = activity.mobility
+        ?.split(';')
+        .map(mobilityItem => mobilityItem.trim())
+        .filter(mobilityItem => mobilityItem.includes('TRIP_ID:'))
+        .map(mobilityItem => mobilityItem.replace('TRIP_ID:', '').trim()) || [];
+      
+      const linkedTrips = trips.filter(trip => 
+        linkedTripIds.includes(trip.id) && trip.status !== 'הסתיימה'
+      );
+      
+      if (linkedTrips.length > 0) {
+        // הכנת זמני יציאה ברירת מחדל
+        const tripStartTimes: { [tripId: string]: string } = {};
+        linkedTrips.forEach(trip => {
+          // המרת התאריך לפורמט HTML datetime-local
+          if (trip.departureTime) {
+            const date = new Date(trip.departureTime);
+            const localDateTime = new Date(date.getTime() - (date.getTimezoneOffset() * 60000))
+              .toISOString()
+              .slice(0, 16);
+            tripStartTimes[trip.id] = localDateTime;
+          } else {
+            tripStartTimes[trip.id] = '';
+          }
+        });
+        
+        setStartActivityDialog({
+          open: true,
+          activity,
+          linkedTrips,
+          tripStartTimes
+        });
+      } else {
+        // אם אין נסיעות מקושרות, התחל פעילות ישירות
+        await startActivityProcess(activity, {});
+      }
+    } catch (error) {
+      console.error('שגיאה בפתיחת דיאלוג התחלת פעילות:', error);
+      alert('שגיאה בפתיחת דיאלוג התחלת פעילות');
+    }
+  };
+
+  // פונקציה לביצוע תהליך התחלת פעילות
+  const startActivityProcess = async (activity: Activity, tripStartTimes: { [tripId: string]: string }) => {
+    try {
+      // עדכון נסיעות מקושרות
+      const linkedTripIds = activity.mobility
+        ?.split(';')
+        .map(mobilityItem => mobilityItem.trim())
+        .filter(mobilityItem => mobilityItem.includes('TRIP_ID:'))
+        .map(mobilityItem => mobilityItem.replace('TRIP_ID:', '').trim()) || [];
+      
+      for (const tripId of linkedTripIds) {
+        const startTime = tripStartTimes[tripId];
+        if (startTime) {
+          // המרת התאריך לפורמט ISO
+          const date = new Date(startTime);
+          const isoDateTime = date.toISOString();
+          
+          await updateTrip(tripId, { 
+            departureTime: isoDateTime,
+            status: 'בביצוע'
+          });
+        }
+      }
+      
+      // עדכון סטטוס הפעילות לביצוע
+      await updateActivity(activity.id, { status: 'בביצוע' });
+      
+      // עדכון נוכחות המשתתפים (לא כולל מוביל משימה)
+      for (const participant of activity.participants) {
+        const isTaskLeader = activity.taskLeaderId === participant.soldierId;
+        
+        if (!isTaskLeader) {
+          await updateSoldierStatus(participant.soldierId, 'בפעילות', { 
+            activityId: activity.id
+          });
+        }
+      }
+      
+      await refresh();
+    } catch (error) {
+      console.error('שגיאה בהתחלת פעילות:', error);
+      alert('שגיאה בהתחלת פעילות');
+    }
+  };
+
+  // פונקציה לסיום פעילות
+  const handleEndActivity = async (activity: Activity) => {
+    try {
+      // מציאת נסיעות מקושרות שעדיין פעילות
+      const linkedTripIds = activity.mobility
+        ?.split(';')
+        .map(mobilityItem => mobilityItem.trim())
+        .filter(mobilityItem => mobilityItem.includes('TRIP_ID:'))
+        .map(mobilityItem => mobilityItem.replace('TRIP_ID:', '').trim()) || [];
+      
+      const linkedTrips = trips.filter(trip => 
+        linkedTripIds.includes(trip.id) && trip.status !== 'הסתיימה'
+      );
+      
+      // הכנת זמני סיום ברירת מחדל
+      const tripEndTimes: { [tripId: string]: string } = {};
+      linkedTrips.forEach(trip => {
+        // המרת התאריך לפורמט HTML datetime-local
+        if (trip.returnTime) {
+          const date = new Date(trip.returnTime);
+          const localDateTime = new Date(date.getTime() - (date.getTimezoneOffset() * 60000))
+            .toISOString()
+            .slice(0, 16);
+          tripEndTimes[trip.id] = localDateTime;
+        } else {
+          tripEndTimes[trip.id] = '';
+        }
+      });
+      
+      setEndActivityDialog({
+        open: true,
+        activity,
+        linkedTrips,
+        tripEndTimes,
+        activitySummary: activity.activitySummary || ''
+      });
+    } catch (error) {
+      console.error('שגיאה בפתיחת דיאלוג סיום פעילות:', error);
+      alert('שגיאה בפתיחת דיאלוג סיום פעילות');
+    }
+  };
+
+  // פונקציה לסגירת דיאלוג סיום פעילות
+  const handleCloseEndActivityDialog = () => {
+    setEndActivityDialog({
+      open: false,
+      activity: null,
+      linkedTrips: [],
+      tripEndTimes: {},
+      activitySummary: ''
+    });
+  };
+
+  // פונקציה לסגירת דיאלוג התחלת פעילות
+  const handleCloseStartActivityDialog = () => {
+    setStartActivityDialog({
+      open: false,
+      activity: null,
+      linkedTrips: [],
+      tripStartTimes: {}
+    });
+  };
+
+  // פונקציה לאישור התחלת פעילות
+  const handleConfirmStartActivity = async () => {
+    if (!startActivityDialog.activity) return;
+    
+    try {
+      const { activity, tripStartTimes } = startActivityDialog;
+      
+      // בדיקת תקינות זמנים - לא לאפשר זמנים עתידיים
+      const now = new Date();
+      const invalidTimes = Object.entries(tripStartTimes).filter(([tripId, startTime]) => {
+        if (!startTime) return false;
+        const tripStartDate = new Date(startTime);
+        return tripStartDate > now;
+      });
+      
+      if (invalidTimes.length > 0) {
+        alert('לא ניתן להגדיר זמני יציאה עתידיים. אנא בדוק את הזמנים שהוזנו.');
+        return;
+      }
+      
+      await startActivityProcess(activity, tripStartTimes);
+      handleCloseStartActivityDialog();
+    } catch (error) {
+      console.error('שגיאה באישור התחלת פעילות:', error);
+      alert('שגיאה באישור התחלת פעילות');
+    }
+  };
+
+  // פונקציה לאישור סיום פעילות
+  const handleConfirmEndActivity = async () => {
+    if (!endActivityDialog.activity) return;
+    
+    try {
+      const { activity, linkedTrips, tripEndTimes, activitySummary } = endActivityDialog;
+      
+      // בדיקת תקינות זמנים - לא לאפשר זמנים עתידיים
+      const now = new Date();
+      const invalidTimes = Object.entries(tripEndTimes).filter(([tripId, endTime]) => {
+        if (!endTime) return false;
+        const tripEndDate = new Date(endTime);
+        return tripEndDate > now;
+      });
+      
+      if (invalidTimes.length > 0) {
+        alert('לא ניתן להגדיר זמני סיום עתידיים. אנא בדוק את הזמנים שהוזנו.');
+        return;
+      }
+      
+      // עדכון נסיעות מקושרות
+      for (const trip of linkedTrips) {
+        const endTime = tripEndTimes[trip.id];
+        if (endTime) {
+          // המרת התאריך לפורמט ISO
+          const date = new Date(endTime);
+          const isoDateTime = date.toISOString();
+          
+          await updateTrip(trip.id, { 
+            status: 'הסתיימה',
+            returnTime: isoDateTime
+          });
+        }
+      }
+      
+      // עדכון סטטוס הפעילות להסתיימה
+      await updateActivity(activity.id, { 
+        status: 'הסתיימה',
+        activitySummary
+      });
+      
+      // עדכון נוכחות המשתתפים
+      for (const participant of activity.participants) {
+        const isTaskLeader = activity.taskLeaderId === participant.soldierId;
+        
+        if (!isTaskLeader) {
+          // בדיקה אם המשתתף הוא נהג
+          const soldier = soldiers.find(s => s.id === participant.soldierId);
+          const isDriver = soldier?.qualifications?.includes('נהג');
+          
+          if (isDriver) {
+            // נהג עובר למנוחה - חישוב זמן סיום מנוחה
+            // מציאת הנסיעה המקושרת לנהג
+            const driverTrip = linkedTrips.find(trip => trip.driverId === participant.soldierId);
+            if (driverTrip) {
+              const endTime = tripEndTimes[driverTrip.id];
+              if (endTime) {
+                // העברת זמן סיום הנסיעה לפונקציה
+                await updateSoldierStatus(participant.soldierId, 'בבסיס', { 
+                  activityId: activity.id,
+                  isEnding: true,
+                  tripEndTime: endTime
+                });
+              } else {
+                // אם אין זמן סיום נסיעה - מנוחה של 7 שעות מעכשיו
+                const now = new Date();
+                const restEndDate = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+                
+                // עדכון ישיר של החייל עם זמן מנוחה
+                const soldier = soldiers.find(s => s.id === participant.soldierId);
+                if (soldier) {
+                  await updateSoldier(soldier.id, {
+                    presence: 'במנוחה',
+                    restUntil: restEndDate.toISOString()
+                  });
+                }
+              }
+            } else {
+              // אם אין נסיעה מקושרת - מנוחה של 7 שעות מעכשיו
+              const now = new Date();
+              const restEndDate = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+              
+              // עדכון ישיר של החייל עם זמן מנוחה
+              const soldier = soldiers.find(s => s.id === participant.soldierId);
+              if (soldier) {
+                await updateSoldier(soldier.id, {
+                  presence: 'במנוחה',
+                  restUntil: restEndDate.toISOString()
+                });
+              }
+            }
+          } else {
+            // משתתף רגיל חוזר לבסיס
+            await updateSoldierStatus(participant.soldierId, 'בבסיס', { 
+              activityId: activity.id,
+              isEnding: true
+            });
+          }
+        }
+      }
+      
+      handleCloseEndActivityDialog();
+      await refresh();
+    } catch (error) {
+      console.error('שגיאה בסיום פעילות:', error);
+      alert('שגיאה בסיום פעילות');
+    }
+  };
 
   if (loading) {
     return (
@@ -892,50 +1226,22 @@ const Activities: React.FC = () => {
         flexWrap: 'wrap', 
         alignItems: 'center' 
       }}>
-        <TextField
-          placeholder="חיפוש פעילויות..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          InputProps={{
-            startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
-          }}
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={showCompletedActivities}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowCompletedActivities(e.target.checked)}
+              size="small"
+            />
+          }
+          label="הצג פעילויות שהסתיימו"
           sx={{ 
-            minWidth: { xs: '100%', sm: 250 },
-            fontSize: { xs: '0.875rem', sm: '1rem' }
+            fontSize: { xs: '0.8rem', sm: '0.875rem' },
+            '& .MuiFormControlLabel-label': {
+              fontSize: { xs: '0.8rem', sm: '0.875rem' }
+            }
           }}
         />
-        <FormControl sx={{ minWidth: { xs: '100%', sm: 150 } }}>
-          <InputLabel sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>סטטוס</InputLabel>
-          <Select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            label="סטטוס"
-            sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
-          >
-            <MenuItem value="" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>כל הסטטוסים</MenuItem>
-            {statuses.map(status => (
-              <MenuItem key={status} value={status} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                {status}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <FormControl sx={{ minWidth: { xs: '100%', sm: 150 } }}>
-          <InputLabel sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>סוג פעילות</InputLabel>
-          <Select
-            value={filterActivityType}
-            onChange={(e) => setFilterActivityType(e.target.value)}
-            label="סוג פעילות"
-            sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
-          >
-            <MenuItem value="" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>כל הסוגים</MenuItem>
-            {activityTypes.map(type => (
-              <MenuItem key={type} value={type} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                {type}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
         <Tabs 
           value={viewMode === 'cards' ? 0 : 1} 
           onChange={(_, newValue) => setViewMode(newValue === 0 ? 'cards' : 'table')}
@@ -965,11 +1271,9 @@ const Activities: React.FC = () => {
                 height: '100%', 
                 display: 'flex', 
                 flexDirection: 'column', 
-                cursor: 'pointer',
                 border: isActivityComplete(activity).isComplete ? '1px solid #e0e0e0' : '2px solid #f44336',
                 backgroundColor: isActivityComplete(activity).isComplete ? 'white' : '#ffebee'
-              }} 
-              onClick={() => handleActivityClick(activity.id)}
+              }}
             >
               <CardContent sx={{ flex: 1, p: { xs: 1.5, sm: 2 } }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
@@ -1011,13 +1315,12 @@ const Activities: React.FC = () => {
                   ) : null}
                 </Box>
 
-                <Box sx={{ mb: 2 }}>
+                <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Chip 
                     label={activity.status} 
                     color={getStatusColor(activity.status) as any}
                     size="small"
                     sx={{ 
-                      mb: 1,
                       fontSize: { xs: '0.7rem', sm: '0.75rem' },
                       height: { xs: 20, sm: 24 }
                     }}
@@ -1028,64 +1331,123 @@ const Activities: React.FC = () => {
                       variant="outlined"
                       size="small"
                       sx={{ 
-                        ml: 1,
                         fontSize: { xs: '0.7rem', sm: '0.75rem' },
                         height: { xs: 20, sm: 24 }
                       }}
                     />
                   )}
+                  {/* כפתורי פעילות */}
+                  {permissions.canEdit && (
+                    <>
+                      {activity.status === 'מתוכננת' && (
+                        <Button
+                          variant="contained"
+                          size="small"
+                          color="success"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStartActivity(activity);
+                          }}
+                          sx={{ 
+                            fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                            height: { xs: 20, sm: 24 },
+                            minWidth: 'auto',
+                            px: 1
+                          }}
+                        >
+                          החל פעילות
+                        </Button>
+                      )}
+                      {activity.status === 'בביצוע' && (
+                        <Button
+                          variant="contained"
+                          size="small"
+                          color="warning"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEndActivity(activity);
+                          }}
+                          sx={{ 
+                            fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                            height: { xs: 20, sm: 24 },
+                            minWidth: 'auto',
+                            px: 1
+                          }}
+                        >
+                          סיום פעילות
+                        </Button>
+                      )}
+                    </>
+                  )}
                 </Box>
 
-                <Box sx={{ mb: 2 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <LocationIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
-                    <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
-                      {activity.location}
+                <Accordion sx={{ mt: 2 }}>
+                  <AccordionSummary 
+                    expandIcon={<ExpandMoreIcon />}
+                    onClick={(e) => e.stopPropagation()}
+                    sx={{ 
+                      '& .MuiAccordionSummary-content': {
+                        fontSize: { xs: '0.8rem', sm: '0.875rem' }
+                      }
+                    }}
+                  >
+                    <Typography variant="body2" fontWeight="bold">
+                      פרטי פעילות
                     </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <ScheduleIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
-                    <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
-                      {activity.plannedDate} - {activity.plannedTime} ({activity.duration} שעות)
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <PersonIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
-                    <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
-                      מפקד: {activity.commanderName}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <AssignmentIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
-                    <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
-                      סוג: {activity.activityType === 'אחר' && activity.activityTypeOther 
-                        ? activity.activityTypeOther 
-                        : activity.activityType}
-                    </Typography>
-                  </Box>
-                  {activity.taskLeaderName && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                      <PersonIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
-                      <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
-                        מוביל משימה: {activity.taskLeaderName}
-                      </Typography>
+                  </AccordionSummary>
+                  <AccordionDetails onClick={(e) => e.stopPropagation()}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <LocationIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
+                        <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+                          {activity.location}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <ScheduleIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
+                        <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+                          {activity.plannedDate} - {activity.plannedTime} ({activity.duration} שעות)
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <PersonIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
+                        <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+                          מפקד: {activity.commanderName}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <AssignmentIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
+                        <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+                          סוג: {activity.activityType === 'אחר' && activity.activityTypeOther 
+                            ? activity.activityTypeOther 
+                            : activity.activityType}
+                        </Typography>
+                      </Box>
+                      {activity.taskLeaderName && (
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <PersonIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
+                          <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+                            מוביל משימה: {activity.taskLeaderName}
+                          </Typography>
+                        </Box>
+                      )}
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <GroupIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
+                        <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+                          {activity.participants.length} משתתפים
+                        </Typography>
+                      </Box>
+                      {activity.mobility && (
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <DirectionsCarIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
+                          <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+                            ניוד: {formatMobilityDisplay(activity.mobility)}
+                          </Typography>
+                        </Box>
+                      )}
                     </Box>
-                  )}
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <GroupIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
-                    <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
-                      {activity.participants.length} משתתפים
-                    </Typography>
-                  </Box>
-                  {activity.mobility && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                      <DirectionsCarIcon sx={{ mr: 1, fontSize: { xs: 14, sm: 16 }, color: 'text.secondary' }} />
-                      <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
-                        ניוד: {formatMobilityDisplay(activity.mobility)}
-                      </Typography>
-                    </Box>
-                  )}
-                </Box>
+                  </AccordionDetails>
+                </Accordion>
 
                 {!isActivityComplete(activity).isComplete && (
                   <Alert severity="warning" sx={{ mt: 1 }}>
@@ -1195,10 +1557,8 @@ const Activities: React.FC = () => {
                   key={activity.id} 
                   hover 
                   sx={{ 
-                    cursor: 'pointer',
                     backgroundColor: isActivityComplete(activity).isComplete ? 'white' : '#ffebee'
                   }}
-                  onClick={() => handleActivityClick(activity.id)}
                 >
                   <TableCell>
                     <Typography variant="body2" fontWeight="bold" sx={{ 
@@ -1611,7 +1971,32 @@ const Activities: React.FC = () => {
                   }}
                   label="בחר נסיעות"
                 >
-                  {trips.filter(trip => (!trip.linkedActivityId || trip.linkedActivityId === editId) && !selectedTripIds.includes(trip.id)).map(trip => (
+                  {trips.filter(trip => {
+                    // בדיקה אם הנסיעה לא מקושרת לפעילות אחרת או מקושרת לפעילות זו
+                    const isAvailable = (!trip.linkedActivityId || trip.linkedActivityId === editId) && !selectedTripIds.includes(trip.id);
+                    
+                    // בדיקה שהנסיעה לא הסתיימה
+                    const isNotCompleted = trip.status !== 'הסתיימה';
+                    
+                    // בדיקה שמטרת הנסיעה היא פעילות מבצעית
+                    let isOperationalActivity = false;
+                    if (trip.purposeType) {
+                      // אם יש שדה purposeType חדש
+                      isOperationalActivity = trip.purposeType === 'פעילות מבצעית';
+                    } else {
+                      // אם אין purposeType (נסיעות ישנות), ננסה לנחש לפי המטרה
+                      const purpose = trip.purpose.toLowerCase();
+                      // נסיעות ישנות שלא מכילות מילים שמעידות על מטרה אחרת
+                      isOperationalActivity = !purpose.includes('מנהל') && 
+                                            !purpose.includes('מנהלת') && 
+                                            !purpose.includes('פינוי') && 
+                                            !purpose.includes('חילוץ') &&
+                                            !purpose.includes('אחר') &&
+                                            !purpose.includes('שונות');
+                    }
+                    
+                    return isAvailable && isNotCompleted && isOperationalActivity;
+                  }).map(trip => (
                     <MenuItem key={trip.id} value={trip.id} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                       <Box>
                         <Typography variant="body2" fontWeight="bold" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
@@ -1890,13 +2275,20 @@ const Activities: React.FC = () => {
                           
                           <FormControl size="small">
                             <InputLabel sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                              רכב מוקצה
+                              שיבוץ לרכב
                             </InputLabel>
                             <Select
                               value={participant.vehicleId || ''}
                               onChange={(e) => handleUpdateParticipantVehicle(participant.soldierId, e.target.value)}
-                              label="רכב מוקצה"
-                              sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                              label="שיבוץ לרכב"
+                              disabled={isDriver || isTripCommander}
+                              sx={{ 
+                                fontSize: { xs: '0.875rem', sm: '1rem' },
+                                '& .MuiInputBase-input.Mui-disabled': {
+                                  color: 'text.primary',
+                                  WebkitTextFillColor: 'text.primary'
+                                }
+                              }}
                             >
                               <MenuItem value="" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>ללא רכב</MenuItem>
                               <MenuItem value="no_mobility" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>לא דורש ניוד</MenuItem>
@@ -1942,6 +2334,22 @@ const Activities: React.FC = () => {
                 </Select>
               </FormControl>
             </Box>
+            
+            {/* סיכום פעילות - רק לפעילויות שהסתיימו */}
+            {formData.status === 'הסתיימה' && (
+              <Box sx={{ mt: 2 }}>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={4}
+                  label="סיכום פעילות"
+                  name="activitySummary"
+                  value={formData.activitySummary}
+                  onChange={handleChange}
+                  sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                />
+              </Box>
+            )}
           </DialogContent>
           <DialogActions sx={{ p: { xs: 1.5, sm: 2 } }}>
             <Button onClick={handleCloseForm} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
@@ -1986,6 +2394,194 @@ const Activities: React.FC = () => {
         </DialogActions>
       </Dialog>
 
+      {/* Start Activity Dialog */}
+      <Dialog 
+        open={startActivityDialog.open} 
+        onClose={handleCloseStartActivityDialog}
+        maxWidth="md"
+        fullWidth
+        sx={{
+          '& .MuiDialog-paper': {
+            margin: { xs: 1, sm: 2 },
+            width: { xs: 'calc(100% - 2px)', sm: 'auto' }
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          p: { xs: 1.5, sm: 2 },
+          fontSize: { xs: '1.1rem', sm: '1.25rem' }
+        }}>
+          התחלת פעילות
+        </DialogTitle>
+        <DialogContent sx={{ p: { xs: 1.5, sm: 2 } }}>
+          {startActivityDialog.activity && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.1rem' } }}>
+                {startActivityDialog.activity.name}
+              </Typography>
+              
+              {/* נסיעות מקושרות */}
+              {startActivityDialog.linkedTrips.length > 0 && (
+                <Box>
+                  <Typography variant="subtitle1" sx={{ mb: 2, fontSize: { xs: '0.9rem', sm: '1rem' } }}>
+                    נסיעות מקושרות לפעילות:
+                  </Typography>
+                  {startActivityDialog.linkedTrips.map(trip => (
+                    <Box key={trip.id} sx={{ 
+                      p: 2, 
+                      border: '1px solid #e0e0e0', 
+                      borderRadius: 1, 
+                      mb: 1,
+                      backgroundColor: '#f9f9f9'
+                    }}>
+                      <Typography variant="body2" fontWeight="bold" sx={{ mb: 1 }}>
+                        {trip.purpose}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        {trip.vehicleNumber && trip.driverName 
+                          ? `רכב ${trip.vehicleNumber}, נהג: ${trip.driverName}`
+                          : 'ללא רכב ונהג'
+                        }
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        label="שעת יציאה"
+                        type="datetime-local"
+                        value={startActivityDialog.tripStartTimes[trip.id] || ''}
+                        onChange={(e) => {
+                          setStartActivityDialog(prev => ({
+                            ...prev,
+                            tripStartTimes: {
+                              ...prev.tripStartTimes,
+                              [trip.id]: e.target.value
+                            }
+                          }));
+                        }}
+                        InputLabelProps={{ shrink: true }}
+                        size="small"
+                        sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                      />
+                    </Box>
+                  ))}
+                </Box>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: { xs: 1.5, sm: 2 } }}>
+          <Button onClick={handleCloseStartActivityDialog} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+            ביטול
+          </Button>
+          <Button onClick={handleConfirmStartActivity} variant="contained" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+            אישור התחלת פעילות
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* End Activity Dialog */}
+      <Dialog 
+        open={endActivityDialog.open} 
+        onClose={handleCloseEndActivityDialog}
+        maxWidth="md"
+        fullWidth
+        sx={{
+          '& .MuiDialog-paper': {
+            margin: { xs: 1, sm: 2 },
+            width: { xs: 'calc(100% - 2px)', sm: 'auto' }
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          p: { xs: 1.5, sm: 2 },
+          fontSize: { xs: '1.1rem', sm: '1.25rem' }
+        }}>
+          סיום פעילות
+        </DialogTitle>
+        <DialogContent sx={{ p: { xs: 1.5, sm: 2 } }}>
+          {endActivityDialog.activity && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.1rem' } }}>
+                {endActivityDialog.activity.name}
+              </Typography>
+              
+              {/* נסיעות מקושרות */}
+              {endActivityDialog.linkedTrips.length > 0 && (
+                <Box>
+                  <Typography variant="subtitle1" sx={{ mb: 2, fontSize: { xs: '0.9rem', sm: '1rem' } }}>
+                    נסיעות מקושרות שעדיין פעילות:
+                  </Typography>
+                  {endActivityDialog.linkedTrips.map(trip => (
+                    <Box key={trip.id} sx={{ 
+                      p: 2, 
+                      border: '1px solid #e0e0e0', 
+                      borderRadius: 1, 
+                      mb: 1,
+                      backgroundColor: '#f9f9f9'
+                    }}>
+                      <Typography variant="body2" fontWeight="bold" sx={{ mb: 1 }}>
+                        {trip.purpose}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        {trip.vehicleNumber && trip.driverName 
+                          ? `רכב ${trip.vehicleNumber}, נהג: ${trip.driverName}`
+                          : 'ללא רכב ונהג'
+                        }
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        label="שעת סיום נסיעה"
+                        type="datetime-local"
+                        value={endActivityDialog.tripEndTimes[trip.id] || ''}
+                        onChange={(e) => {
+                          setEndActivityDialog(prev => ({
+                            ...prev,
+                            tripEndTimes: {
+                              ...prev.tripEndTimes,
+                              [trip.id]: e.target.value
+                            }
+                          }));
+                        }}
+                        InputLabelProps={{ shrink: true }}
+                        size="small"
+                        sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                      />
+                    </Box>
+                  ))}
+                </Box>
+              )}
+              
+              {/* סיכום פעילות */}
+              <Box>
+                <Typography variant="subtitle1" sx={{ mb: 2, fontSize: { xs: '0.9rem', sm: '1rem' } }}>
+                  סיכום פעילות:
+                </Typography>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={4}
+                  label="סיכום הפעילות"
+                  value={endActivityDialog.activitySummary}
+                  onChange={(e) => {
+                    setEndActivityDialog(prev => ({
+                      ...prev,
+                      activitySummary: e.target.value
+                    }));
+                  }}
+                  sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                />
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: { xs: 1.5, sm: 2 } }}>
+          <Button onClick={handleCloseEndActivityDialog} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+            ביטול
+          </Button>
+          <Button onClick={handleConfirmEndActivity} variant="contained" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+            אישור סיום פעילות
+          </Button>
+        </DialogActions>
+      </Dialog>
 
     </Container>
   );

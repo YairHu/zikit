@@ -34,6 +34,7 @@ interface TripsTimelineProps {
   trips: Trip[];
   vehicles: Vehicle[];
   drivers: Soldier[];
+  activities?: any[]; // הוספת activities לקישור
   frameworks?: any[]; // הוספת frameworks לפילטרים
   onAddTripFromTimeline?: (tripData: {
     departureTime: string;
@@ -59,6 +60,7 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
   trips,
   vehicles,
   drivers,
+  activities = [],
   frameworks = [],
   onAddTripFromTimeline
 }) => {
@@ -96,6 +98,7 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
   const timelineRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // עדכון רוחב המסך
   useEffect(() => {
@@ -106,6 +109,12 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // עדכון אוטומטי של הטיימליין כאשר הנתונים משתנים
+  useEffect(() => {
+    // עדכון מפתח רענון כדי לאלץ בנייה מחדש של הטיימליין
+    setRefreshKey(prev => prev + 1);
+  }, [trips, vehicles, drivers, activities]);
 
   // עדכון רוחב אחרי טעינת הקומפוננטה
   useEffect(() => {
@@ -168,13 +177,22 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
         const vehicle = vehicles.find(v => v.id === trip.vehicleId);
         const driver = drivers.find(d => d.id === trip.driverId);
         
+        // מציאת פעילות מקושרת
+        const linkedActivity = trip.linkedActivityId ? activities.find(a => a.id === trip.linkedActivityId) : null;
+        
         // המרה לזמן ישראל
         const departureTime = new Date(trip.departureTime);
         const returnTime = new Date(trip.returnTime);
         
+        // יצירת כותרת עם שם הפעילות אם יש
+        let title = trip.purpose;
+        if (linkedActivity) {
+          title = `${trip.purpose} (${linkedActivity.name})`;
+        }
+        
         items.push({
           id: `trip-${trip.id}`,
-          title: trip.purpose,
+          title: title,
           start: departureTime,
           end: returnTime,
           type: 'trip',
@@ -190,23 +208,29 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
       if (driver.qualifications?.includes('נהג')) {
         // בדיקה אם הנהג במנוחה לפי שדה restUntil
         if (driver.restUntil) {
-          // המרה לזמן ישראל
-          const restEndTime = new Date(driver.restUntil);
-          const now = new Date();
-          
-          // מציאת זמן התחלת המנוחה (7 שעות לפני סיום המנוחה)
-          const restStartTime = new Date(restEndTime.getTime() - (7 * 60 * 60 * 1000));
-          
-          // הצג מנוחה
-          items.push({
-            id: `rest-${driver.id}`,
-            title: 'מנוחה',
-            start: restStartTime,
-            end: restEndTime,
-            type: 'rest',
-            driver,
-            isRest: true
-          });
+          try {
+            // המרה לזמן ישראל
+            const restEndTime = new Date(driver.restUntil);
+            
+            // בדיקה שהתאריך תקין
+            if (!isNaN(restEndTime.getTime())) {
+              // מציאת זמן התחלת המנוחה (7 שעות לפני סיום המנוחה)
+              const restStartTime = new Date(restEndTime.getTime() - (7 * 60 * 60 * 1000));
+              
+              // הצג מנוחה
+              items.push({
+                id: `rest-${driver.id}`,
+                title: 'מנוחה',
+                start: restStartTime,
+                end: restEndTime,
+                type: 'rest',
+                driver,
+                isRest: true
+              });
+            }
+          } catch (error) {
+            console.warn('תאריך לא תקין למנוחה:', driver.restUntil);
+          }
         } else {
           // אם אין restUntil, נסה למצוא לפי נסיעות שהסתיימו
           const driverTrips = trips.filter(t => t.driverId === driver.id);
@@ -216,22 +240,29 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
               new Date(b.returnTime).getTime() - new Date(a.returnTime).getTime()
             )[0];
             
-                        if (lastTrip) {
-              // המרה לזמן ישראל
-              const lastReturnTime = new Date(lastTrip.returnTime);
-              const calculatedRestEnd = new Date(lastReturnTime.getTime() + (7 * 60 * 60 * 1000));
-              const now = new Date();
-              
-              // הצג שעות מנוחה
-              items.push({
-                id: `rest-${driver.id}`,
-                title: 'מנוחה',
-                start: lastReturnTime,
-                end: calculatedRestEnd,
-                type: 'rest',
-                driver,
-                isRest: true
-              });
+            if (lastTrip && lastTrip.returnTime) {
+              try {
+                // המרה לזמן ישראל
+                const lastReturnTime = new Date(lastTrip.returnTime);
+                
+                // בדיקה שהתאריך תקין
+                if (!isNaN(lastReturnTime.getTime())) {
+                  const calculatedRestEnd = new Date(lastReturnTime.getTime() + (7 * 60 * 60 * 1000));
+                  
+                  // הצג שעות מנוחה
+                  items.push({
+                    id: `rest-${driver.id}`,
+                    title: 'מנוחה',
+                    start: lastReturnTime,
+                    end: calculatedRestEnd,
+                    type: 'rest',
+                    driver,
+                    isRest: true
+                  });
+                }
+              } catch (error) {
+                console.warn('תאריך לא תקין לנסיעה:', lastTrip.returnTime);
+              }
             }
           }
         }
@@ -239,32 +270,39 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
         // הוספת חופש וגימלים
         if (driver.presence === 'חופש' || driver.presence === 'גימלים') {
           if (driver.presenceUntil) {
-            // המרה לזמן ישראל
-            const untilDate = new Date(driver.presenceUntil);
-            
-            const now = new Date();
-            
-            // הצג חופש/גימלים
-            // נניח שהחופש/גימלים התחיל היום או אתמול אם אין תאריך התחלה
-            const startDate = new Date(now);
-            startDate.setDate(startDate.getDate() - 1); // אתמול
-            
-            items.push({
-              id: `${driver.presence}-${driver.id}`,
-              title: driver.presence,
-              start: startDate,
-              end: untilDate,
-              type: 'rest',
-              driver,
-              isRest: true
-            });
+            try {
+              // המרה לזמן ישראל
+              const untilDate = new Date(driver.presenceUntil);
+              
+              // בדיקה שהתאריך תקין
+              if (!isNaN(untilDate.getTime())) {
+                const now = new Date();
+                
+                // הצג חופש/גימלים
+                // נניח שהחופש/גימלים התחיל היום או אתמול אם אין תאריך התחלה
+                const startDate = new Date(now);
+                startDate.setDate(startDate.getDate() - 1); // אתמול
+                
+                items.push({
+                  id: `${driver.presence}-${driver.id}`,
+                  title: driver.presence,
+                  start: startDate,
+                  end: untilDate,
+                  type: 'rest',
+                  driver,
+                  isRest: true
+                });
+              }
+            } catch (error) {
+              console.warn('תאריך לא תקין לחופש/גימלים:', driver.presenceUntil);
+            }
           }
         }
       }
     });
     
     return items.sort((a, b) => a.start.getTime() - b.start.getTime());
-  }, [trips, vehicles, drivers]);
+  }, [trips, vehicles, drivers, activities, refreshKey]);
 
   // פונקציה למציאת כל המסגרות בהיררכיה כולל מסגרות-בנות
   const getAllFrameworksInHierarchy = (frameworkId: string): string[] => {
@@ -332,7 +370,7 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
       // הצגת כל הנהגים, גם אם אין להם נסיעות - עם פילטרים
       return getFilteredDrivers().filter(driver => driver.qualifications?.includes('נהג'));
     }
-  }, [yAxisType, vehicles, drivers, driverFilters, frameworks]);
+  }, [yAxisType, vehicles, drivers, driverFilters, frameworks, refreshKey]);
 
   // חישוב טווח התאריכים דינמי
   const dateRange = useMemo(() => {
@@ -357,7 +395,7 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
       const end = new Date(monthStart.getTime() + (30 * 24 * 60 * 60 * 1000) + panOffset);
       return { start, end };
     }
-  }, [zoomLevel, panOffset]);
+  }, [zoomLevel, panOffset, refreshKey]);
 
   // חישוב מיקום אופקי מדויק של פריט (מימין לשמאל - עברית)
   const getItemPosition = (item: TimelineItem) => {
@@ -1053,29 +1091,40 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
               zIndex: 60
             }} />
             
-            {generateTimeSlots().map((slot, i) => (
-              <Box
-                key={i}
-                sx={{
-                  width: `${getDynamicWidths().hourColumnWidth}px`,
-                  textAlign: 'center',
-                  p: 0.5,
-                  borderRight: 1,
-                  borderColor: 'divider',
-                  flexShrink: 0
-                }}
-              >
-                <Typography 
-                  variant="body2" 
-                  fontWeight="bold" 
-                  sx={{ 
-                    fontSize: { xs: '0.6rem', sm: '0.7rem', md: '0.8rem' }
+            {generateTimeSlots().map((slot, i) => {
+              const now = new Date();
+              const isCurrentHour = now.getHours() === slot.time.getHours() && 
+                                  now.getDate() === slot.time.getDate() &&
+                                  now.getMonth() === slot.time.getMonth() &&
+                                  now.getFullYear() === slot.time.getFullYear();
+              
+              return (
+                <Box
+                  key={i}
+                  sx={{
+                    width: `${getDynamicWidths().hourColumnWidth}px`,
+                    textAlign: 'center',
+                    p: 0.5,
+                    borderRight: 1,
+                    borderColor: 'divider',
+                    flexShrink: 0,
+                    backgroundColor: isCurrentHour ? '#e3f2fd' : 'transparent',
+                    borderLeft: isCurrentHour ? '3px solid #1976d2' : 'none'
                   }}
                 >
-                  {slot.label}
-                </Typography>
-              </Box>
-            ))}
+                  <Typography 
+                    variant="body2" 
+                    fontWeight="bold" 
+                    sx={{ 
+                      fontSize: { xs: '0.6rem', sm: '0.7rem', md: '0.8rem' },
+                      color: isCurrentHour ? '#1976d2' : 'inherit'
+                    }}
+                  >
+                    {slot.label}
+                  </Typography>
+                </Box>
+              );
+            })}
           </Box>
 
           {/* שורות רכבים/נהגים */}
@@ -1156,18 +1205,27 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
                        display: 'flex',
                        width: `${generateTimeSlots().length * getDynamicWidths().hourColumnWidth}px`
                      }}>
-                       {generateTimeSlots().map((_, i) => (
-                         <Box
-                           key={i}
-                           sx={{
-                             width: `${getDynamicWidths().hourColumnWidth}px`,
-                             borderRight: 1,
-                             borderColor: 'rgba(0,0,0,0.08)',
-                             backgroundColor: i % 2 === 0 ? 'rgba(0,0,0,0.01)' : 'transparent',
-                             flexShrink: 0
-                           }}
-                         />
-                       ))}
+                       {generateTimeSlots().map((slot, i) => {
+                         const now = new Date();
+                         const isCurrentHour = now.getHours() === slot.time.getHours() && 
+                                             now.getDate() === slot.time.getDate() &&
+                                             now.getMonth() === slot.time.getMonth() &&
+                                             now.getFullYear() === slot.time.getFullYear();
+                         
+                         return (
+                           <Box
+                             key={i}
+                             sx={{
+                               width: `${getDynamicWidths().hourColumnWidth}px`,
+                               borderRight: 1,
+                               borderColor: 'rgba(0,0,0,0.08)',
+                               backgroundColor: isCurrentHour ? '#e3f2fd' : (i % 2 === 0 ? 'rgba(0,0,0,0.01)' : 'transparent'),
+                               borderLeft: isCurrentHour ? '3px solid #1976d2' : 'none',
+                               flexShrink: 0
+                             }}
+                           />
+                         );
+                       })}
                      </Box>
 
                      {/* אזור בחירה אינטראקטיבי */}

@@ -103,6 +103,8 @@ const Trips: React.FC = () => {
     departureTime: '',
     returnTime: '',
     purpose: '',
+    purposeType: 'פעילות מבצעית' as 'פעילות מבצעית' | 'נסיעה מנהלתית' | 'פינוי' | 'אחר',
+    purposeOther: '',
     status: 'מתוכננת' as 'מתוכננת' | 'בביצוע' | 'הסתיימה'
   });
   const [error, setError] = useState<string | null>(null);
@@ -380,6 +382,8 @@ const Trips: React.FC = () => {
       departureTime: '',
       returnTime: '',
       purpose: '',
+      purposeType: 'פעילות מבצעית',
+      purposeOther: '',
       status: 'מתוכננת'
     });
     setError(null);
@@ -407,6 +411,8 @@ const Trips: React.FC = () => {
       departureTime: formatDateTimeForInput(tripData.departureTime),
       returnTime: formatDateTimeForInput(tripData.returnTime),
       purpose: '',
+      purposeType: 'פעילות מבצעית',
+      purposeOther: '',
       status: 'מתוכננת'
     });
     setError(null);
@@ -463,6 +469,28 @@ const Trips: React.FC = () => {
     
     setEditId(trip.id);
     
+    // קביעת סוג המטרה על בסיס המטרה הקיימת
+    let purposeType: 'פעילות מבצעית' | 'נסיעה מנהלתית' | 'פינוי' | 'אחר' = 'פעילות מבצעית';
+    let purposeOther = '';
+    
+    if (trip.purposeType) {
+      purposeType = trip.purposeType;
+      purposeOther = trip.purposeOther || '';
+    } else {
+      // אם אין purposeType (נסיעות ישנות), ננסה לנחש לפי המטרה
+      const purpose = trip.purpose.toLowerCase();
+      if (purpose.includes('מנהל') || purpose.includes('מנהלת')) {
+        purposeType = 'נסיעה מנהלתית';
+      } else if (purpose.includes('פינוי') || purpose.includes('חילוץ')) {
+        purposeType = 'פינוי';
+      } else if (purpose.includes('אחר') || purpose.includes('שונות')) {
+        purposeType = 'אחר';
+        purposeOther = trip.purpose;
+      } else {
+        purposeType = 'פעילות מבצעית';
+      }
+    }
+    
     setFormData({
       vehicleId: trip.vehicleId || '',
       driverId: trip.driverId || '',
@@ -471,6 +499,8 @@ const Trips: React.FC = () => {
       departureTime: formatDateTimeForInput(trip.departureTime || ''),
       returnTime: formatDateTimeForInput(trip.returnTime || ''),
       purpose: trip.purpose,
+      purposeType: purposeType,
+      purposeOther: purposeOther,
       status: trip.status
     });
     setError(null);
@@ -488,6 +518,8 @@ const Trips: React.FC = () => {
       departureTime: '',
       returnTime: '',
       purpose: '',
+      purposeType: 'פעילות מבצעית',
+      purposeOther: '',
       status: 'מתוכננת'
     });
     setError(null);
@@ -610,18 +642,31 @@ const Trips: React.FC = () => {
         return;
       }
 
-      // בדיקת זמינות מתקדמת אם יש רכב ונהג
-      if (formData.vehicleId && formData.driverId) {
+      // בדיקת זמינות מתקדמת אם יש רכב או נהג
+      if (formData.vehicleId || formData.driverId) {
         const availability = await checkAdvancedAvailability(
-          formData.vehicleId,
-          formData.driverId,
+          formData.vehicleId || '',
+          formData.driverId || '',
           formData.departureTime,
           formData.returnTime,
           editId || undefined
         );
         
         if (!availability.isAvailable) {
-          setError(availability.message || 'הרכב או הנהג לא זמינים לנסיעה בזמן זה');
+          // הודעה מותאמת לפי מה שנבדק
+          let errorMessage = availability.message;
+          if (!errorMessage) {
+            if (formData.vehicleId && formData.driverId) {
+              errorMessage = 'הרכב או הנהג לא זמינים לנסיעה בזמן זה';
+            } else if (formData.vehicleId) {
+              errorMessage = 'הרכב לא זמין לנסיעה בזמן זה';
+            } else if (formData.driverId) {
+              errorMessage = 'הנהג לא זמין לנסיעה בזמן זה';
+            } else {
+              errorMessage = 'יש בעיה בזמינות';
+            }
+          }
+          setError(errorMessage);
           return;
         }
       }
@@ -633,7 +678,9 @@ const Trips: React.FC = () => {
       // יצירת אובייקט נסיעה ללא ערכים ריקים/undefined (Firebase לא תומך)
       const tripData: any = {
         location: formData.location || '',
-        purpose: formData.purpose || '',
+        purpose: formData.purposeType === 'אחר' ? formData.purposeOther : formData.purposeType,
+        purposeType: formData.purposeType,
+        purposeOther: formData.purposeOther,
         status: formData.status
       };
 
@@ -1415,6 +1462,18 @@ const Trips: React.FC = () => {
                   sx={{ ml: 1, fontSize: '0.6rem' }}
                 />
               )}
+              {/* צ'יפ עם שם הפעילות אם הנסיעה מקושרת לפעילות */}
+              {trip.linkedActivityId && (() => {
+                const linkedActivity = activities.find(a => a.id === trip.linkedActivityId);
+                return linkedActivity ? (
+                  <Chip 
+                    label={linkedActivity.name} 
+                    color="info" 
+                    size="small" 
+                    sx={{ ml: 1, fontSize: '0.6rem' }}
+                  />
+                ) : null;
+              })()}
             </Typography>
             <Typography variant="body2" color="textSecondary" gutterBottom>
               מיקום: {trip.location}
@@ -1586,6 +1645,18 @@ const Trips: React.FC = () => {
                     sx={{ ml: 1, fontSize: '0.6rem' }}
                   />
                 )}
+                {/* צ'יפ עם שם הפעילות אם הנסיעה מקושרת לפעילות */}
+                {trip.linkedActivityId && (() => {
+                  const linkedActivity = activities.find(a => a.id === trip.linkedActivityId);
+                  return linkedActivity ? (
+                    <Chip 
+                      label={linkedActivity.name} 
+                      color="info" 
+                      size="small" 
+                      sx={{ ml: 1, fontSize: '0.6rem' }}
+                    />
+                  ) : null;
+                })()}
               </TableCell>
               <TableCell>{trip.location}</TableCell>
               <TableCell>{trip.vehicleNumber || '-'}</TableCell>
@@ -1751,6 +1822,7 @@ const Trips: React.FC = () => {
           trips={trips}
           vehicles={vehicles}
           drivers={drivers}
+          activities={activities}
           frameworks={frameworks}
           onRefresh={loadData}
           onAddTripFromTimeline={handleCreateTripFromTimeline}
@@ -2382,15 +2454,33 @@ const Trips: React.FC = () => {
                   helperText={!formData.returnTime ? 'שדה חובה' : ''}
                 />
               </Box>
-              <TextField
-                fullWidth
-                label="מטרת הנסיעה"
-                name="purpose"
-                value={formData.purpose}
-                onChange={handleChange}
-                multiline
-                rows={3}
-              />
+              <FormControl fullWidth>
+                <InputLabel>סוג מטרה</InputLabel>
+                <Select
+                  name="purposeType"
+                  value={formData.purposeType}
+                  onChange={(e) => handleSelectChange('purposeType', e.target.value)}
+                  label="סוג מטרה"
+                >
+                  <MenuItem value="פעילות מבצעית">פעילות מבצעית</MenuItem>
+                  <MenuItem value="נסיעה מנהלתית">נסיעה מנהלתית</MenuItem>
+                  <MenuItem value="פינוי">פינוי</MenuItem>
+                  <MenuItem value="אחר">אחר</MenuItem>
+                </Select>
+              </FormControl>
+              {formData.purposeType === 'אחר' && (
+                <TextField
+                  fullWidth
+                  label="פירוט מטרה"
+                  name="purposeOther"
+                  value={formData.purposeOther}
+                  onChange={handleChange}
+                  multiline
+                  rows={3}
+                  required
+                  helperText="יש להזין פירוט המטרה"
+                />
+              )}
               <FormControl fullWidth>
                 <InputLabel>סטטוס</InputLabel>
                 <Select

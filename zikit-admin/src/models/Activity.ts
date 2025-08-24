@@ -25,6 +25,7 @@ export interface Activity {
   mobility?: string; // שדה ניוד במקום נהג ורכב
   participants: ActivityParticipant[];
   status: 'מתוכננת' | 'בביצוע' | 'הסתיימה' | 'בוטלה';
+  activitySummary?: string; // סיכום הפעילות
   deliverables?: ActivityDeliverable[]; // תוצרים של הפעילות
   createdAt: string;
   updatedAt: string;

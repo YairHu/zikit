@@ -60,6 +60,7 @@ import { FrameworkWithDetails } from '../models/Framework';
 import { getAllFrameworks, getFrameworkWithDetails, getFrameworkNamesByIds } from '../services/frameworkService';
 import { getAllSoldiers, updateSoldier } from '../services/soldierService';
 import { getPresenceColor, getProfileColor, getRoleColor } from '../utils/colors';
+import { formatToIsraelString } from '../utils/dateUtils';
 import { getUserPermissions, canUserEditSoldierPresence } from '../services/permissionService';
 import { PermissionLevel, SystemPath } from '../models/UserRole';
 
@@ -251,8 +252,9 @@ const FrameworkDetails: React.FC = () => {
       personalNumber: soldier.personalNumber,
       frameworkName: frameworkNames[soldier.frameworkId] || soldier.frameworkId,
       presence: soldier.presence || 'לא מוגדר',
+      presenceOther: soldier.presenceOther || '',
       editedPresence: mapStatusForReport(soldier.presence || 'לא מוגדר'), // מיפוי ראשוני
-      otherText: '' // שדה לטקסט חופשי
+      otherText: soldier.presenceOther || '' // שדה לטקסט חופשי
     }));
     
     setReportData(report);
@@ -484,14 +486,21 @@ const FrameworkDetails: React.FC = () => {
                         <TableCell>{soldier.role}</TableCell>
                         <TableCell>{soldier.personalNumber}</TableCell>
                         <TableCell>
-                          <Chip 
-                            label={soldier.presence || 'לא מוגדר'} 
-                            sx={{ 
-                              bgcolor: getPresenceColor(soldier.presence || ''),
-                              color: 'white'
-                            }}
-                            size="small"
-                          />
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                            <Chip 
+                              label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'} 
+                              sx={{ 
+                                bgcolor: getPresenceColor(soldier.presence || ''),
+                                color: 'white'
+                              }}
+                              size="small"
+                            />
+                            {(soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.presenceUntil && (
+                              <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                                עד תאריך {formatToIsraelString(soldier.presenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                              </Typography>
+                            )}
+                          </Box>
                         </TableCell>
                         {canEditPersonnel && (
                           <TableCell>
@@ -539,7 +548,7 @@ const FrameworkDetails: React.FC = () => {
                             ) : (
                               <IconButton 
                                 size="small" 
-                                onClick={() => handleEditPresence(soldier.id, soldier.presence || '', soldier.presenceUntil, (soldier as any).presenceOther)}
+                                onClick={() => handleEditPresence(soldier.id, soldier.presence || '', soldier.presenceUntil, soldier.presenceOther)}
                               >
                                 <EditIcon />
                               </IconButton>
@@ -600,14 +609,21 @@ const FrameworkDetails: React.FC = () => {
                         <TableCell>{soldier.personalNumber}</TableCell>
                         <TableCell>{frameworkNames[soldier.frameworkId] || soldier.frameworkId}</TableCell>
                         <TableCell>
-                          <Chip 
-                            label={soldier.presence || 'לא מוגדר'} 
-                            sx={{ 
-                              bgcolor: getPresenceColor(soldier.presence || ''),
-                              color: 'white'
-                            }}
-                            size="small"
-                          />
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                            <Chip 
+                              label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'} 
+                              sx={{ 
+                                bgcolor: getPresenceColor(soldier.presence || ''),
+                                color: 'white'
+                              }}
+                              size="small"
+                            />
+                            {(soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.presenceUntil && (
+                              <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                                עד תאריך {formatToIsraelString(soldier.presenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                              </Typography>
+                            )}
+                          </Box>
                         </TableCell>
                         {canEditPersonnel && (
                           <TableCell>
@@ -655,7 +671,7 @@ const FrameworkDetails: React.FC = () => {
                             ) : (
                               <IconButton 
                                 size="small" 
-                                onClick={() => handleEditPresence(soldier.id, soldier.presence || '', soldier.presenceUntil, (soldier as any).presenceOther)}
+                                onClick={() => handleEditPresence(soldier.id, soldier.presence || '', soldier.presenceUntil, soldier.presenceOther)}
                               >
                                 <EditIcon />
                               </IconButton>
@@ -873,14 +889,21 @@ const FrameworkDetails: React.FC = () => {
                     <TableCell>{soldier.personalNumber}</TableCell>
                     <TableCell>{soldier.frameworkName}</TableCell>
                     <TableCell>
-                      <Chip 
-                        label={soldier.presence} 
-                        sx={{ 
-                          bgcolor: getPresenceColor(soldier.presence),
-                          color: 'white'
-                        }}
-                        size="small"
-                      />
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        <Chip 
+                          label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence} 
+                          sx={{ 
+                            bgcolor: getPresenceColor(soldier.presence),
+                            color: 'white'
+                          }}
+                          size="small"
+                        />
+                        {(soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.presenceUntil && (
+                          <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                            עד תאריך {formatToIsraelString(soldier.presenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                          </Typography>
+                        )}
+                      </Box>
                     </TableCell>
                     <TableCell>
                       <FormControl size="small" sx={{ minWidth: 120 }}>

@@ -27,6 +27,7 @@ export interface FrameworkWithDetails extends Framework {
     personalNumber: string;
     presence?: string;
     presenceUntil?: string;
+    presenceOther?: string;
   }>;
   allSoldiersInHierarchy?: Array<{
     id: string;
@@ -36,6 +37,7 @@ export interface FrameworkWithDetails extends Framework {
     frameworkId: string; // מחרוזת לא ריקה לאחר המיפוי בשירות
     presence?: string;
     presenceUntil?: string;
+    presenceOther?: string;
   }>;
   totalSoldiers: number; // כולל חיילים במסגרות בנות
   // פעילויות, תורנויות ונסיעות של המסגרת ומסגרות בנות

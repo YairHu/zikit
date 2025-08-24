@@ -561,15 +561,22 @@ const Soldiers: React.FC = () => {
                       case 'presence':
                         return (
                           <TableCell key={column.key}>
-                            <Chip 
-                              label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'} 
-                              size="small" 
-                              sx={{ 
-                                bgcolor: getPresenceColor(soldier.presence),
-                                color: 'white',
-                                fontWeight: 600
-                              }}
-                            />
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                              <Chip 
+                                label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'} 
+                                size="small" 
+                                sx={{ 
+                                  bgcolor: getPresenceColor(soldier.presence),
+                                  color: 'white',
+                                  fontWeight: 600
+                                }}
+                              />
+                              {(soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.presenceUntil && (
+                                <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                                  עד תאריך {formatToIsraelString(soldier.presenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                                </Typography>
+                              )}
+                            </Box>
                           </TableCell>
                         );
                       
@@ -760,14 +767,21 @@ const Soldiers: React.FC = () => {
                   <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
                     נוכחות:
                   </Typography>
-                  <Chip 
-                    label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'}
-                    sx={{ 
-                      bgcolor: getPresenceColor(soldier.presence),
-                      color: 'white',
-                      fontWeight: 600
-                    }}
-                  />
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    <Chip 
+                      label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'}
+                      sx={{ 
+                        bgcolor: getPresenceColor(soldier.presence),
+                        color: 'white',
+                        fontWeight: 600
+                      }}
+                    />
+                    {(soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.presenceUntil && (
+                      <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                        עד תאריך {formatToIsraelString(soldier.presenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                      </Typography>
+                    )}
+                  </Box>
                 </Box>
 
                 {soldier.qualifications && soldier.qualifications.length > 0 && (

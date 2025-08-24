@@ -65,3 +65,62 @@ export const formatToIsraelString = (
 export const getCurrentIsraelTime = (): Date => {
   return toIsraelTime(new Date());
 };
+
+/**
+ * בדיקה אם זמן נתון נמצא בטווח זמן מסוים
+ * @param currentTime - הזמן הנוכחי לבדיקה
+ * @param startTime - זמן התחלה
+ * @param endTime - זמן סיום
+ * @returns true אם הזמן הנוכחי בטווח
+ */
+export const isTimeInRange = (
+  currentTime: Date | string,
+  startTime: Date | string,
+  endTime: Date | string
+): boolean => {
+  const current = typeof currentTime === 'string' ? new Date(currentTime) : currentTime;
+  const start = typeof startTime === 'string' ? new Date(startTime) : startTime;
+  const end = typeof endTime === 'string' ? new Date(endTime) : endTime;
+  
+  return current >= start && current <= end;
+};
+
+/**
+ * בדיקה אם פעילות פעילה כרגע (בטווח הזמן שלה)
+ * @param activityStartDate - תאריך התחלת הפעילות
+ * @param activityStartTime - שעת התחלת הפעילות
+ * @param activityDuration - משך הפעילות בשעות
+ * @returns true אם הפעילות פעילה כרגע
+ */
+export const isActivityActive = (
+  activityStartDate: string,
+  activityStartTime: string,
+  activityDuration: number
+): boolean => {
+  const now = getCurrentIsraelTime();
+  const startDateTime = new Date(`${activityStartDate}T${activityStartTime}`);
+  const endDateTime = new Date(startDateTime.getTime() + (activityDuration * 60 * 60 * 1000));
+  
+  return isTimeInRange(now, startDateTime, endDateTime);
+};
+
+/**
+ * בדיקה אם תורנות פעילה כרגע (בטווח הזמן שלה)
+ * @param dutyStartDate - תאריך התחלת התורנות
+ * @param dutyStartTime - שעת התחלת התורנות
+ * @param dutyEndTime - שעת סיום התורנות
+ * @returns true אם התורנות פעילה כרגע
+ */
+export const isDutyActive = (
+  dutyStartDate: string,
+  dutyStartTime: string,
+  dutyEndTime?: string
+): boolean => {
+  const now = getCurrentIsraelTime();
+  const startDateTime = new Date(`${dutyStartDate}T${dutyStartTime}`);
+  const endDateTime = dutyEndTime 
+    ? new Date(`${dutyStartDate}T${dutyEndTime}`)
+    : new Date(startDateTime.getTime() + (8 * 60 * 60 * 1000)); // 8 שעות ברירת מחדל
+  
+  return isTimeInRange(now, startDateTime, endDateTime);
+};

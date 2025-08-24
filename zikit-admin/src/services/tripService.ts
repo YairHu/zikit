@@ -391,30 +391,30 @@ export const checkAdvancedAvailability = async (
       const timeOverlap = tripStart < newEnd && tripEnd > newStart;
       
       if (timeOverlap) {
-        // בדיקת התנגשות רכב
-        if (trip.vehicleId === vehicleId) {
+        // בדיקת התנגשות רכב - רק אם יש רכב לבדיקה
+        if (vehicleId && trip.vehicleId === vehicleId) {
           vehicleConflict = true;
           conflicts.push(trip);
         }
         
-        // בדיקת התנגשות נהג
-        if (trip.driverId === driverId) {
+        // בדיקת התנגשות נהג - רק אם יש נהג לבדיקה
+        if (driverId && trip.driverId === driverId) {
           driverConflict = true;
           conflicts.push(trip);
         }
       }
     }
     
-    // בדיקת התאמת היתר נהיגה
-    if (vehicle?.requiredLicense && driver?.drivingLicenses) {
+    // בדיקת התאמת היתר נהיגה - רק אם יש גם רכב וגם נהג
+    if (vehicleId && driverId && vehicle?.requiredLicense && driver?.drivingLicenses) {
       if (!driver.drivingLicenses.includes(vehicle.requiredLicense)) {
         licenseMismatch = true;
         message = `הנהג אינו מחזיק בהיתר הנדרש: ${vehicle.requiredLicense}`;
       }
     }
 
-    // בדיקת מנוחת נהג - כולל כל סוגי הנסיעות
-    if (driver) {
+    // בדיקת מנוחת נהג - כולל כל סוגי הנסיעות (רק אם יש נהג)
+    if (driverId && driver) {
       // בדיקה אם יש נסיעות שהסתיימו לאחרונה
       const recentCompletedTrips = allTrips.filter(trip => 
         trip.driverId === driverId && 
@@ -466,6 +466,9 @@ export const checkAdvancedAvailability = async (
       message = 'הנהג כבר משובץ לנסיעה אחרת בזמן זה';
     } else if (driverRestConflict) {
       // ההודעה כבר נקבעה למעלה
+    } else if (conflicts.length > 0) {
+      // אם יש התנגשויות אבל לא נקבעה הודעה ספציפית
+      message = 'יש התנגשות עם נסיעה קיימת';
     }
     
     return {

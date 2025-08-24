@@ -11,6 +11,8 @@ export interface Trip {
   departureTime: string; // שדה חובה
   returnTime: string; // שדה חובה
   purpose: string;
+  purposeType?: 'פעילות מבצעית' | 'נסיעה מנהלתית' | 'פינוי' | 'אחר';
+  purposeOther?: string;
   status: 'מתוכננת' | 'בביצוע' | 'הסתיימה';
   linkedActivityId?: string; // קישור לפעילות מבצעית
   team?: string; // צוות שמבצע את הנסיעה

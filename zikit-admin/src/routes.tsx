@@ -8,7 +8,7 @@ import Soldiers from './pages/Soldiers';
 import Frameworks from './pages/Frameworks';
 import Trips from './pages/Trips';
 import Missions from './pages/Missions';
-import Duties from './pages/Duties';
+
 import WeeklyDuties from './pages/WeeklyDuties';
 import Hamal from './pages/Hamal';
 import Forms from './pages/Forms';
@@ -98,7 +98,7 @@ const getMenuItems = async (user: any) => {
     ...(canViewTrips ? [{ text: 'נסיעות ורכבים', icon: <DirectionsCarIcon />, path: '/trips' }] : []),
     ...(canViewMissions ? [{ text: 'משימות', icon: <AssignmentIcon />, path: '/missions' }] : []),
     ...(canViewActivities ? [{ text: 'פעילויות מבצעיות', icon: <AssignmentIcon />, path: '/activities' }] : []),
-    ...(canViewDuties ? [{ text: 'תורנויות', icon: <CalendarMonthIcon />, path: '/duties' }] : []),
+    ...(canViewDuties ? [{ text: 'תורנויות', icon: <CalendarMonthIcon />, path: '/weekly-duties' }] : []),
     ...(canViewReferrals ? [{ text: 'הפניות', icon: <LocalHospitalIcon />, path: '/referrals' }] : []),
     ...(canViewForms ? [{ text: 'טפסים', icon: <DescriptionIcon />, path: '/forms' }] : []),
     ...(canViewForms ? [{ text: 'ייבוא/ייצוא נתונים', icon: <FileUploadIcon />, path: '/data-import-export' }] : []),
@@ -332,7 +332,7 @@ const AppRoutes: React.FC = () => {
           } />
           <Route path="/duties" element={
             <ProtectedRoute userRole={user.role as UserRole}>
-              <Duties />
+              <WeeklyDuties />
             </ProtectedRoute>
           } />
           <Route path="/duties/:id" element={

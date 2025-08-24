@@ -1,8 +1,9 @@
-import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Duty } from '../models/Duty';
+import { Duty, DutyParticipant } from '../models/Duty';
 import { localStorageService, updateTableTimestamp } from './cacheService';
 import { updateSoldierStatus } from './soldierService';
+import { isDutyActive } from '../utils/dateUtils';
 
 const COLLECTION_NAME = 'duties';
 
@@ -142,18 +143,21 @@ export const updateDutyStatusesAutomatically = async (): Promise<void> => {
     console.log('🔄 [AUTO] מתחיל עדכון סטטוס תורנויות אוטומטי');
     
     const duties = await getAllDuties();
-    const now = new Date();
     let updatedDuties = 0;
     
     for (const duty of duties) {
       let shouldUpdate = false;
       let newStatus: 'פעילה' | 'הסתיימה' | 'בוטלה' = duty.status;
       
-      const startTime = new Date(`${duty.startDate}T${duty.startTime}`);
-      const endTime = duty.endTime ? new Date(`${duty.startDate}T${duty.endTime}`) : new Date(startTime.getTime() + 8 * 60 * 60 * 1000); // 8 שעות ברירת מחדל
+      // בדיקה אם התורנות פעילה כרגע
+      const isActive = isDutyActive(
+        duty.startDate,
+        duty.startTime,
+        duty.endTime
+      );
       
       // בדיקה אם צריך לעדכן סטטוס
-      if (duty.status === 'פעילה' && now > endTime) {
+      if (duty.status === 'פעילה' && !isActive) {
         // זמן סיום הגיע - עדכון להסתיימה
         newStatus = 'הסתיימה';
         shouldUpdate = true;
@@ -167,12 +171,7 @@ export const updateDutyStatusesAutomatically = async (): Promise<void> => {
         // עדכון נוכחות המשתתפים
         if (duty.participants) {
           for (const participant of duty.participants) {
-            if (newStatus === 'פעילה') {
-              // המשתתף נכנס לתורנות
-              await updateSoldierStatus(participant.soldierId, 'בתורנות', { 
-                dutyId: duty.id
-              });
-            } else if (newStatus === 'הסתיימה') {
+            if (newStatus === 'הסתיימה') {
               // המשתתף מסיים תורנות - חזרה לבסיס
               await updateSoldierStatus(participant.soldierId, 'בבסיס', { 
                 dutyId: duty.id,

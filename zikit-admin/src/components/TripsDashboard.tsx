@@ -17,6 +17,8 @@ import { Trip } from '../models/Trip';
 import { Vehicle } from '../models/Vehicle';
 import { Soldier } from '../models/Soldier';
 import { updateDriverStatuses, updateTripStatusesAutomatically } from '../services/tripService';
+// import { updateActivityStatusesAutomatically } from '../services/activityService';
+import { updateDutyStatusesAutomatically } from '../services/dutyService';
 import { getSoldierCurrentStatus } from '../services/soldierService';
 import TripsTimeline from './TripsTimeline';
 
@@ -24,6 +26,7 @@ interface TripsDashboardProps {
   trips: Trip[];
   vehicles: Vehicle[];
   drivers: Soldier[];
+  activities?: any[];
   frameworks?: any[];
   onRefresh: () => void;
   onAddTripFromTimeline?: (tripData: {
@@ -36,6 +39,7 @@ interface TripsDashboardProps {
 
 interface DashboardStats {
   activeTrips: number;
+  plannedTrips: number;
   availableVehicles: number;
   availableDrivers: number;
   driversOnTrip: number;
@@ -49,6 +53,7 @@ const TripsDashboard: React.FC<TripsDashboardProps> = ({
   trips,
   vehicles,
   drivers,
+  activities = [],
   frameworks = [],
   onRefresh,
   onAddTripFromTimeline
@@ -59,7 +64,8 @@ const TripsDashboard: React.FC<TripsDashboardProps> = ({
       try {
         await Promise.all([
           updateTripStatusesAutomatically(),
-          updateDriverStatuses()
+          updateDriverStatuses(),
+          updateDutyStatusesAutomatically()
         ]);
       } catch (error) {
         console.error('שגיאה בעדכון תקופתי של סטטוסים:', error);
@@ -76,10 +82,12 @@ const TripsDashboard: React.FC<TripsDashboardProps> = ({
   }, []);
 
 
-  // חישוב סטטיסטיקות - רק נסיעות בביצוע
+  // חישוב סטטיסטיקות - נסיעות בביצוע ומתוכננות
   const stats: DashboardStats = useMemo(() => {
-    // רק נסיעות בביצוע
+    // נסיעות בביצוע
     const activeTrips = trips.filter(t => t.status === 'בביצוע');
+    // נסיעות מתוכננות
+    const plannedTrips = trips.filter(t => t.status === 'מתוכננת');
     
     // חישוב סטטוס נהגים לפי המערכת החדשה
     const driversOnTrip = drivers.filter(d => getSoldierCurrentStatus(d) === 'בנסיעה').length;
@@ -91,6 +99,7 @@ const TripsDashboard: React.FC<TripsDashboardProps> = ({
     
     return {
       activeTrips: activeTrips.length,
+      plannedTrips: plannedTrips.length,
       availableVehicles: vehicles.filter(v => v.status === 'available').length,
       availableDrivers: availableDrivers,
       driversOnTrip: driversOnTrip,
@@ -158,6 +167,9 @@ const TripsDashboard: React.FC<TripsDashboardProps> = ({
             <Typography variant="body2" color="textSecondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>
               נסיעות בביצוע
             </Typography>
+            <Typography variant="caption" color="textSecondary" sx={{ fontSize: { xs: '0.6rem', sm: '0.75rem' } }}>
+              {stats.plannedTrips} נסיעות מתוכננות
+            </Typography>
           </CardContent>
         </Card>
         <Card sx={{ 
@@ -224,6 +236,7 @@ const TripsDashboard: React.FC<TripsDashboardProps> = ({
           trips={trips}
           vehicles={vehicles}
           drivers={drivers}
+          activities={activities}
           frameworks={frameworks}
           onAddTripFromTimeline={onAddTripFromTimeline}
         />

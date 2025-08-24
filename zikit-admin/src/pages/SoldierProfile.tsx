@@ -400,24 +400,23 @@ const SoldierProfile: React.FC = () => {
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography variant="body2" color="text.secondary">נוכחות:</Typography>
-                    <Chip 
-                      label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'} 
-                      size="small" 
-                      sx={{ 
-                        bgcolor: getPresenceColor(soldier.presence),
-                        color: 'white',
-                        fontWeight: 600
-                      }}
-                    />
-                  </Box>
-                  {(soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.presenceUntil && (
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="body2" color="text.secondary">עד:</Typography>
-                      <Typography variant="body2" fontWeight="bold">
-                        {new Date(soldier.presenceUntil).toLocaleDateString('he-IL')}
-                      </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
+                      <Chip 
+                        label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'} 
+                        size="small" 
+                        sx={{ 
+                          bgcolor: getPresenceColor(soldier.presence),
+                          color: 'white',
+                          fontWeight: 600
+                        }}
+                      />
+                      {(soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.presenceUntil && (
+                        <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                          עד תאריך {formatToIsraelString(soldier.presenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                        </Typography>
+                      )}
                     </Box>
-                  )}
+                  </Box>
                   {soldier.phone && (
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Typography variant="body2" color="text.secondary">טלפון:</Typography>

@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Duty, DutyParticipant } from '../models/Duty';
 import { Soldier } from '../models/Soldier';
-import { getAllDuties, addDuty, updateDuty, deleteDuty, getDutiesBySoldier } from '../services/dutyService';
+import { getAllDuties, addDuty, updateDuty, deleteDuty, getDutiesBySoldier, updateDutyStatusesAutomatically } from '../services/dutyService';
 import { getAllSoldiers } from '../services/soldierService';
 import { getAllFrameworks } from '../services/frameworkService';
 import { useUser } from '../contexts/UserContext';
-import { UserRole, SystemPath, PermissionLevel, DataScope } from '../models/UserRole';
+import { SystemPath, PermissionLevel, DataScope } from '../models/UserRole';
 import { canUserAccessPath, getUserPermissions } from '../services/permissionService';
 import {
   Container,
@@ -37,7 +37,10 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper
+  Paper,
+  Tabs,
+  Tab,
+  Chip
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
@@ -46,7 +49,15 @@ import {
   ArrowForward as ArrowForwardIcon,
   Today as TodayIcon,
   Restaurant as RestaurantIcon,
-  Security as SecurityIcon
+  Security as SecurityIcon,
+  Add as AddIcon,
+  Edit as EditIcon,
+  Search as SearchIcon,
+
+  Schedule as ScheduleIcon,
+  LocationOn as LocationOnIcon,
+  Group as GroupIcon,
+  Person as PersonIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { getAllSoldiersWithAvailability, getUnavailableSoldierLabel } from '../utils/soldierUtils';
@@ -86,6 +97,26 @@ const WeeklyDuties: React.FC = () => {
   const [filterPerson, setFilterPerson] = useState<string>('');
   const [filterDateRange, setFilterDateRange] = useState<[Date | null, Date | null]>([null, null]);
   const [showStatistics, setShowStatistics] = useState(false);
+  const [activeTab, setActiveTab] = useState(0);
+  const [showCardsForm, setShowCardsForm] = useState(false);
+  const [formData, setFormData] = useState<Omit<Duty, 'id' | 'createdAt' | 'updatedAt'>>({
+    type: '',
+    location: '',
+    startDate: '',
+    startTime: '',
+    endTime: '',
+    participants: [],
+    requiredEquipment: '',
+    notes: '',
+    frameworkId: '',
+    status: 'פעילה'
+  });
+  const [editId, setEditId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [showCompletedDuties, setShowCompletedDuties] = useState(false);
   const [permissions, setPermissions] = useState({
     canView: false,
     canCreate: false,
@@ -118,7 +149,8 @@ const WeeklyDuties: React.FC = () => {
   const generateWeeklySlots = useMemo(() => {
     const slots: WeeklyDutySlot[] = [];
     const startOfWeek = new Date(currentWeek);
-    startOfWeek.setDate(currentWeek.getDate() - currentWeek.getDay() + 1); // ראשון
+    // חישוב ראשון (0 = ראשון ב-JavaScript)
+    startOfWeek.setDate(currentWeek.getDate() - currentWeek.getDay());
 
     const days = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
     
@@ -129,7 +161,7 @@ const WeeklyDuties: React.FC = () => {
 
       if (day === 'שבת') {
         // תורנות מטבח סופש
-        const weekendShifts = ['בוקר', 'צהריים', 'ערב'];
+        const weekendShifts = ['בוקר', 'ערב'];
         weekendShifts.forEach(shift => {
           slots.push({
             id: `kitchen-${day}-${shift}`,
@@ -287,6 +319,9 @@ const WeeklyDuties: React.FC = () => {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
+      // עדכון סטטוס תורנויות אוטומטי
+      await updateDutyStatusesAutomatically();
+
       const [soldiersData, frameworksData] = await Promise.all([
         getAllSoldiers(),
         getAllFrameworks()
@@ -414,7 +449,7 @@ const WeeklyDuties: React.FC = () => {
     setShowForm(true);
   };
 
-  const handleCloseForm = () => {
+  const handleCloseWeeklyForm = () => {
     setShowForm(false);
     setSelectedSlot(null);
   };
@@ -437,10 +472,8 @@ const WeeklyDuties: React.FC = () => {
         type: selectedSlot.type,
         location: selectedSlot.type === 'מטבח' ? 'מטבח' : 'רסר',
         startDate: selectedSlot.date,
-        startTime: selectedSlot.shift === 'בוקר' ? '06:00' : 
-                   selectedSlot.shift === 'צהריים' ? '12:00' : '18:00',
-        endTime: selectedSlot.shift === 'בוקר' ? '12:00' : 
-                 selectedSlot.shift === 'צהריים' ? '18:00' : '22:00',
+        startTime: selectedSlot.shift === 'בוקר' ? '08:00' : '14:00',
+        endTime: selectedSlot.shift === 'בוקר' ? '14:00' : '20:00',
         participants,
         status: 'פעילה' as const
       };
@@ -452,7 +485,7 @@ const WeeklyDuties: React.FC = () => {
       }
 
       await refresh();
-      handleCloseForm();
+      handleCloseWeeklyForm();
     } catch (error) {
       console.error('Error saving duty:', error);
     }
@@ -470,7 +503,7 @@ const WeeklyDuties: React.FC = () => {
     try {
       await deleteDuty(selectedSlot.dutyId);
       await refresh();
-      handleCloseForm();
+      handleCloseWeeklyForm();
     } catch (error) {
       console.error('Error deleting duty:', error);
     }
@@ -492,9 +525,162 @@ const WeeklyDuties: React.FC = () => {
     setCurrentWeek(new Date());
   };
 
+  // פונקציות לתצוגת כרטיסים
+  const handleOpenForm = (duty?: Duty) => {
+    if (duty) {
+      setFormData({
+        type: duty.type,
+        location: duty.location,
+        startDate: duty.startDate,
+        startTime: duty.startTime,
+        endTime: duty.endTime || '',
+        participants: duty.participants,
+        requiredEquipment: duty.requiredEquipment || '',
+        notes: duty.notes || '',
+        frameworkId: duty.frameworkId || '',
+        status: duty.status
+      });
+      setEditId(duty.id);
+    } else {
+      setFormData({
+        type: '',
+        location: '',
+        startDate: '',
+        startTime: '',
+        endTime: '',
+        participants: [],
+        requiredEquipment: '',
+        notes: '',
+        frameworkId: '',
+        status: 'פעילה'
+      });
+      setEditId(null);
+    }
+    setShowCardsForm(true);
+  };
+
+  const handleCloseCardsForm = () => {
+    setShowCardsForm(false);
+    setFormData({
+      type: '',
+      location: '',
+      startDate: '',
+      startTime: '',
+      endTime: '',
+      participants: [],
+      requiredEquipment: '',
+      notes: '',
+      frameworkId: '',
+      status: 'פעילה'
+    });
+    setEditId(null);
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSelectChange = (name: string, value: any) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleAddParticipant = (soldier: Soldier | null) => {
+    if (soldier) {
+      const newParticipant: DutyParticipant = {
+        soldierId: soldier.id,
+        soldierName: soldier.name,
+        personalNumber: soldier.personalNumber
+      };
+      setFormData(prev => ({
+        ...prev,
+        participants: [...prev.participants, newParticipant]
+      }));
+    }
+  };
+
+  const handleRemoveParticipant = (soldierId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      participants: prev.participants.filter(p => p.soldierId !== soldierId)
+    }));
+  };
+
+  const handleSubmitCards = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!user) return;
+    
+    // בדיקת הרשאות
+    if (editId && !permissions.canEdit) {
+      alert('אין לך הרשאה לערוך תורנויות');
+      return;
+    }
+    
+    if (!editId && !permissions.canCreate) {
+      alert('אין לך הרשאה ליצור תורנויות חדשות');
+      return;
+    }
+    
+    try {
+      if (editId) {
+        await updateDuty(editId, formData);
+      } else {
+        await addDuty(formData);
+      }
+      handleCloseCardsForm();
+      refresh();
+    } catch (error) {
+      console.error('Error saving duty:', error);
+      alert('שגיאה בשמירת תורנות');
+    }
+  };
+
+  const handleDeleteCards = async () => {
+    if (deleteId) {
+      if (!permissions.canDelete) {
+        alert('אין לך הרשאה למחוק תורנויות');
+        return;
+      }
+      
+      try {
+        await deleteDuty(deleteId);
+        setDeleteId(null);
+        refresh();
+      } catch (error) {
+        console.error('Error deleting duty:', error);
+        alert('שגיאה במחיקת תורנות');
+      }
+    }
+  };
+
+  const handleDutyClick = (dutyId: string) => {
+    navigate(`/duties/${dutyId}`);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'פעילה': return 'primary';
+      case 'הסתיימה': return 'success';
+      case 'בוטלה': return 'error';
+      default: return 'default';
+    }
+  };
+
+  const filteredDuties = duties.filter(duty => {
+    const matchesSearch = duty.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         duty.location.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = !filterStatus || duty.status === filterStatus;
+    
+    // סינון תורנויות שהסתיימו - רק אם הצ'קבוקס לא מסומן
+    const matchesCompletionStatus = showCompletedDuties || duty.status !== 'הסתיימה';
+    
+    return matchesSearch && matchesStatus && matchesCompletionStatus;
+  });
+
   const getWeekRange = () => {
     const startOfWeek = new Date(currentWeek);
-    startOfWeek.setDate(currentWeek.getDate() - currentWeek.getDay() + 1);
+    startOfWeek.setDate(currentWeek.getDate() - currentWeek.getDay());
     const endOfWeek = new Date(startOfWeek);
     endOfWeek.setDate(startOfWeek.getDate() + 6);
     
@@ -534,10 +720,10 @@ const WeeklyDuties: React.FC = () => {
 
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Typography variant="h4" component="h1">
-          תורנויות שבועיות
+          תורנויות
         </Typography>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          {permissions.canView && (
+          {permissions.canView && activeTab === 0 && (
           <Button
             variant="outlined"
             startIcon={<BarChartIcon />}
@@ -547,44 +733,60 @@ const WeeklyDuties: React.FC = () => {
             סטטיסטיקות
           </Button>
           )}
-          <Button
-            variant="outlined"
-            onClick={() => navigate('/duties')}
-            size="small"
-          >
-            חזרה לתורנויות
-          </Button>
+          {activeTab === 1 && permissions.canCreate && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => handleOpenForm()}
+              size="small"
+            >
+              הוסף תורנות
+            </Button>
+          )}
         </Box>
       </Box>
 
-      {/* ניווט שבועי */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <IconButton onClick={prevWeek}>
-              <ArrowBackIcon />
-            </IconButton>
-            <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="h6">
-                {getWeekRange().start} - {getWeekRange().end}
-              </Typography>
-              <Button
-                startIcon={<TodayIcon />}
-                onClick={goToToday}
-                size="small"
-              >
-                היום
-              </Button>
-            </Box>
-            <IconButton onClick={nextWeek}>
-              <ArrowForwardIcon />
-            </IconButton>
-          </Box>
-        </CardContent>
-      </Card>
+      {/* טאבים */}
+      <Box sx={{ mb: 3 }}>
+        <Tabs value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)}>
+          <Tab label="תצוגה שבועית" />
+          <Tab label="תצוגת כרטיסים" />
+        </Tabs>
+      </Box>
+
+      {/* תוכן לפי טאב */}
+      {activeTab === 0 && (
+        <>
+          {/* ניווט שבועי */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <IconButton onClick={prevWeek}>
+                  <ArrowBackIcon />
+                </IconButton>
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="h6">
+                    {getWeekRange().start} - {getWeekRange().end}
+                  </Typography>
+                  <Button
+                    startIcon={<TodayIcon />}
+                    onClick={goToToday}
+                    size="small"
+                  >
+                    היום
+                  </Button>
+                </Box>
+                <IconButton onClick={nextWeek}>
+                  <ArrowForwardIcon />
+                </IconButton>
+              </Box>
+            </CardContent>
+          </Card>
+        </>
+      )}
 
              {/* סטטיסטיקות */}
-       {showStatistics && (
+       {activeTab === 0 && showStatistics && (
          <Card sx={{ mb: 3 }}>
            <CardContent>
              <Typography variant="h6" sx={{ mb: 2 }}>
@@ -760,7 +962,8 @@ const WeeklyDuties: React.FC = () => {
       )}
 
              {/* תצוגה שבועית */}
-       <Card>
+       {activeTab === 0 && (
+         <Card>
          <CardContent>
            <Typography variant="h6" sx={{ mb: 2 }}>
              תצוגה שבועית - לחץ על תא לעריכת תורנות
@@ -866,66 +1069,7 @@ const WeeklyDuties: React.FC = () => {
                    })}
                  </Box>
                ))}
-              
-                             {/* תורנות סופש מיוחדות */}
-               <Box sx={{ 
-                 display: 'flex', 
-                 mb: 1,
-                 minWidth: 700
-               }}>
-                 <Box sx={{ 
-                   width: 120, 
-                   flexShrink: 0, 
-                   display: 'flex', 
-                   alignItems: 'center', 
-                   fontWeight: 'bold',
-                   px: 1
-                 }}>
-                   צהריים
-                 </Box>
-                 {['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'].map(day => {
-                   const slot = filledSlots.find(s => s.type === 'מטבח' && s.day === day && s.shift === 'צהריים');
-                   return (
-                     <Box
-                       key={`${day}-צהריים`}
-                       sx={{
-                         flex: 1,
-                         height: 60,
-                         border: '1px solid #ddd',
-                         display: 'flex',
-                         flexDirection: 'column',
-                         justifyContent: 'center',
-                         alignItems: 'center',
-                         cursor: (slot && ((slot.dutyId && permissions.canEdit) || (!slot.dutyId && permissions.canCreate))) ? 'pointer' : 'default',
-                         bgcolor: slot ? getSlotColor(slot) : 'transparent',
-                         color: slot ? getSlotTextColor(slot) : 'transparent',
-                         minWidth: 80,
-                         px: 1,
-                         '&:hover': {
-                           bgcolor: (slot && ((slot.dutyId && permissions.canEdit) || (!slot.dutyId && permissions.canCreate))) ? 
-                             (slot ? 'rgba(76, 175, 80, 0.8)' : 'transparent') : 'transparent'
-                         }
-                       }}
-                       onClick={() => slot && handleSlotClick(slot)}
-                     >
-                       {slot?.participants && slot.participants.length > 0 ? (
-                         <>
-                           <Typography variant="caption" sx={{ fontWeight: 'bold', fontSize: '0.7rem' }}>
-                             {slot.participants.length} אנשים
-                           </Typography>
-                           <Typography variant="caption" sx={{ fontSize: '0.6rem', textAlign: 'center', lineHeight: 1.2 }}>
-                             {slot.participants.map(participant => {
-                               const soldier = soldiers.find(s => s.id === participant.soldierId);
-                               const framework = frameworks.find(f => f.id === soldier?.frameworkId);
-                               return `${participant.soldierName} (${framework?.name || 'ללא צוות'})`;
-                             }).join(', ')}
-                           </Typography>
-                         </>
-                       ) : null}
-                     </Box>
-                   );
-                 })}
-               </Box>
+
             </Box>
 
                          {/* תורנות רס"ר */}
@@ -997,11 +1141,12 @@ const WeeklyDuties: React.FC = () => {
           </Box>
         </CardContent>
       </Card>
+      )}
 
       {/* דיאלוג עריכת תורנות */}
       <DutyFormDialog
         open={showForm}
-        onClose={handleCloseForm}
+        onClose={handleCloseWeeklyForm}
         onSubmit={handleSubmit}
         onDelete={handleDelete}
         slot={selectedSlot}
@@ -1009,6 +1154,416 @@ const WeeklyDuties: React.FC = () => {
         frameworks={frameworks}
         canDelete={!!selectedSlot?.dutyId && permissions.canDelete}
       />
+
+      {/* תצוגת כרטיסים */}
+      {activeTab === 1 && (
+        <>
+          {/* Filters */}
+          <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+            <TextField
+              placeholder="חיפוש..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              InputProps={{
+                startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
+              }}
+              sx={{ minWidth: 200 }}
+            />
+            <FormControl sx={{ minWidth: 150 }}>
+              <InputLabel>סטטוס</InputLabel>
+              <Select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                label="סטטוס"
+              >
+                <MenuItem value="">כל הסטטוסים</MenuItem>
+                {['פעילה', 'הסתיימה', 'בוטלה'].map(status => (
+                  <MenuItem key={status} value={status}>{status}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl sx={{ minWidth: 200 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <input
+                  type="checkbox"
+                  id="showCompletedDuties"
+                  checked={showCompletedDuties}
+                  onChange={(e) => setShowCompletedDuties(e.target.checked)}
+                  style={{ marginRight: '8px' }}
+                />
+                <label htmlFor="showCompletedDuties" style={{ fontSize: '14px', cursor: 'pointer' }}>
+                  הצג תורנויות שהסתיימו
+                </label>
+              </Box>
+            </FormControl>
+          </Box>
+
+          {/* View Mode Tabs */}
+          <Box sx={{ mb: 3 }}>
+            <Tabs value={viewMode} onChange={(_, newValue) => setViewMode(newValue)}>
+              <Tab value="cards" label="תצוגת כרטיסים" />
+              <Tab value="table" label="תצוגה טבלאית" />
+            </Tabs>
+          </Box>
+
+          {/* Duties List */}
+          {viewMode === 'cards' ? (
+            <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))' }}>
+              {filteredDuties.map((duty) => (
+                <Card key={duty.id} sx={{ height: 'fit-content', cursor: 'pointer' }} onClick={() => handleDutyClick(duty.id)}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                      <Box>
+                        <Typography variant="h6" fontWeight="bold">
+                          {duty.type}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {duty.team}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                        <Chip 
+                          label={duty.status} 
+                          color={getStatusColor(duty.status) as any}
+                          size="small"
+                        />
+                        {user && permissions.canEdit && (
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenForm(duty);
+                            }}
+                          >
+                            <EditIcon />
+                          </IconButton>
+                        )}
+                        {user && permissions.canDelete && (
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteId(duty.id);
+                            }}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        )}
+                      </Box>
+                    </Box>
+
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <LocationOnIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
+                      <Typography variant="body2">{duty.location}</Typography>
+                    </Box>
+
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <ScheduleIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
+                      <Typography variant="body2">
+                        {duty.startDate} {duty.startTime}
+                        {duty.endTime && ` - ${duty.endTime}`}
+                      </Typography>
+                    </Box>
+
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <GroupIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
+                      <Typography variant="body2">{duty.participants.length} משתתפים</Typography>
+                    </Box>
+
+                    {/* Participants List */}
+                    {duty.participants.length > 0 && (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                          משתתפים:
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {duty.participants.map((participant) => (
+                            <Chip
+                              key={participant.soldierId}
+                              label={participant.soldierName}
+                              size="small"
+                              variant="outlined"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/soldiers/${participant.soldierId}`);
+                              }}
+                              sx={{ cursor: 'pointer' }}
+                            />
+                          ))}
+                        </Box>
+                      </Box>
+                    )}
+
+                    {duty.requiredEquipment && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, mt: 1 }}>
+                        <PersonIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
+                        <Typography variant="body2">ציוד: {duty.requiredEquipment}</Typography>
+                      </Box>
+                    )}
+
+                    {duty.notes && (
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        {duty.notes}
+                      </Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </Box>
+          ) : (
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>סוג</TableCell>
+                    <TableCell>צוות</TableCell>
+                    <TableCell>מיקום</TableCell>
+                    <TableCell>תאריך ושעה</TableCell>
+                    <TableCell>משתתפים</TableCell>
+                    <TableCell>סטטוס</TableCell>
+                    <TableCell>פעולות</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredDuties.map((duty) => (
+                    <TableRow 
+                      key={duty.id} 
+                      sx={{ cursor: 'pointer' }}
+                      onClick={() => handleDutyClick(duty.id)}
+                    >
+                      <TableCell>{duty.type}</TableCell>
+                      <TableCell>{duty.team}</TableCell>
+                      <TableCell>{duty.location}</TableCell>
+                      <TableCell>
+                        {duty.startDate} {duty.startTime}
+                        {duty.endTime && <br />}
+                        {duty.endTime && `עד ${duty.endTime}`}
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {duty.participants.map((participant) => (
+                            <Chip
+                              key={participant.soldierId}
+                              label={participant.soldierName}
+                              size="small"
+                              variant="outlined"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/soldiers/${participant.soldierId}`);
+                              }}
+                              sx={{ cursor: 'pointer' }}
+                            />
+                          ))}
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={duty.status} 
+                          color={getStatusColor(duty.status) as any}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                          {user && permissions.canEdit && (
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenForm(duty);
+                              }}
+                            >
+                              <EditIcon />
+                            </IconButton>
+                          )}
+                          {user && permissions.canDelete && (
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteId(duty.id);
+                              }}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          )}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </>
+      )}
+
+      {/* Add/Edit Form Dialog */}
+      <Dialog open={showCardsForm} onClose={handleCloseCardsForm} maxWidth="md" fullWidth>
+        <DialogTitle>
+          {editId ? 'ערוך תורנות' : 'הוסף תורנות חדשה'}
+        </DialogTitle>
+        <form onSubmit={handleSubmitCards}>
+          <DialogContent>
+            <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '1fr 1fr' }}>
+              <TextField
+                name="type"
+                label="סוג תורנות"
+                value={formData.type}
+                onChange={handleChange}
+                required
+                fullWidth
+              />
+              <TextField
+                name="location"
+                label="מיקום"
+                value={formData.location}
+                onChange={handleChange}
+                required
+                fullWidth
+              />
+              <TextField
+                name="startDate"
+                label="תאריך התחלה"
+                type="date"
+                value={formData.startDate}
+                onChange={handleChange}
+                required
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                name="startTime"
+                label="שעת התחלה"
+                type="time"
+                value={formData.startTime}
+                onChange={handleChange}
+                required
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                name="endTime"
+                label="שעת סיום (לא חובה)"
+                type="time"
+                value={formData.endTime}
+                onChange={handleChange}
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+              />
+              <FormControl fullWidth>
+                <InputLabel>מסגרת</InputLabel>
+                <Select
+                  name="frameworkId"
+                  value={formData.frameworkId}
+                  onChange={(e) => handleSelectChange('frameworkId', e.target.value)}
+                  label="מסגרת"
+                  required
+                >
+                  <MenuItem value="">בחר מסגרת</MenuItem>
+                  {frameworks.map(framework => (
+                    <MenuItem key={framework.id} value={framework.id}>{framework.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <TextField
+                name="requiredEquipment"
+                label="ציוד נדרש (לא חובה)"
+                value={formData.requiredEquipment}
+                onChange={handleChange}
+                fullWidth
+              />
+              <TextField
+                name="notes"
+                label="הערות (לא חובה)"
+                value={formData.notes}
+                onChange={handleChange}
+                multiline
+                rows={3}
+                fullWidth
+              />
+            </Box>
+
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                משתתפים
+              </Typography>
+              <Box sx={{ mb: 2 }}>
+                <Autocomplete
+                  options={getAllSoldiersWithAvailability(soldiers, formData.startDate || '').filter(s => 
+                    !formData.participants.some(p => p.soldierId === s.id)
+                  )}
+                  getOptionLabel={(option) => {
+                    if (option.isUnavailable) {
+                      return getUnavailableSoldierLabel(option);
+                    }
+                    return `${option.name} (${option.personalNumber})`;
+                  }}
+                  onChange={(_, newValue) => {
+                    if (newValue && !newValue.isUnavailable) {
+                      handleAddParticipant(newValue);
+                    }
+                  }}
+                  renderInput={(params) => (
+                    <TextField {...params} label="הוסף משתתף" />
+                  )}
+                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                  renderOption={(props, option) => (
+                    <li {...props} style={{ 
+                      opacity: option.isUnavailable ? 0.6 : 1,
+                      color: option.isUnavailable ? '#666' : 'inherit',
+                      pointerEvents: option.isUnavailable ? 'none' : 'auto'
+                    }}>
+                      {option.isUnavailable 
+                        ? getUnavailableSoldierLabel(option)
+                        : `${option.name} (${option.personalNumber})`
+                      }
+                    </li>
+                  )}
+                />
+              </Box>
+              <List dense>
+                {formData.participants.map((participant) => (
+                  <ListItem key={participant.soldierId}>
+                    <ListItemText
+                      primary={participant.soldierName}
+                      secondary={participant.personalNumber}
+                    />
+                    <IconButton
+                      size="small"
+                      onClick={() => handleRemoveParticipant(participant.soldierId)}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </ListItem>
+                ))}
+              </List>
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseCardsForm}>ביטול</Button>
+            <Button type="submit" variant="contained">
+              {editId ? 'עדכן' : 'הוסף'}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteId} onClose={() => setDeleteId(null)}>
+        <DialogTitle>מחיקת תורנות</DialogTitle>
+        <DialogContent>
+          <Typography>האם אתה בטוח שברצונך למחוק תורנות זו?</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteId(null)}>ביטול</Button>
+          <Button onClick={handleDeleteCards} color="error" variant="contained">
+            מחק
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

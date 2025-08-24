@@ -584,7 +584,9 @@ export const getFrameworkWithDetails = async (id: string): Promise<FrameworkWith
       name: s.name,
       role: s.role,
       personalNumber: s.personalNumber,
-      presence: s.presence
+      presence: s.presence,
+      presenceUntil: s.presenceUntil,
+      presenceOther: s.presenceOther
     })),
     allSoldiersInHierarchy: allSoldiersInHierarchy.map(s => ({
       id: s.id,
@@ -592,7 +594,9 @@ export const getFrameworkWithDetails = async (id: string): Promise<FrameworkWith
       role: s.role,
       personalNumber: s.personalNumber,
       frameworkId: s.frameworkId || '',
-      presence: s.presence
+      presence: s.presence,
+      presenceUntil: s.presenceUntil,
+      presenceOther: s.presenceOther
     })),
     totalSoldiers,
     activities,

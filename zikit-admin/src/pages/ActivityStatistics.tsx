@@ -19,7 +19,8 @@ import {
   TableRow,
   Tabs,
   Tab,
-  Alert
+  Alert,
+  TextField
 } from '@mui/material';
 import {
   BarChart,
@@ -69,6 +70,7 @@ const ActivityStatistics: React.FC = () => {
   const [selectedTeam, setSelectedTeam] = useState<string>('all');
   const [selectedRegion, setSelectedRegion] = useState<string>('all');
   const [selectedActivityType, setSelectedActivityType] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [tabValue, setTabValue] = useState(0);
 
   useEffect(() => {
@@ -96,6 +98,22 @@ const ActivityStatistics: React.FC = () => {
     if (selectedTeam !== 'all' && (activity.frameworkId || activity.team) !== selectedTeam) return false;
     if (selectedRegion !== 'all' && activity.region !== selectedRegion) return false;
     if (selectedActivityType !== 'all' && activity.activityType !== selectedActivityType) return false;
+    
+    // חיפוש דינמי בכל השדות
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      const matchesSearch = 
+        activity.name.toLowerCase().includes(searchLower) ||
+        activity.location.toLowerCase().includes(searchLower) ||
+        activity.commanderName.toLowerCase().includes(searchLower) ||
+        activity.taskLeaderName?.toLowerCase().includes(searchLower) ||
+        activity.activityType.toLowerCase().includes(searchLower) ||
+        (activity.activityType === 'אחר' && activity.activityTypeOther?.toLowerCase().includes(searchLower)) ||
+        activity.region.toLowerCase().includes(searchLower);
+      
+      if (!matchesSearch) return false;
+    }
+    
     return true;
   });
 
@@ -169,7 +187,18 @@ const ActivityStatistics: React.FC = () => {
           <Typography variant="h6" gutterBottom>
             פילטרים
           </Typography>
-                     <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+            <TextField
+              placeholder="חיפוש פעילויות..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              sx={{ 
+                minWidth: { xs: '100%', sm: 300 },
+                fontSize: { xs: '0.875rem', sm: '1rem' }
+              }}
+            />
+          </Box>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
              <Box sx={{ flex: 1, minWidth: 200 }}>
                <FormControl fullWidth>
                  <InputLabel>צוות</InputLabel>

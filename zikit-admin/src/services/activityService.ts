@@ -2,6 +2,8 @@ import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, query, 
 import { db } from '../firebase';
 import { Activity, ActivityDeliverable } from '../models/Activity';
 import { localStorageService, updateTableTimestamp } from './cacheService';
+import { isActivityActive } from '../utils/dateUtils';
+import { updateSoldierStatus } from './soldierService';
 
 const COLLECTION_NAME = 'activities';
 
@@ -197,4 +199,75 @@ export const getActivitiesBySoldier = async (soldierId: string): Promise<Activit
     console.error('Error getting activities by soldier:', error);
     return [];
   }
-}; 
+};
+
+// פונקציה לעדכון סטטוס פעילויות אוטומטי - הוסרה לפי בקשה
+// export const updateActivityStatusesAutomatically = async (): Promise<void> => {
+//   try {
+//     console.log('🔄 [AUTO] מתחיל עדכון סטטוס פעילויות אוטומטי');
+//     
+//     const activities = await getAllActivities();
+//     let updatedActivities = 0;
+//     
+//     for (const activity of activities) {
+//       let shouldUpdate = false;
+//       let newStatus: 'מתוכננת' | 'בביצוע' | 'הסתיימה' | 'בוטלה' = activity.status;
+//       
+//       // בדיקה אם הפעילות פעילה כרגע
+//       const isActive = isActivityActive(
+//         activity.plannedDate,
+//         activity.plannedTime,
+//         activity.duration
+//       );
+//       
+//       // בדיקה אם צריך לעדכן סטטוס
+//       if (activity.status === 'מתוכננת' && isActive) {
+//         // הפעילות התחילה - עדכון לביצוע
+//         newStatus = 'בביצוע';
+//         shouldUpdate = true;
+//         console.log(`🔄 [AUTO] עדכון פעילות ${activity.id} מ-מתוכננת ל-בביצוע`);
+//       } else if (activity.status === 'בביצוע' && !isActive) {
+//         // הפעילות הסתיימה - עדכון להסתיימה
+//         newStatus = 'הסתיימה';
+//         shouldUpdate = true;
+//         console.log(`🔄 [AUTO] עדכון פעילות ${activity.id} מ-בביצוע ל-הסתיימה`);
+//       }
+//       
+//       if (shouldUpdate) {
+//         await updateActivity(activity.id, { status: newStatus });
+//         updatedActivities++;
+//         
+//         // עדכון נוכחות המשתתפים (לא כולל מוביל משימה)
+//         if (activity.participants) {
+//           for (const participant of activity.participants) {
+//             // בדיקה שהמשתתף אינו מוביל משימה
+//             const isTaskLeader = activity.taskLeaderId === participant.soldierId;
+//             
+//             if (!isTaskLeader) {
+//               if (newStatus === 'בביצוע') {
+//                 // המשתתף נכנס לפעילות
+//                 await updateSoldierStatus(participant.soldierId, 'בפעילות', { 
+//                   activityId: activity.id
+//                 });
+//               } else if (newStatus === 'הסתיימה') {
+//                 // המשתתף מסיים פעילות - חזרה לבסיס
+//                 await updateSoldierStatus(participant.soldierId, 'בבסיס', { 
+//                   activityId: activity.id,
+//                   isEnding: true
+//                 });
+//               }
+//             }
+//           }
+//         }
+//       }
+//     }
+//     
+//     if (updatedActivities > 0) {
+//       console.log(`✅ [AUTO] עדכון ${updatedActivities} פעילויות הושלם`);
+//     } else {
+//       console.log('✅ [AUTO] אין פעילויות שצריכות עדכון');
+//     }
+//   } catch (error) {
+//     console.error('❌ [AUTO] שגיאה בעדכון סטטוס פעילויות:', error);
+//   }
+// }; 
