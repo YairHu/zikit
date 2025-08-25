@@ -12,4 +12,7 @@ export interface Soldier extends BasePerson {
   restUntil?: string; // עד מתי במנוחה (אוטומטי - 7 שעות משעת חזרה)
   drivingLicenses?: string[]; // היתרים לנהיגה (רק לנהגים)
 
+  // שדות סטטוס מיוחדים
+  absenceUntil?: string; // עד מתי בהיעדרות (קורס/גימלים/חופש)
+  previousStatus?: string; // הסטטוס הקודם לפני היעדרות
 } 

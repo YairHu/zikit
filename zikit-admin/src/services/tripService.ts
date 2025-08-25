@@ -489,52 +489,9 @@ export const checkAdvancedAvailability = async (
 // פונקציה לעדכון סטטוס נהגים אוטומטית
 export const updateDriverStatuses = async (): Promise<void> => {
   try {
-    const { getAllSoldiers } = await import('./soldierService');
-    const allSoldiers = await getAllSoldiers();
-    const drivers = allSoldiers.filter(s => s.qualifications?.includes('נהג'));
-    
-    const now = new Date();
-    
-    for (const driver of drivers) {
-      // בדיקה אם הנהג בנסיעה פעילה
-      const activeTrips = await getTripsBySoldier(driver.id);
-      const currentTrip = activeTrips.find(trip => {
-        const tripStart = new Date(trip.departureTime);
-        const tripEnd = new Date(trip.returnTime);
-        return now >= tripStart && now <= tripEnd && trip.status === 'בביצוע';
-      });
-      
-      if (currentTrip) {
-        // הנהג בנסיעה
-        await updateSoldierStatus(driver.id, 'בנסיעה', { tripId: currentTrip.id });
-      } else {
-        // בדיקה אם הנהג במנוחה
-        if (driver.status === 'resting' && driver.restUntil) {
-          const restUntilDate = new Date(driver.restUntil);
-          if (now < restUntilDate) {
-            // הנהג עדיין במנוחה
-            await updateSoldierStatus(driver.id, 'במנוחה');
-          } else {
-            // המנוחה הסתיימה - חזרה לבסיס רק אם לא בגימלים/חופש/אחר
-            if (driver.presence === 'גימלים' || driver.presence === 'חופש' || driver.presence === 'אחר') {
-              // אל תעדכן - השאר בסטטוס הנוכחי
-              console.log(`🚫 [AUTO] נהג ${driver.id} בסטטוס ${driver.presence} - לא מעדכן`);
-            } else {
-              await updateSoldierStatus(driver.id, 'בבסיס');
-            }
-          }
-        } else {
-          // בדיקה אם הנהג בגימלים, חופש או אחר
-          if (driver.presence === 'גימלים' || driver.presence === 'חופש' || driver.presence === 'אחר') {
-            // אל תעדכן נהגים שבגימלים, חופש או אחר
-            console.log(`🚫 [AUTO] נהג ${driver.id} בסטטוס ${driver.presence} - לא מעדכן`);
-          } else {
-            // הנהג זמין - עדכון לבבסיס רק אם לא בסטטוס מיוחד
-            await updateSoldierStatus(driver.id, 'בבסיס');
-          }
-        }
-      }
-    }
+    // קריאה לפונקציה הכללית שמעדכנת את כל החיילים
+    const { updateAllSoldiersStatusesAutomatically } = await import('./soldierService');
+    await updateAllSoldiersStatusesAutomatically();
   } catch (error) {
     console.error('שגיאה בעדכון סטטוס נהגים:', error);
   }
@@ -661,8 +618,9 @@ export const updateTripStatusesAutomatically = async (): Promise<void> => {
     
     if (updatedTrips > 0) {
       console.log(`✅ [AUTO] עדכון ${updatedTrips} נסיעות הושלם`);
-      // עדכון סטטוס נהגים אחרי עדכון נסיעות
-      await updateDriverStatuses();
+      // עדכון סטטוס כל החיילים אחרי עדכון נסיעות
+      const { updateAllSoldiersStatusesAutomatically } = await import('./soldierService');
+      await updateAllSoldiersStatusesAutomatically();
     } else {
       console.log('✅ [AUTO] אין נסיעות שצריכות עדכון');
     }

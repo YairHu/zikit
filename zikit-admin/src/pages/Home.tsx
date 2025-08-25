@@ -30,7 +30,7 @@ import {
 import { useUser } from '../contexts/UserContext';
 import { UserRole, SystemPath, PermissionLevel } from '../models/UserRole';
 import { canUserAccessPath } from '../services/permissionService';
-import { getAllSoldiers, getSoldierById } from '../services/soldierService';
+import { getAllSoldiers, getSoldierById, refreshAllSoldiersStatuses } from '../services/soldierService';
 import { getAllVehicles } from '../services/vehicleService';
 import { getAllActivities } from '../services/activityService';
 import { getAllDuties, getDutiesBySoldier } from '../services/dutyService';
@@ -135,6 +135,8 @@ const Home: React.FC = () => {
 
       loadStats();
   }, [user]);
+
+
 
   if (!user) {
     return (

@@ -37,7 +37,7 @@ const emptyPerson: Omit<BasePerson, 'id'> = {
   drivingLicenses: [],
   presence: 'בבסיס',
   presenceOther: '',
-  presenceUntil: '',
+      absenceUntil: '',
   family: '',
   medicalProfile: '',
   
@@ -250,6 +250,7 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
               >
                 <MenuItem value="בבסיס">בבסיס</MenuItem>
                 <MenuItem value="בפעילות">בפעילות</MenuItem>
+                <MenuItem value="קורס">קורס</MenuItem>
                 <MenuItem value="חופש">חופש</MenuItem>
                 <MenuItem value="גימלים">גימלים</MenuItem>
                 <MenuItem value="אחר">אחר</MenuItem>
@@ -265,16 +266,16 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
                 helperText="פרט את המיקום הספציפי"
               />
             )}
-            {(formData.presence === 'גימלים' || formData.presence === 'חופש') && (
+            {(formData.presence === 'קורס' || formData.presence === 'גימלים' || formData.presence === 'חופש') && (
               <TextField
                 fullWidth
                 label={`${formData.presence} עד איזה יום? כולל`}
-                name="presenceUntil"
+                name="absenceUntil"
                 type="date"
-                value={formData.presenceUntil || ''}
+                value={formData.absenceUntil || ''}
                 onChange={handleChange}
                 InputLabelProps={{ shrink: true }}
-                helperText="בחר את התאריך האחרון של הגימלים/חופש"
+                helperText="בחר את התאריך האחרון של ההיעדרות"
               />
             )}
             <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>

@@ -267,12 +267,12 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
           }
         }
 
-        // הוספת חופש וגימלים
-        if (driver.presence === 'חופש' || driver.presence === 'גימלים') {
-          if (driver.presenceUntil) {
+        // הוספת היעדרות (קורס/חופש/גימלים)
+        if (driver.presence === 'קורס' || driver.presence === 'חופש' || driver.presence === 'גימלים') {
+          if (driver.absenceUntil) {
             try {
               // המרה לזמן ישראל
-              const untilDate = new Date(driver.presenceUntil);
+              const untilDate = new Date(driver.absenceUntil);
               
               // בדיקה שהתאריך תקין
               if (!isNaN(untilDate.getTime())) {
@@ -294,7 +294,7 @@ const TripsTimeline: React.FC<TripsTimelineProps> = ({
                 });
               }
             } catch (error) {
-              console.warn('תאריך לא תקין לחופש/גימלים:', driver.presenceUntil);
+              console.warn('תאריך לא תקין להיעדרות:', driver.absenceUntil);
             }
           }
         }

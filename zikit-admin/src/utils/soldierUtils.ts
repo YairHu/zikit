@@ -12,13 +12,13 @@ export interface SoldierWithStatusInfo extends Soldier {
 export const getSoldierAvailabilityInfo = (soldier: Soldier, activityDate?: string): SoldierWithStatusInfo => {
   const result: SoldierWithStatusInfo = { ...soldier };
   
-  // בדיקה אם החייל בגימלים או בחופש
-  if (soldier.presence === 'גימלים' || soldier.presence === 'חופש') {
+  // בדיקה אם החייל בהיעדרות (קורס/גימלים/חופש)
+  if (soldier.presence === 'קורס' || soldier.presence === 'גימלים' || soldier.presence === 'חופש') {
     // אם יש תאריך פעילות, בדוק אם החייל עדיין לא זמין
-    if (activityDate && activityDate.trim() !== '' && soldier.presenceUntil) {
+    if (activityDate && activityDate.trim() !== '' && soldier.absenceUntil) {
       try {
         const activityDateTime = new Date(activityDate);
-        const untilDateTime = new Date(soldier.presenceUntil);
+        const untilDateTime = new Date(soldier.absenceUntil);
         
         // בדיקה שהתאריכים תקינים
         if (!isNaN(activityDateTime.getTime()) && !isNaN(untilDateTime.getTime())) {
@@ -34,12 +34,12 @@ export const getSoldierAvailabilityInfo = (soldier: Soldier, activityDate?: stri
     }
     
     result.isUnavailable = true;
-    result.unavailabilityReason = soldier.presence === 'גימלים' ? 'בגימלים' : 'בחופש';
+    result.unavailabilityReason = soldier.presence === 'קורס' ? 'בקורס' : soldier.presence === 'גימלים' ? 'בגימלים' : 'בחופש';
     
-    // אם יש תאריך סיום לגימלים/חופש
-    if (soldier.presenceUntil) {
+    // אם יש תאריך סיום להיעדרות
+    if (soldier.absenceUntil) {
       try {
-        const untilDate = new Date(soldier.presenceUntil);
+        const untilDate = new Date(soldier.absenceUntil);
         if (!isNaN(untilDate.getTime())) {
           result.unavailabilityUntil = untilDate.toLocaleDateString('he-IL');
         }

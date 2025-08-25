@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Soldier } from '../models/Soldier';
-import { getAllSoldiers, getAllSoldiersWithFrameworkNames, deleteSoldier } from '../services/soldierService';
+import { getAllSoldiers, getAllSoldiersWithFrameworkNames, deleteSoldier, refreshAllSoldiersStatuses } from '../services/soldierService';
 import { getAllFrameworks, getFrameworkWithDetails } from '../services/frameworkService';
 import { getPresenceColor, getProfileColor } from '../utils/colors';
 import { formatToIsraelString } from '../utils/dateUtils';
@@ -72,7 +72,8 @@ import {
   SupervisorAccount as SupervisorAccountIcon,
   Settings as SettingsIcon,
   Visibility as VisibilityIcon,
-  VisibilityOff as VisibilityOffIcon
+  VisibilityOff as VisibilityOffIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 
 
@@ -222,6 +223,8 @@ const Soldiers: React.FC = () => {
     refresh();
   }, [user]); // רק כשהמשתמש משתנה
 
+
+
   // בדיקה אם יש פרמטר edit ב-URL
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -268,6 +271,15 @@ const Soldiers: React.FC = () => {
 
   const handleFormSuccess = (soldier: Soldier) => {
     refresh();
+  };
+
+  const handleRefreshStatuses = async () => {
+    try {
+      await refreshAllSoldiersStatuses();
+      refresh(); // רענון הנתונים אחרי עדכון הסטטוסים
+    } catch (error) {
+      console.error('שגיאה ברענון סטטוסים:', error);
+    }
   };
 
   const handleDelete = async () => {
@@ -337,16 +349,27 @@ const Soldiers: React.FC = () => {
             </Typography>
           </Box>
         </Box>
-        {permissions.canCreate && (
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => handleOpenForm()}
-            sx={{ display: { xs: 'none', sm: 'flex' } }}
-          >
-            הוסף חייל
-          </Button>
-        )}
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Tooltip title="רענן סטטוסים">
+            <IconButton
+              onClick={handleRefreshStatuses}
+              color="primary"
+              sx={{ display: { xs: 'none', sm: 'flex' } }}
+            >
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+          {permissions.canCreate && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => handleOpenForm()}
+              sx={{ display: { xs: 'none', sm: 'flex' } }}
+            >
+              הוסף חייל
+            </Button>
+          )}
+        </Box>
       </Box>
 
       {/* View Mode Tabs */}
@@ -441,6 +464,7 @@ const Soldiers: React.FC = () => {
                         <MenuItem value="">כל הנוכחויות</MenuItem>
                         <MenuItem value="בבסיס">בבסיס</MenuItem>
                         <MenuItem value="בפעילות">בפעילות</MenuItem>
+                        <MenuItem value="קורס">קורס</MenuItem>
                         <MenuItem value="חופש">חופש</MenuItem>
                         <MenuItem value="גימלים">גימלים</MenuItem>
                         <MenuItem value="אחר">אחר</MenuItem>
@@ -571,9 +595,9 @@ const Soldiers: React.FC = () => {
                                   fontWeight: 600
                                 }}
                               />
-                              {(soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.presenceUntil && (
+                              {(soldier.presence === 'קורס' || soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.absenceUntil && (
                                 <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                                  עד תאריך {formatToIsraelString(soldier.presenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                                  עד תאריך {formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
                                 </Typography>
                               )}
                             </Box>
@@ -776,11 +800,11 @@ const Soldiers: React.FC = () => {
                         fontWeight: 600
                       }}
                     />
-                    {(soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.presenceUntil && (
-                      <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                        עד תאריך {formatToIsraelString(soldier.presenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
-                      </Typography>
-                    )}
+                                                {(soldier.presence === 'קורס' || soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.absenceUntil && (
+                              <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                                עד תאריך {formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                              </Typography>
+                            )}
                   </Box>
                 </Box>
 
@@ -899,19 +923,32 @@ const Soldiers: React.FC = () => {
       )}
 
       {/* FAB for mobile */}
-      <Fab
-        color="primary"
-        aria-label="add"
-        sx={{ 
-          position: 'fixed', 
-          bottom: 16, 
-          left: 16,
-          display: { xs: 'flex', sm: 'none' }
-        }}
-        onClick={() => handleOpenForm()}
-      >
-        <AddIcon />
-      </Fab>
+      <Box sx={{ 
+        position: 'fixed', 
+        bottom: 16, 
+        left: 16,
+        display: { xs: 'flex', sm: 'none' },
+        flexDirection: 'column',
+        gap: 1
+      }}>
+        <Fab
+          color="secondary"
+          aria-label="refresh"
+          size="small"
+          onClick={handleRefreshStatuses}
+        >
+          <RefreshIcon />
+        </Fab>
+        {permissions.canCreate && (
+          <Fab
+            color="primary"
+            aria-label="add"
+            onClick={() => handleOpenForm()}
+          >
+            <AddIcon />
+          </Fab>
+        )}
+      </Box>
 
       {/* Add/Edit Dialog */}
       <SoldierForm

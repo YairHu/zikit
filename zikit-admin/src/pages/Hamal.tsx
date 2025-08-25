@@ -36,6 +36,7 @@ import { getAllSoldiers, getAllSoldiersWithFrameworkNames } from '../services/so
 import { Framework } from '../models/Framework';
 import { Soldier } from '../models/Soldier';
 import { getPresenceColor } from '../utils/colors';
+import { formatToIsraelString } from '../utils/dateUtils';
 import { canUserAccessPath, getUserPermissions } from '../services/permissionService';
 import { SystemPath, PermissionLevel, DataScope } from '../models/UserRole';
 
@@ -209,6 +210,7 @@ const Hamal: React.FC = () => {
     mermaidCode += '    classDef presenceTrip fill:#ff9800,stroke:#e65100,stroke-width:1px,color:#fff\n';
     mermaidCode += '    classDef presenceDuty fill:#9c27b0,stroke:#6a1b9a,stroke-width:1px,color:#fff\n';
     mermaidCode += '    classDef presenceRest fill:#2196f3,stroke:#1565c0,stroke-width:1px,color:#fff\n';
+    mermaidCode += '    classDef presenceCourse fill:#e91e63,stroke:#ad1457,stroke-width:1px,color:#fff\n';
     mermaidCode += '    classDef presenceLeave fill:#00bcd4,stroke:#008ba3,stroke-width:1px,color:#fff\n';
     mermaidCode += '    classDef presenceGimel fill:#ffd600,stroke:#f57f17,stroke-width:1px,color:#000\n';
     mermaidCode += '    classDef presenceOther fill:#9c27b0,stroke:#6a1b9a,stroke-width:1px,color:#fff\n';
@@ -239,6 +241,7 @@ const Hamal: React.FC = () => {
         case 'בנסיעה': return 'presenceTrip';
         case 'בתורנות': return 'presenceDuty';
         case 'במנוחה': return 'presenceRest';
+        case 'קורס': return 'presenceCourse';
         case 'חופש': return 'presenceLeave';
         case 'גימלים': return 'presenceGimel';
         case 'אחר': return 'presenceOther';
@@ -267,7 +270,7 @@ const Hamal: React.FC = () => {
           const soldierId = `soldier_${soldier.id}`;
           const presenceClass = showPresence ? getPresenceClass(soldier.presence || '') : 'soldierClass';
           
-          // הוספת תאריך סיום לגימלים/חופש
+          // הוספת תאריך סיום להיעדרות
           let soldierLabel = cleanTextForMermaid(soldier.name);
           if (soldier.isUnavailable && soldier.unavailabilityUntil && soldier.unavailabilityUntil.trim() !== '') {
             // שימוש ב-HTML line break במקום \n
@@ -298,7 +301,7 @@ const Hamal: React.FC = () => {
       
       // הוספת אירועי לחיצה
       const frameworkNodes = mermaidRef.current.querySelectorAll('.frameworkClass');
-      const soldierNodes = mermaidRef.current.querySelectorAll('.soldierClass, .presenceBase, .presenceActivity, .presenceTrip, .presenceDuty, .presenceRest, .presenceLeave, .presenceGimel, .presenceOther, .presenceUnknown');
+      const soldierNodes = mermaidRef.current.querySelectorAll('.soldierClass, .presenceBase, .presenceActivity, .presenceTrip, .presenceDuty, .presenceRest, .presenceCourse, .presenceLeave, .presenceGimel, .presenceOther, .presenceUnknown');
       
       frameworkNodes.forEach((node) => {
         (node as HTMLElement).style.cursor = 'pointer';
@@ -364,7 +367,7 @@ const Hamal: React.FC = () => {
   };
 
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('he-IL', { 
+    return formatToIsraelString(date, { 
       hour: '2-digit', 
       minute: '2-digit',
       second: '2-digit'
@@ -372,7 +375,7 @@ const Hamal: React.FC = () => {
   };
 
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString('he-IL');
+    return formatToIsraelString(date, { year: 'numeric', month: '2-digit', day: '2-digit' });
   };
 
   // סטטיסטיקות
@@ -604,6 +607,10 @@ const Hamal: React.FC = () => {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Box sx={{ width: 20, height: 20, bgcolor: '#2196f3', border: '1px solid #1565c0', borderRadius: 1 }} />
                 <Typography variant="body2">במנוחה</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 20, height: 20, bgcolor: '#e91e63', border: '1px solid #ad1457', borderRadius: 1 }} />
+                <Typography variant="body2">קורס</Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Box sx={{ width: 20, height: 20, bgcolor: '#00bcd4', border: '1px solid #008ba3', borderRadius: 1 }} />

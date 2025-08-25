@@ -26,6 +26,7 @@ import {
   CleaningServices as CleaningIcon
 } from '@mui/icons-material';
 import { localStorageService, checkTableUpdatesStatus } from '../services/cacheService';
+import { formatToIsraelString } from '../utils/dateUtils';
 
 interface CacheInfo {
   tableCount: number;
@@ -81,7 +82,7 @@ const CacheMonitor: React.FC = () => {
   };
 
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('he-IL');
+    return formatToIsraelString(date, { hour: '2-digit', minute: '2-digit' });
   };
 
   const getCacheStatus = (isStale: boolean, lastUpdated: Date) => {

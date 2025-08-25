@@ -117,8 +117,7 @@ const SoldierProfile: React.FC = () => {
         // עדכון אוטומטי של סטטוסים
         await Promise.all([
           updateTripStatusesAutomatically(),
-          updateDutyStatusesAutomatically(),
-          updateDriverStatuses()
+          updateDutyStatusesAutomatically()
         ]);
 
         const [soldierData, activitiesData, dutiesData, referralsData, tripsData, allTripsData, allVehiclesData] = await Promise.all([
@@ -410,9 +409,9 @@ const SoldierProfile: React.FC = () => {
                           fontWeight: 600
                         }}
                       />
-                      {(soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.presenceUntil && (
+                      {(soldier.presence === 'קורס' || soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.absenceUntil && (
                         <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                          עד תאריך {formatToIsraelString(soldier.presenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                          עד תאריך {formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
                         </Typography>
                       )}
                     </Box>

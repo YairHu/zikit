@@ -4,15 +4,22 @@ import {
   Container, Typography, Card, CardContent, Box, Button, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, FormControl, InputLabel, Select, MenuItem, IconButton, Alert, CircularProgress, Fab,
   List, ListItem, ListItemText, ListItemSecondaryAction, Chip, Tabs, Tab, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Paper
+  TableContainer, TableHead, TableRow, Paper, Autocomplete
 } from '@mui/material';
 import {
   Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, ArrowBack as ArrowBackIcon,
-  Assignment as AssignmentIcon, Search as SearchIcon, Schedule as ScheduleIcon, Person as PersonIcon
+  Assignment as AssignmentIcon, Person as PersonIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
 import { Mission } from '../models/Mission';
-import { getAllMissions, addMission, updateMission, deleteMission, getMissionsBySoldier } from '../services/missionService';
+import { 
+  getMissionsByUserPermissions, 
+  addMission, 
+  updateMission, 
+  deleteMission, 
+  getAvailableSoldiersByPermissions,
+  createDefaultMissionPolicies
+} from '../services/missionService';
 import { UserRole, SystemPath, PermissionLevel } from '../models/UserRole';
 import { canUserAccessPath } from '../services/permissionService';
 
@@ -30,24 +37,14 @@ const Missions: React.FC = () => {
   const [openForm, setOpenForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [availableSoldiers, setAvailableSoldiers] = useState<{ id: string; name: string }[]>([]);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     dueDate: '',
-    assignedBy: '',
-    status: 'pending' as 'pending' | 'in_progress' | 'completed' | 'cancelled'
+    assignedToSoldiers: [] as string[]
   });
-
-  const statuses = ['pending', 'in_progress', 'completed', 'cancelled'];
-  const statusLabels = {
-    pending: 'ממתין',
-    in_progress: 'בביצוע',
-    completed: 'הושלם',
-    cancelled: 'בוטל'
-  };
 
   const loadMissions = useCallback(async () => {
     try {
@@ -70,20 +67,10 @@ const Missions: React.FC = () => {
       }
       
       // טעינת משימות לפי הרשאות המשתמש
-      let data: Mission[] = [];
       if (user) {
-        // בדיקה אם למשתמש יש הרשאת צפייה במשימות שלו בלבד
-        const canViewAll = await canUserAccessPath(user.uid, SystemPath.MISSIONS, PermissionLevel.VIEW);
-        if (canViewAll) {
-          // אם יש הרשאת צפייה - רואה את כל המשימות
-          data = await getAllMissions();
-        } else {
-          // אם אין הרשאת צפייה - רואה רק את המשימות שלו
-          data = await getMissionsBySoldier(user.uid);
-        }
+        const data = await getMissionsByUserPermissions(user.uid);
+        setMissions(data);
       }
-      
-      setMissions(data);
     } catch (error) {
       console.error('שגיאה בטעינת משימות:', error);
     } finally {
@@ -91,9 +78,21 @@ const Missions: React.FC = () => {
     }
   }, [user]);
 
+  const loadAvailableSoldiers = useCallback(async () => {
+    if (user) {
+      try {
+        const soldiers = await getAvailableSoldiersByPermissions(user.uid);
+        setAvailableSoldiers(soldiers);
+      } catch (error) {
+        console.error('שגיאה בטעינת חיילים זמינים:', error);
+      }
+    }
+  }, [user]);
+
   useEffect(() => {
     loadMissions();
-  }, [loadMissions]);
+    loadAvailableSoldiers();
+  }, [loadMissions, loadAvailableSoldiers]);
 
   const handleOpenForm = (mission?: Mission) => {
     if (mission) {
@@ -102,8 +101,7 @@ const Missions: React.FC = () => {
         name: mission.name,
         description: mission.description,
         dueDate: mission.dueDate,
-        assignedBy: mission.assignedBy,
-        status: mission.status
+        assignedToSoldiers: mission.assignedToSoldiers || []
       });
     } else {
       setEditId(null);
@@ -111,8 +109,7 @@ const Missions: React.FC = () => {
         name: '',
         description: '',
         dueDate: '',
-        assignedBy: '',
-        status: 'pending'
+        assignedToSoldiers: []
       });
     }
     setOpenForm(true);
@@ -125,8 +122,7 @@ const Missions: React.FC = () => {
       name: '',
       description: '',
       dueDate: '',
-      assignedBy: '',
-      status: 'pending'
+      assignedToSoldiers: []
     });
   };
 
@@ -134,13 +130,6 @@ const Missions: React.FC = () => {
     setFormData(prev => ({
       ...prev,
       [e.target.name]: e.target.value
-    }));
-  };
-
-  const handleSelectChange = (name: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
     }));
   };
 
@@ -160,11 +149,38 @@ const Missions: React.FC = () => {
       return;
     }
     
+    // בדיקת שדות חובה
+    if (!formData.name.trim()) {
+      alert('שם המשימה הוא שדה חובה');
+      return;
+    }
+    
+    if (!formData.description.trim()) {
+      alert('תיאור המשימה הוא שדה חובה');
+      return;
+    }
+    
+    if (!formData.dueDate) {
+      alert('תאריך יעד הוא שדה חובה');
+      return;
+    }
+    
+    if (!formData.assignedToSoldiers || formData.assignedToSoldiers.length === 0) {
+      alert('יש לבחור לפחות חייל אחד למשימה');
+      return;
+    }
+    
     try {
+      const missionData = {
+        ...formData,
+        assignedBy: user.displayName || user.email || 'משתמש לא ידוע',
+        assignedByUid: user.uid
+      };
+
       if (editId) {
-        await updateMission(editId, formData);
+        await updateMission(editId, missionData);
       } else {
-        await addMission(formData);
+        await addMission(missionData);
       }
       handleCloseForm();
       loadMissions();
@@ -191,24 +207,6 @@ const Missions: React.FC = () => {
       }
     }
   };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'warning';
-      case 'in_progress': return 'info';
-      case 'completed': return 'success';
-      case 'cancelled': return 'error';
-      default: return 'default';
-    }
-  };
-
-  const filteredMissions = missions.filter(mission => {
-    const matchesSearch = mission.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         mission.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         mission.assignedBy.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = !filterStatus || mission.status === filterStatus;
-    return matchesSearch && matchesStatus;
-  });
 
   if (loading) {
     return (
@@ -237,42 +235,27 @@ const Missions: React.FC = () => {
         <Typography variant="h4" component="h1" fontWeight="bold">
           משימות
         </Typography>
-        {permissions.canCreate && (
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => handleOpenForm()}
-            sx={{ borderRadius: 2 }}
-          >
-            הוסף משימה
-          </Button>
-        )}
-      </Box>
-
-      {/* Filters */}
-      <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        <TextField
-          placeholder="חיפוש משימות..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          InputProps={{
-            startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
-          }}
-          sx={{ minWidth: 250 }}
-        />
-        <FormControl sx={{ minWidth: 150 }}>
-          <InputLabel>סטטוס</InputLabel>
-          <Select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            label="סטטוס"
-          >
-            <MenuItem value="">כל הסטטוסים</MenuItem>
-            {statuses.map(status => (
-              <MenuItem key={status} value={status}>{statusLabels[status as keyof typeof statusLabels]}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          {permissions.canCreate && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => handleOpenForm()}
+              sx={{ borderRadius: 2 }}
+            >
+              הוסף משימה
+            </Button>
+          )}
+          {user && (user.role === 'admin' || user.role === 'chayal') && (
+            <Button
+              variant="outlined"
+              onClick={createDefaultMissionPolicies}
+              sx={{ borderRadius: 2 }}
+            >
+              צור מדיניות הרשאות
+            </Button>
+          )}
+        </Box>
       </Box>
 
       {/* View Mode Tabs */}
@@ -286,7 +269,7 @@ const Missions: React.FC = () => {
       {/* Cards View */}
       {viewMode === 'cards' && (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 3 }}>
-          {filteredMissions.map((mission) => (
+          {missions.map((mission) => (
             <Card key={mission.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
               <CardContent sx={{ flex: 1 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
@@ -316,26 +299,37 @@ const Missions: React.FC = () => {
                 </Box>
 
                 <Box sx={{ mb: 2 }}>
-                  <Chip 
-                    label={statusLabels[mission.status as keyof typeof statusLabels]} 
-                    color={getStatusColor(mission.status) as any}
-                    size="small"
-                    sx={{ mb: 1 }}
-                  />
-                </Box>
-
-                <Box sx={{ mb: 2 }}>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                     {mission.description}
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <ScheduleIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
+                    <AssignmentIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
                     <Typography variant="body2">תאריך יעד: {mission.dueDate}</Typography>
                   </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                     <PersonIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                    <Typography variant="body2">נותן המשימה: {mission.assignedBy}</Typography>
+                    <Typography variant="body2">יוצר המשימה: {mission.assignedBy}</Typography>
                   </Box>
+                  {mission.assignedToSoldiers && mission.assignedToSoldiers.length > 0 && (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                        מקבלי המשימה:
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {mission.assignedToSoldiers.map((soldierId, index) => {
+                          const soldier = availableSoldiers.find(s => s.id === soldierId);
+                          return (
+                            <Chip
+                              key={soldierId}
+                              label={soldier?.name || soldierId}
+                              size="small"
+                              variant="outlined"
+                            />
+                          );
+                        })}
+                      </Box>
+                    </Box>
+                  )}
                 </Box>
               </CardContent>
             </Card>
@@ -352,13 +346,13 @@ const Missions: React.FC = () => {
                 <TableCell>שם משימה</TableCell>
                 <TableCell>תיאור</TableCell>
                 <TableCell>תאריך יעד</TableCell>
-                <TableCell>נותן המשימה</TableCell>
-                <TableCell>סטטוס</TableCell>
+                <TableCell>יוצר המשימה</TableCell>
+                <TableCell>מקבלי המשימה</TableCell>
                 <TableCell>פעולות</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredMissions.map((mission) => (
+              {missions.map((mission) => (
                 <TableRow key={mission.id} hover>
                   <TableCell>
                     <Typography variant="body2" fontWeight="bold">
@@ -373,11 +367,19 @@ const Missions: React.FC = () => {
                   <TableCell>{mission.dueDate}</TableCell>
                   <TableCell>{mission.assignedBy}</TableCell>
                   <TableCell>
-                    <Chip 
-                      label={statusLabels[mission.status as keyof typeof statusLabels]} 
-                      color={getStatusColor(mission.status) as any}
-                      size="small"
-                    />
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {mission.assignedToSoldiers?.map((soldierId) => {
+                        const soldier = availableSoldiers.find(s => s.id === soldierId);
+                        return (
+                          <Chip
+                            key={soldierId}
+                            label={soldier?.name || soldierId}
+                            size="small"
+                            variant="outlined"
+                          />
+                        );
+                      })}
+                    </Box>
                   </TableCell>
                   <TableCell>
                     <Box sx={{ display: 'flex', gap: 1 }}>
@@ -408,7 +410,7 @@ const Missions: React.FC = () => {
         </TableContainer>
       )}
 
-      {filteredMissions.length === 0 && (
+      {missions.length === 0 && (
         <Alert severity="info" sx={{ mt: 3 }}>
           לא נמצאו משימות
         </Alert>
@@ -450,30 +452,32 @@ const Missions: React.FC = () => {
                 required
                 InputLabelProps={{ shrink: true }}
               />
-              <TextField
-                fullWidth
-                label="נותן המשימה"
-                name="assignedBy"
-                value={formData.assignedBy}
-                onChange={handleChange}
-                required
+              <Autocomplete
+                multiple
+                options={availableSoldiers}
+                getOptionLabel={(option) => option.name}
+                value={availableSoldiers.filter(soldier => formData.assignedToSoldiers.includes(soldier.id))}
+                onChange={(_, newValue) => {
+                  setFormData(prev => ({
+                    ...prev,
+                    assignedToSoldiers: newValue.map(soldier => soldier.id)
+                  }));
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="מקבלי המשימה"
+                    placeholder="בחר חיילים..."
+                  />
+                )}
+                renderOption={(props, option) => (
+                  <li {...props}>
+                    <Box>
+                      <Typography variant="body2">{option.name}</Typography>
+                    </Box>
+                  </li>
+                )}
               />
-              <FormControl fullWidth>
-                <InputLabel>סטטוס</InputLabel>
-                <Select
-                  name="status"
-                  value={formData.status}
-                  onChange={(e) => handleSelectChange('status', e.target.value)}
-                  label="סטטוס"
-                  required
-                >
-                  {statuses.map(status => (
-                    <MenuItem key={status} value={status}>
-                      {statusLabels[status as keyof typeof statusLabels]}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
             </Box>
           </DialogContent>
           <DialogActions>

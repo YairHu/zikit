@@ -527,11 +527,11 @@ const Frameworks: React.FC = () => {
                           }}
                           size="small"
                         />
-                        {(soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.presenceUntil && (
-                          <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                            עד תאריך {formatToIsraelString(soldier.presenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
-                          </Typography>
-                        )}
+                                                    {(soldier.presence === 'קורס' || soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.absenceUntil && (
+                              <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                                עד תאריך {formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                              </Typography>
+                            )}
                       </Box>
                     </TableCell>
                     <TableCell>

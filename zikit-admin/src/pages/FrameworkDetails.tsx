@@ -77,7 +77,7 @@ const FrameworkDetails: React.FC = () => {
   const [canEditPersonnel, setCanEditPersonnel] = useState<boolean>(false);
   const [editingSoldier, setEditingSoldier] = useState<string | null>(null);
   const [editingPresence, setEditingPresence] = useState<string>('');
-  const [editingPresenceUntil, setEditingPresenceUntil] = useState<string>('');
+  const [editingAbsenceUntil, setEditingAbsenceUntil] = useState<string>('');
   const [editingPresenceOther, setEditingPresenceOther] = useState<string>('');
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportData, setReportData] = useState<any[]>([]);
@@ -177,10 +177,10 @@ const FrameworkDetails: React.FC = () => {
     navigate(`/frameworks/${frameworkId}`);
   };
 
-  const handleEditPresence = (soldierId: string, currentPresence: string, currentPresenceUntil?: string, currentPresenceOther?: string) => {
+  const handleEditPresence = (soldierId: string, currentPresence: string, currentAbsenceUntil?: string, currentPresenceOther?: string) => {
     setEditingSoldier(soldierId);
     setEditingPresence(currentPresence || '');
-    setEditingPresenceUntil(currentPresenceUntil || '');
+    setEditingAbsenceUntil(currentAbsenceUntil || '');
     setEditingPresenceOther(currentPresenceOther || '');
   };
 
@@ -197,12 +197,12 @@ const FrameworkDetails: React.FC = () => {
       
       const updateData: any = { presence: finalPresence };
       
-      // אם נבחר גימלים או חופש, הוסף את התאריך
-      if ((editingPresence === 'גימלים' || editingPresence === 'חופש') && editingPresenceUntil) {
-        updateData.presenceUntil = editingPresenceUntil;
+      // אם נבחר קורס, גימלים או חופש, הוסף את התאריך
+      if ((editingPresence === 'קורס' || editingPresence === 'גימלים' || editingPresence === 'חופש') && editingAbsenceUntil) {
+        updateData.absenceUntil = editingAbsenceUntil;
       } else {
-        // אם לא גימלים/חופש, נקה את התאריך
-        updateData.presenceUntil = '';
+        // אם לא קורס/גימלים/חופש, נקה את התאריך
+        updateData.absenceUntil = null;
       }
       
       await updateSoldier(editingSoldier, updateData);
@@ -219,7 +219,7 @@ const FrameworkDetails: React.FC = () => {
     } finally {
       setEditingSoldier(null);
       setEditingPresence('');
-      setEditingPresenceUntil('');
+      setEditingAbsenceUntil('');
       setEditingPresenceOther('');
     }
   };
@@ -233,6 +233,8 @@ const FrameworkDetails: React.FC = () => {
       case 'בנסיעה':
       case 'במנוחה':
         return 'בבסיס';
+      case 'קורס':
+        return 'קורס';
       case 'גימלים':
         return 'גימלים';
       case 'חופש':
@@ -264,7 +266,7 @@ const FrameworkDetails: React.FC = () => {
   const handleUpdateReportPresence = (soldierId: string, newPresence: string) => {
     setReportData(prev => prev.map(item => 
       item.id === soldierId 
-        ? { ...item, editedPresence: newPresence, otherText: newPresence === 'אחר' ? item.otherText : '' }
+        ? { ...item, editedPresence: newPresence, otherText: (newPresence === 'אחר' || newPresence === 'קורס') ? item.otherText : '' }
         : item
     ));
   };
@@ -279,9 +281,14 @@ const FrameworkDetails: React.FC = () => {
 
   const handlePrintReport = () => {
     const reportText = reportData.map(soldier => {
-      const status = soldier.editedPresence === 'אחר' && soldier.otherText 
-        ? soldier.otherText 
-        : mapStatusForReport(soldier.editedPresence);
+      let status;
+      if (soldier.editedPresence === 'אחר' && soldier.otherText) {
+        status = soldier.otherText;
+      } else if (soldier.editedPresence === 'קורס' && soldier.otherText) {
+        status = `קורס - ${soldier.otherText}`;
+      } else {
+        status = mapStatusForReport(soldier.editedPresence);
+      }
       return `${soldier.name} - ${soldier.role} - ${soldier.personalNumber} - ${soldier.frameworkName} - ${status}`;
     }).join('\n');
     
@@ -441,8 +448,8 @@ const FrameworkDetails: React.FC = () => {
           <Tab label={`חיילים ישירים (${framework.soldiers.length})`} />
           <Tab label={`כל החיילים בהיררכיה (${framework.totalSoldiers})`} />
           <Tab label={`מסגרות בנות (${framework.childFrameworks.length})`} />
-          <Tab label={`פעילויות (${framework.activities?.length || 0})`} />
-          <Tab label={`תורנויות (${framework.duties?.length || 0})`} />
+          <Tab label={`פעילויות (${framework.activities?.filter(activity => activity.status !== 'הושלם').length || 0})`} />
+          <Tab label={`תורנויות (${framework.duties?.filter(duty => duty.status !== 'הסתיימה').length || 0})`} />
           <Tab label={`נסיעות (${framework.trips?.filter(trip => trip.status !== 'הסתיימה').length || 0})`} />
         </Tabs>
       </Box>
@@ -495,9 +502,9 @@ const FrameworkDetails: React.FC = () => {
                               }}
                               size="small"
                             />
-                            {(soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.presenceUntil && (
+                            {(soldier.presence === 'קורס' || soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.absenceUntil && (
                               <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                                עד תאריך {formatToIsraelString(soldier.presenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                                עד תאריך {formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
                               </Typography>
                             )}
                           </Box>
@@ -515,6 +522,7 @@ const FrameworkDetails: React.FC = () => {
                                     >
                                       <MenuItem value="בבסיס">בבסיס</MenuItem>
                                       <MenuItem value="בפעילות">בפעילות</MenuItem>
+                                      <MenuItem value="קורס">קורס</MenuItem>
                                       <MenuItem value="חופש">חופש</MenuItem>
                                       <MenuItem value="גימלים">גימלים</MenuItem>
                                       <MenuItem value="אחר">אחר</MenuItem>
@@ -524,13 +532,13 @@ const FrameworkDetails: React.FC = () => {
                                     <SaveIcon />
                                   </IconButton>
                                 </Box>
-                                {(editingPresence === 'גימלים' || editingPresence === 'חופש') && (
+                                {(editingPresence === 'קורס' || editingPresence === 'גימלים' || editingPresence === 'חופש') && (
                                   <TextField
                                     size="small"
                                     label={`${editingPresence} עד איזה יום? כולל`}
                                     type="date"
-                                    value={editingPresenceUntil}
-                                    onChange={(e) => setEditingPresenceUntil(e.target.value)}
+                                    value={editingAbsenceUntil}
+                                    onChange={(e) => setEditingAbsenceUntil(e.target.value)}
                                     InputLabelProps={{ shrink: true }}
                                     sx={{ minWidth: 200 }}
                                   />
@@ -548,7 +556,7 @@ const FrameworkDetails: React.FC = () => {
                             ) : (
                               <IconButton 
                                 size="small" 
-                                onClick={() => handleEditPresence(soldier.id, soldier.presence || '', soldier.presenceUntil, soldier.presenceOther)}
+                                onClick={() => handleEditPresence(soldier.id, soldier.presence || '', soldier.absenceUntil, soldier.presenceOther)}
                               >
                                 <EditIcon />
                               </IconButton>
@@ -618,9 +626,9 @@ const FrameworkDetails: React.FC = () => {
                               }}
                               size="small"
                             />
-                            {(soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.presenceUntil && (
+                            {(soldier.presence === 'קורס' || soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.absenceUntil && (
                               <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                                עד תאריך {formatToIsraelString(soldier.presenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                                עד תאריך {formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
                               </Typography>
                             )}
                           </Box>
@@ -638,6 +646,7 @@ const FrameworkDetails: React.FC = () => {
                                     >
                                       <MenuItem value="בבסיס">בבסיס</MenuItem>
                                       <MenuItem value="בפעילות">בפעילות</MenuItem>
+                                      <MenuItem value="קורס">קורס</MenuItem>
                                       <MenuItem value="חופש">חופש</MenuItem>
                                       <MenuItem value="גימלים">גימלים</MenuItem>
                                       <MenuItem value="אחר">אחר</MenuItem>
@@ -647,13 +656,13 @@ const FrameworkDetails: React.FC = () => {
                                     <SaveIcon />
                                   </IconButton>
                                 </Box>
-                                {(editingPresence === 'גימלים' || editingPresence === 'חופש') && (
+                                {(editingPresence === 'קורס' || editingPresence === 'גימלים' || editingPresence === 'חופש') && (
                                   <TextField
                                     size="small"
                                     label={`${editingPresence} עד איזה יום? כולל`}
                                     type="date"
-                                    value={editingPresenceUntil}
-                                    onChange={(e) => setEditingPresenceUntil(e.target.value)}
+                                    value={editingAbsenceUntil}
+                                    onChange={(e) => setEditingAbsenceUntil(e.target.value)}
                                     InputLabelProps={{ shrink: true }}
                                     sx={{ minWidth: 200 }}
                                   />
@@ -671,7 +680,7 @@ const FrameworkDetails: React.FC = () => {
                             ) : (
                               <IconButton 
                                 size="small" 
-                                onClick={() => handleEditPresence(soldier.id, soldier.presence || '', soldier.presenceUntil, soldier.presenceOther)}
+                                onClick={() => handleEditPresence(soldier.id, soldier.presence || '', soldier.absenceUntil, soldier.presenceOther)}
                               >
                                 <EditIcon />
                               </IconButton>
@@ -746,9 +755,9 @@ const FrameworkDetails: React.FC = () => {
             <Typography variant="h6" gutterBottom>
               פעילויות
             </Typography>
-            {framework.activities && framework.activities.length > 0 ? (
+            {framework.activities && framework.activities.filter(activity => activity.status !== 'הושלם').length > 0 ? (
               <List>
-                {framework.activities.map((activity) => (
+                {framework.activities.filter(activity => activity.status !== 'הושלם').map((activity) => (
                   <ListItem key={activity.id} disablePadding>
                     <ListItemButton>
                       <ListItemAvatar>
@@ -758,7 +767,7 @@ const FrameworkDetails: React.FC = () => {
                       </ListItemAvatar>
                       <ListItemText
                         primary={activity.name}
-                        secondary={`${activity.status} • ${new Date(activity.plannedDate).toLocaleDateString('he-IL')} • ${
+                        secondary={`${activity.status} • ${formatToIsraelString(activity.plannedDate, { year: 'numeric', month: '2-digit', day: '2-digit' })} • ${
                           activity.participantsFromCurrentFramework?.length > 0 
                             ? `משתתפים: ${activity.participantsFromCurrentFramework.map((p: any) => p.soldierName).join(', ')}`
                             : activity.commanderFromCurrentFramework 
@@ -788,9 +797,9 @@ const FrameworkDetails: React.FC = () => {
             <Typography variant="h6" gutterBottom>
               תורנויות
             </Typography>
-            {framework.duties && framework.duties.length > 0 ? (
+            {framework.duties && framework.duties.filter(duty => duty.status !== 'הסתיימה').length > 0 ? (
               <List>
-                {framework.duties.map((duty) => (
+                {framework.duties.filter(duty => duty.status !== 'הסתיימה').map((duty) => (
                   <ListItem key={duty.id} disablePadding>
                     <ListItemButton onClick={() => navigate(`/duties/${duty.id}`)}>
                       <ListItemAvatar>
@@ -800,7 +809,7 @@ const FrameworkDetails: React.FC = () => {
                       </ListItemAvatar>
                        <ListItemText
                          primary={`תורנות ${duty.type}`}
-                         secondary={`${duty.status} • ${new Date(duty.startDate).toLocaleDateString('he-IL')} • ${duty.location} • ${
+                         secondary={`${duty.status} • ${formatToIsraelString(duty.startDate, { year: 'numeric', month: '2-digit', day: '2-digit' })} • ${duty.location} • ${
                            duty.participantsFromCurrentFramework?.length > 0 
                              ? `משתתפים: ${duty.participantsFromCurrentFramework.map((p: any) => p.soldierName).join(', ')}`
                              : duty.sourceFrameworkName || duty.frameworkId || duty.team || ''
@@ -898,9 +907,9 @@ const FrameworkDetails: React.FC = () => {
                           }}
                           size="small"
                         />
-                        {(soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.presenceUntil && (
+                        {(soldier.presence === 'קורס' || soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.absenceUntil && (
                           <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                            עד תאריך {formatToIsraelString(soldier.presenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                            עד תאריך {formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
                           </Typography>
                         )}
                       </Box>
@@ -915,15 +924,16 @@ const FrameworkDetails: React.FC = () => {
                               size="small"
                             >
                               <MenuItem value="בבסיס">בבסיס</MenuItem>
+                              <MenuItem value="קורס">קורס</MenuItem>
                               <MenuItem value="חופש">חופש</MenuItem>
                               <MenuItem value="גימלים">גימלים</MenuItem>
                               <MenuItem value="אחר">אחר</MenuItem>
                             </Select>
                           </FormControl>
-                          {soldier.editedPresence === 'אחר' && (
+                          {(soldier.editedPresence === 'אחר' || soldier.editedPresence === 'קורס') && (
                             <TextField
                               size="small"
-                              placeholder="הזן טקסט חופשי"
+                              placeholder={soldier.editedPresence === 'קורס' ? "הזן שם הקורס" : "הזן טקסט חופשי"}
                               value={soldier.otherText || ''}
                               onChange={(e) => handleUpdateReportOtherText(soldier.id, e.target.value)}
                               sx={{ minWidth: 200 }}

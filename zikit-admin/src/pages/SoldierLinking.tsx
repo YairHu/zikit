@@ -24,6 +24,7 @@ import {
   Warning as WarningIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
+import { formatToIsraelString } from '../utils/dateUtils';
 import { collection, query, where, getDocs, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -176,7 +177,13 @@ const SoldierLinking: React.FC = () => {
   const formatDate = (timestamp: any) => {
     if (!timestamp) return 'לא זמין';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp.seconds * 1000);
-    return date.toLocaleDateString('he-IL') + ' ' + date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+    return formatToIsraelString(date, { 
+      year: 'numeric', 
+      month: '2-digit', 
+      day: '2-digit',
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
   };
 
   const getEmailMatch = (soldierEmail: string) => {

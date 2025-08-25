@@ -11,6 +11,8 @@ export const getPresenceColor = (presence?: string) => {
       return '#9C27B0'; // סגול
     case 'במנוחה':
       return '#2196F3'; // כחול
+    case 'קורס':
+      return '#E91E63'; // ורוד ייחודי לקורס
     case 'חופש':
       return '#00BCD4'; // טורקיז ייחודי לחופש
     case 'גימלים':

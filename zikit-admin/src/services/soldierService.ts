@@ -128,9 +128,10 @@ export const getAllSoldiersWithFrameworkNames = async (): Promise<(Soldier & { f
 
 // היררכיית סטטוסים - מלמעלה למטה (גבוה יותר = עדיפות גבוהה יותר)
 export const STATUS_HIERARCHY = {
-  'אחר': 8,        // אחר - הגבוה ביותר (לא מתאפס אוטומטית)
-  'גימלים': 7,     // גימלים - הגבוה ביותר
-  'חופש': 6,       // חופש - גבוה מאוד
+  'קורס': 9,        // קורס - הגבוה ביותר
+  'אחר': 8,         // אחר - גבוה מאוד (לא מתאפס אוטומטית)
+  'גימלים': 7,      // גימלים - גבוה מאוד
+  'חופש': 6,        // חופש - גבוה מאוד
   'בפעילות': 5,
   'בנסיעה': 4,
   'בתורנות': 3,
@@ -139,6 +140,98 @@ export const STATUS_HIERARCHY = {
 } as const;
 
 export type SoldierStatus = keyof typeof STATUS_HIERARCHY;
+
+// פונקציה לעדכון אוטומטי של כל החיילים
+export const updateAllSoldiersStatusesAutomatically = async (): Promise<void> => {
+  try {
+    console.log('🔄 [AUTO] מתחיל עדכון סטטוס כל החיילים אוטומטי');
+    
+    // מניעת קריאות מרובות במקביל
+    if ((updateAllSoldiersStatusesAutomatically as any).isRunning) {
+      console.log('🔄 [AUTO] עדכון כבר רץ - דילוג');
+      return;
+    }
+    (updateAllSoldiersStatusesAutomatically as any).isRunning = true;
+    
+    const allSoldiers = await getAllSoldiers();
+    const now = new Date();
+    let updatedSoldiers = 0;
+    
+    for (const soldier of allSoldiers) {
+      let shouldUpdate = false;
+      let newStatus: SoldierStatus = soldier.presence as SoldierStatus || 'בבסיס';
+      
+      // בדיקת היעדרות (קורס/גימלים/חופש)
+      if (soldier.absenceUntil) {
+        const absenceUntil = new Date(soldier.absenceUntil);
+        if (now >= absenceUntil) {
+          // ההיעדרות הסתיימה - חזרה לסטטוס הקודם או לבסיס
+          newStatus = soldier.previousStatus as SoldierStatus || 'בבסיס';
+          shouldUpdate = true;
+          console.log(`🔄 [AUTO] חייל ${soldier.name} (${soldier.id}) - היעדרות הסתיימה, חזרה ל-${newStatus}`);
+        } else if (soldier.presence !== 'קורס' && soldier.presence !== 'גימלים' && soldier.presence !== 'חופש') {
+          // החייל בהיעדרות אבל הסטטוס לא מעודכן
+          // נקבע את הסטטוס לפי סוג ההיעדרות (אם יש אינדיקציה) או נשאיר את הנוכחי
+          if (soldier.presence === 'בבסיס' || soldier.presence === 'בפעילות' || soldier.presence === 'בנסיעה' || soldier.presence === 'בתורנות' || soldier.presence === 'במנוחה') {
+            // אם החייל בסטטוס רגיל, נקבע אותו לקורס (ברירת מחדל)
+            newStatus = 'קורס';
+            shouldUpdate = true;
+            console.log(`🔄 [AUTO] חייל ${soldier.name} (${soldier.id}) - עדכון לקורס`);
+          }
+        }
+      }
+      
+      // בדיקת מנוחת נהג
+      if (!shouldUpdate && soldier.qualifications?.includes('נהג') && soldier.restUntil) {
+        const restUntil = new Date(soldier.restUntil);
+        if (now >= restUntil) {
+          // המנוחה הסתיימה - חזרה לבסיס
+          newStatus = 'בבסיס';
+          shouldUpdate = true;
+          console.log(`🔄 [AUTO] נהג ${soldier.name} (${soldier.id}) - מנוחה הסתיימה, חזרה לבסיס`);
+        } else if (soldier.presence !== 'במנוחה') {
+          // הנהג במנוחה אבל הסטטוס לא מעודכן
+          newStatus = 'במנוחה';
+          shouldUpdate = true;
+          console.log(`🔄 [AUTO] נהג ${soldier.name} (${soldier.id}) - עדכון למנוחה`);
+        }
+      }
+      
+      if (shouldUpdate) {
+        // שמירת הסטטוס הנוכחי כ-previousStatus לפני העדכון
+        const updateData: any = {
+          presence: newStatus,
+          previousStatus: soldier.presence || 'בבסיס'
+        };
+        
+        // ניקוי שדות תאריך אם הסטטוס הסתיים
+        if (newStatus !== 'קורס' && newStatus !== 'גימלים' && newStatus !== 'חופש' && soldier.absenceUntil) {
+          updateData.absenceUntil = null;
+        }
+        if (newStatus !== 'במנוחה' && soldier.restUntil) {
+          updateData.restUntil = null;
+          if (soldier.qualifications?.includes('נהג')) {
+            updateData.status = 'available';
+          }
+        }
+        
+        await updateSoldier(soldier.id, updateData);
+        updatedSoldiers++;
+      }
+    }
+    
+    if (updatedSoldiers > 0) {
+      console.log(`✅ [AUTO] עדכון ${updatedSoldiers} חיילים הושלם`);
+    } else {
+      console.log('✅ [AUTO] אין חיילים שצריכים עדכון');
+    }
+  } catch (error) {
+    console.error('❌ [AUTO] שגיאה בעדכון סטטוס חיילים:', error);
+  } finally {
+    // שחרור הדגל
+    (updateAllSoldiersStatusesAutomatically as any).isRunning = false;
+  }
+};
 
 // פונקציה מרכזית לעדכון סטטוס חייל
 export const updateSoldierStatus = async (
@@ -150,6 +243,7 @@ export const updateSoldierStatus = async (
     activityId?: string;
     isEnding?: boolean; // האם זה סיום של פעילות/נסיעה/תורנות
     tripEndTime?: string; // זמן סיום נסיעה (למנוחת נהג)
+    isAutoUpdate?: boolean; // האם זה חלק מעדכון אוטומטי
   }
 ): Promise<void> => {
   try {
@@ -172,9 +266,10 @@ export const updateSoldierStatus = async (
     let shouldUpdate = false;
     let finalStatus = newStatus;
 
-    // בדיקה מיוחדת לגימלים, חופש ואחר - אל תעדכן אותם אלא אם כן זה סיום פעילות במפורש
-    if ((currentStatus === 'גימלים' || currentStatus === 'חופש' || currentStatus === 'אחר') && 
+    // בדיקה מיוחדת לקורס, גימלים, חופש ואחר - אל תעדכן אותם אלא אם כן זה סיום פעילות במפורש
+    if ((currentStatus === 'קורס' || currentStatus === 'גימלים' || currentStatus === 'חופש' || currentStatus === 'אחר') && 
         !context?.isEnding && 
+        newStatus !== 'קורס' && 
         newStatus !== 'גימלים' && 
         newStatus !== 'חופש' && 
         newStatus !== 'אחר') {
@@ -183,8 +278,8 @@ export const updateSoldierStatus = async (
     }
 
     if (context?.isEnding) {
-      // אם זה סיום פעילות - בדוק אם החייל בגימלים/חופש/אחר, אם כן החזר אותו לסטטוס המקורי
-      if (currentStatus === 'גימלים' || currentStatus === 'חופש' || currentStatus === 'אחר') {
+      // אם זה סיום פעילות - בדוק אם החייל בקורס/גימלים/חופש/אחר, אם כן החזר אותו לסטטוס המקורי
+      if (currentStatus === 'קורס' || currentStatus === 'גימלים' || currentStatus === 'חופש' || currentStatus === 'אחר') {
         finalStatus = currentStatus; // השאר בסטטוס המקורי
         console.log(`✅ [STATUS] סיום פעילות - מחזיר ל-${finalStatus}`);
       }
@@ -242,7 +337,8 @@ export const updateSoldierStatus = async (
 
     // עדכון הנתונים
     const updateData: any = {
-      presence: finalStatus
+      presence: finalStatus,
+      previousStatus: currentStatus // שמירת הסטטוס הקודם
     };
 
     // הוספת עדכון סטטוס נהג אם יש
@@ -254,6 +350,18 @@ export const updateSoldierStatus = async (
     await updateSoldier(soldierId, updateData);
     
     console.log(`✅ [STATUS] עדכון הושלם: ${soldierId} -> ${finalStatus}`, updateData);
+    
+    // עדכון אוטומטי של כל החיילים אחרי שינוי סטטוס (רק אם זה לא חלק מעדכון אוטומטי)
+    if (!context?.isEnding && !context?.isAutoUpdate) {
+      // קריאה לעדכון אוטומטי של כל החיילים
+      setTimeout(async () => {
+        try {
+          await updateAllSoldiersStatusesAutomatically();
+        } catch (error) {
+          console.error('שגיאה בעדכון אוטומטי אחרי שינוי סטטוס:', error);
+        }
+      }, 1000); // השהייה של שנייה כדי למנוע קריאות מרובות
+    }
   } catch (error) {
     console.error(`❌ [STATUS] שגיאה בעדכון סטטוס חייל ${soldierId}:`, error);
     throw error;
@@ -274,7 +382,7 @@ export const getSoldierCurrentStatus = (soldier: Soldier): SoldierStatus => {
   }
   
   // בדיקה שהערך תקין - כולל סטטוסים מיוחדים
-  const validStatuses: SoldierStatus[] = ['בפעילות', 'בנסיעה', 'בתורנות', 'בבסיס', 'במנוחה', 'גימלים', 'חופש', 'אחר'];
+  const validStatuses: SoldierStatus[] = ['בפעילות', 'בנסיעה', 'בתורנות', 'בבסיס', 'במנוחה', 'קורס', 'גימלים', 'חופש', 'אחר'];
   if (validStatuses.includes(soldier.presence as SoldierStatus)) {
     return soldier.presence as SoldierStatus;
   }
@@ -296,6 +404,8 @@ export const getStatusColor = (status: SoldierStatus | string): string => {
       return '#4CAF50'; // ירוק
     case 'במנוחה':
       return '#2196F3'; // כחול
+    case 'קורס':
+      return '#E91E63'; // ורוד
     case 'גימלים':
       return '#FFD600'; // צהוב
     case 'חופש':
@@ -320,6 +430,8 @@ export const getStatusText = (status: SoldierStatus): string => {
       return 'בבסיס';
     case 'במנוחה':
       return 'במנוחה';
+    case 'קורס':
+      return 'קורס';
     case 'גימלים':
       return 'גימלים';
     case 'חופש':
@@ -328,5 +440,17 @@ export const getStatusText = (status: SoldierStatus): string => {
       return 'אחר';
     default:
       return 'לא מוגדר';
+  }
+}; 
+
+// פונקציה לעדכון ידני של כל החיילים (לשימוש בכל מקום במערכת)
+export const refreshAllSoldiersStatuses = async (): Promise<void> => {
+  try {
+    console.log('🔄 [MANUAL] עדכון ידני של סטטוס כל החיילים');
+    await updateAllSoldiersStatusesAutomatically();
+    console.log('✅ [MANUAL] עדכון ידני הושלם');
+  } catch (error) {
+    console.error('❌ [MANUAL] שגיאה בעדכון ידני:', error);
+    throw error;
   }
 }; 

@@ -58,28 +58,7 @@ const TripsDashboard: React.FC<TripsDashboardProps> = ({
   onRefresh,
   onAddTripFromTimeline
 }) => {
-  // עדכון תקופתי של סטטוסים (כל 5 דקות)
-  useEffect(() => {
-    const updateStatuses = async () => {
-      try {
-        await Promise.all([
-          updateTripStatusesAutomatically(),
-          updateDriverStatuses(),
-          updateDutyStatusesAutomatically()
-        ]);
-      } catch (error) {
-        console.error('שגיאה בעדכון תקופתי של סטטוסים:', error);
-      }
-    };
 
-    // עדכון ראשוני
-    updateStatuses();
-
-    // עדכון תקופתי כל 5 דקות
-    const interval = setInterval(updateStatuses, 5 * 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, []);
 
 
   // חישוב סטטיסטיקות - נסיעות בביצוע ומתוכננות
@@ -115,10 +94,10 @@ const TripsDashboard: React.FC<TripsDashboardProps> = ({
 
 
   const handleRefresh = async () => {
-    // עדכון אוטומטי של סטטוס נסיעות ונהגים
+    // עדכון אוטומטי של סטטוס נסיעות ותורנויות
     await Promise.all([
       updateTripStatusesAutomatically(),
-      updateDriverStatuses()
+      updateDutyStatusesAutomatically()
     ]);
     onRefresh();
   };

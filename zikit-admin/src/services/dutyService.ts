@@ -185,6 +185,9 @@ export const updateDutyStatusesAutomatically = async (): Promise<void> => {
     
     if (updatedDuties > 0) {
       console.log(`✅ [AUTO] עדכון ${updatedDuties} תורנויות הושלם`);
+      // עדכון סטטוס כל החיילים אחרי עדכון תורנויות
+      const { updateAllSoldiersStatusesAutomatically } = await import('./soldierService');
+      await updateAllSoldiersStatusesAutomatically();
     } else {
       console.log('✅ [AUTO] אין תורנויות שצריכות עדכון');
     }
