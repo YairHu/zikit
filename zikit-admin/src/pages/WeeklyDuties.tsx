@@ -115,7 +115,7 @@ const WeeklyDuties: React.FC = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('');
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+
   const [showCompletedDuties, setShowCompletedDuties] = useState(false);
   const [permissions, setPermissions] = useState({
     canView: false,
@@ -220,10 +220,23 @@ const WeeklyDuties: React.FC = () => {
     
     duties.forEach(duty => {
       const dutyDate = new Date(duty.startDate);
+      const dutyTime = duty.startTime;
+      
+      // קביעת השעה (בוקר/ערב) לפי זמן התורנויות
+      let dutyShift = 'יום'; // ברירת מחדל לרס"ר
+      if (duty.type === 'מטבח') {
+        if (dutyTime === '08:00') {
+          dutyShift = 'בוקר';
+        } else if (dutyTime === '14:00') {
+          dutyShift = 'ערב';
+        }
+      }
+      
       const slot = slots.find(s => {
         const slotDate = new Date(s.date);
         return slotDate.toDateString() === dutyDate.toDateString() && 
-               s.type === duty.type;
+               s.type === duty.type &&
+               s.shift === dutyShift;
       });
       
       if (slot) {
@@ -479,12 +492,23 @@ const WeeklyDuties: React.FC = () => {
       };
 
       if (selectedSlot.dutyId) {
-        await updateDuty(selectedSlot.dutyId, dutyData);
+        // עדכון תורנות קיימת
+        const updatedDuty = await updateDuty(selectedSlot.dutyId, dutyData);
+        setDuties(prev => prev.map(duty => 
+          duty.id === selectedSlot.dutyId ? { ...duty, ...dutyData } : duty
+        ));
       } else {
-        await addDuty(dutyData);
+        // יצירת תורנות חדשה - בניית אובייקט Duty מלא
+        const newDutyId = await addDuty(dutyData);
+        const newDuty: Duty = {
+          id: newDutyId,
+          ...dutyData,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        setDuties(prev => [...prev, newDuty]);
       }
 
-      await refresh();
       handleCloseWeeklyForm();
     } catch (error) {
       console.error('Error saving duty:', error);
@@ -502,10 +526,14 @@ const WeeklyDuties: React.FC = () => {
 
     try {
       await deleteDuty(selectedSlot.dutyId);
-      await refresh();
+      
+      // עדכון מיידי של ה-state המקומי
+      setDuties(prev => prev.filter(duty => duty.id !== selectedSlot.dutyId));
+      
       handleCloseWeeklyForm();
     } catch (error) {
       console.error('Error deleting duty:', error);
+      alert('שגיאה במחיקת התורנות');
     }
   };
 
@@ -622,14 +650,48 @@ const WeeklyDuties: React.FC = () => {
       return;
     }
     
+    // ולידציה של זמנים
+    if (formData.startTime && formData.endTime) {
+      const startTime = new Date(`2000-01-01T${formData.startTime}`);
+      const endTime = new Date(`2000-01-01T${formData.endTime}`);
+      
+      if (endTime <= startTime) {
+        alert('שעת הסיום חייבת להיות אחרי שעת ההתחלה');
+        return;
+      }
+    }
+    
+    // ולידציה של תאריך וסטטוס
+    if (formData.startDate) {
+      const dutyDate = new Date(formData.startDate);
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      if (dutyDate < today && formData.status !== 'הסתיימה' && formData.status !== 'בוטלה') {
+        alert('לא ניתן להגדיר תורנות שעברה התאריך שלה כפעילה');
+        return;
+      }
+    }
+    
     try {
       if (editId) {
         await updateDuty(editId, formData);
+        // עדכון מיידי של ה-state המקומי
+        setDuties(prev => prev.map(duty => 
+          duty.id === editId ? { ...duty, ...formData } : duty
+        ));
       } else {
-        await addDuty(formData);
+        const newDutyId = await addDuty(formData);
+        const newDuty: Duty = {
+          id: newDutyId,
+          ...formData,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        // הוספה מיידית ל-state המקומי
+        setDuties(prev => [...prev, newDuty]);
       }
       handleCloseCardsForm();
-      refresh();
     } catch (error) {
       console.error('Error saving duty:', error);
       alert('שגיאה בשמירת תורנות');
@@ -645,8 +707,9 @@ const WeeklyDuties: React.FC = () => {
       
       try {
         await deleteDuty(deleteId);
+        // עדכון מיידי של ה-state המקומי
+        setDuties(prev => prev.filter(duty => duty.id !== deleteId));
         setDeleteId(null);
-        refresh();
       } catch (error) {
         console.error('Error deleting duty:', error);
         alert('שגיאה במחיקת תורנות');
@@ -1198,205 +1261,111 @@ const WeeklyDuties: React.FC = () => {
             </FormControl>
           </Box>
 
-          {/* View Mode Tabs */}
-          <Box sx={{ mb: 3 }}>
-            <Tabs value={viewMode} onChange={(_, newValue) => setViewMode(newValue)}>
-              <Tab value="cards" label="תצוגת כרטיסים" />
-              <Tab value="table" label="תצוגה טבלאית" />
-            </Tabs>
-          </Box>
+
 
           {/* Duties List */}
-          {viewMode === 'cards' ? (
-            <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))' }}>
-              {filteredDuties.map((duty) => (
-                <Card key={duty.id} sx={{ height: 'fit-content', cursor: 'pointer' }} onClick={() => handleDutyClick(duty.id)}>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                      <Box>
-                        <Typography variant="h6" fontWeight="bold">
-                          {duty.type}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {duty.team}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                        <Chip 
-                          label={duty.status} 
-                          color={getStatusColor(duty.status) as any}
-                          size="small"
-                        />
-                        {user && permissions.canEdit && (
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenForm(duty);
-                            }}
-                          >
-                            <EditIcon />
-                          </IconButton>
-                        )}
-                        {user && permissions.canDelete && (
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteId(duty.id);
-                            }}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        )}
-                      </Box>
-                    </Box>
-
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                      <LocationOnIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                      <Typography variant="body2">{duty.location}</Typography>
-                    </Box>
-
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                      <ScheduleIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                      <Typography variant="body2">
-                        {duty.startDate} {duty.startTime}
-                        {duty.endTime && ` - ${duty.endTime}`}
+          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))' }}>
+            {filteredDuties.map((duty) => (
+              <Card key={duty.id} sx={{ height: 'fit-content', cursor: 'pointer' }} onClick={() => handleDutyClick(duty.id)}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                    <Box>
+                      <Typography variant="h6" fontWeight="bold">
+                        {duty.type}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {duty.team}
                       </Typography>
                     </Box>
-
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                      <GroupIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                      <Typography variant="body2">{duty.participants.length} משתתפים</Typography>
-                    </Box>
-
-                    {/* Participants List */}
-                    {duty.participants.length > 0 && (
-                      <Box sx={{ mt: 1 }}>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                          משתתפים:
-                        </Typography>
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                          {duty.participants.map((participant) => (
-                            <Chip
-                              key={participant.soldierId}
-                              label={participant.soldierName}
-                              size="small"
-                              variant="outlined"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/soldiers/${participant.soldierId}`);
-                              }}
-                              sx={{ cursor: 'pointer' }}
-                            />
-                          ))}
-                        </Box>
-                      </Box>
-                    )}
-
-                    {duty.requiredEquipment && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, mt: 1 }}>
-                        <PersonIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                        <Typography variant="body2">ציוד: {duty.requiredEquipment}</Typography>
-                      </Box>
-                    )}
-
-                    {duty.notes && (
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        {duty.notes}
-                      </Typography>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </Box>
-          ) : (
-            <TableContainer component={Paper}>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>סוג</TableCell>
-                    <TableCell>צוות</TableCell>
-                    <TableCell>מיקום</TableCell>
-                    <TableCell>תאריך ושעה</TableCell>
-                    <TableCell>משתתפים</TableCell>
-                    <TableCell>סטטוס</TableCell>
-                    <TableCell>פעולות</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredDuties.map((duty) => (
-                    <TableRow 
-                      key={duty.id} 
-                      sx={{ cursor: 'pointer' }}
-                      onClick={() => handleDutyClick(duty.id)}
-                    >
-                      <TableCell>{duty.type}</TableCell>
-                      <TableCell>{duty.team}</TableCell>
-                      <TableCell>{duty.location}</TableCell>
-                      <TableCell>
-                        {duty.startDate} {duty.startTime}
-                        {duty.endTime && <br />}
-                        {duty.endTime && `עד ${duty.endTime}`}
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                          {duty.participants.map((participant) => (
-                            <Chip
-                              key={participant.soldierId}
-                              label={participant.soldierName}
-                              size="small"
-                              variant="outlined"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/soldiers/${participant.soldierId}`);
-                              }}
-                              sx={{ cursor: 'pointer' }}
-                            />
-                          ))}
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={duty.status} 
-                          color={getStatusColor(duty.status) as any}
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                      <Chip 
+                        label={duty.status} 
+                        color={getStatusColor(duty.status) as any}
+                        size="small"
+                      />
+                      {user && permissions.canEdit && (
+                        <IconButton
                           size="small"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', gap: 0.5 }}>
-                          {user && permissions.canEdit && (
-                            <IconButton
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenForm(duty);
-                              }}
-                            >
-                              <EditIcon />
-                            </IconButton>
-                          )}
-                          {user && permissions.canDelete && (
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteId(duty.id);
-                              }}
-                            >
-                              <DeleteIcon />
-                            </IconButton>
-                          )}
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenForm(duty);
+                          }}
+                        >
+                          <EditIcon />
+                        </IconButton>
+                      )}
+                      {user && permissions.canDelete && (
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteId(duty.id);
+                          }}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      )}
+                    </Box>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <LocationOnIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
+                    <Typography variant="body2">{duty.location}</Typography>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <ScheduleIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
+                    <Typography variant="body2">
+                      {duty.startDate} {duty.endTime && `${duty.endTime} - `}{duty.startTime}
+                    </Typography>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <GroupIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
+                    <Typography variant="body2">{duty.participants.length} משתתפים</Typography>
+                  </Box>
+
+                  {/* Participants List */}
+                  {duty.participants.length > 0 && (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                        משתתפים:
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {duty.participants.map((participant) => (
+                          <Chip
+                            key={participant.soldierId}
+                            label={participant.soldierName}
+                            size="small"
+                            variant="outlined"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/soldiers/${participant.soldierId}`);
+                            }}
+                            sx={{ cursor: 'pointer' }}
+                          />
+                        ))}
+                      </Box>
+                    </Box>
+                  )}
+
+                  {duty.requiredEquipment && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, mt: 1 }}>
+                      <PersonIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
+                      <Typography variant="body2">ציוד: {duty.requiredEquipment}</Typography>
+                    </Box>
+                  )}
+
+                  {duty.notes && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      {duty.notes}
+                    </Typography>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </Box>
         </>
       )}
 
@@ -1454,20 +1423,19 @@ const WeeklyDuties: React.FC = () => {
                 InputLabelProps={{ shrink: true }}
               />
               <FormControl fullWidth>
-                <InputLabel>מסגרת</InputLabel>
+                <InputLabel>סטטוס</InputLabel>
                 <Select
-                  name="frameworkId"
-                  value={formData.frameworkId}
-                  onChange={(e) => handleSelectChange('frameworkId', e.target.value)}
-                  label="מסגרת"
-                  required
+                  name="status"
+                  value={formData.status}
+                  onChange={(e) => handleSelectChange('status', e.target.value)}
+                  label="סטטוס"
                 >
-                  <MenuItem value="">בחר מסגרת</MenuItem>
-                  {frameworks.map(framework => (
-                    <MenuItem key={framework.id} value={framework.id}>{framework.name}</MenuItem>
-                  ))}
+                  <MenuItem value="פעילה">פעילה</MenuItem>
+                  <MenuItem value="הסתיימה">הסתיימה</MenuItem>
+                  <MenuItem value="בוטלה">בוטלה</MenuItem>
                 </Select>
               </FormControl>
+
               <TextField
                 name="requiredEquipment"
                 label="ציוד נדרש (לא חובה)"

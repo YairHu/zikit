@@ -4,7 +4,7 @@ import {
   Container, Typography, Card, CardContent, Box, Button, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, FormControl, InputLabel, Select, MenuItem, IconButton, Alert, CircularProgress, Fab,
   List, ListItem, ListItemText, ListItemSecondaryAction, Chip, Tabs, Tab, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Paper, Autocomplete
+  TableContainer, TableHead, TableRow, Paper, Autocomplete, FormControlLabel, Checkbox
 } from '@mui/material';
 import {
   Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, ArrowBack as ArrowBackIcon,
@@ -19,6 +19,7 @@ import { getAllSoldiers } from '../services/soldierService';
 import { getAllFrameworks } from '../services/frameworkService';
 import { UserRole, SystemPath, PermissionLevel, DataScope } from '../models/UserRole';
 import { canUserAccessPath, getUserPermissions } from '../services/permissionService';
+import { getCurrentIsraelTime } from '../utils/dateUtils';
 
 const Referrals: React.FC = () => {
   const navigate = useNavigate();
@@ -30,9 +31,7 @@ const Referrals: React.FC = () => {
   const [openForm, setOpenForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterTeam, setFilterTeam] = useState('');
+  const [showCompleted, setShowCompleted] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [permissions, setPermissions] = useState({
     canView: false,
@@ -48,16 +47,9 @@ const Referrals: React.FC = () => {
     date: '',
     location: '',
     reason: '',
-    status: 'pending' as 'pending' | 'in_progress' | 'completed' | 'cancelled'
+    departureTime: '06:00',
+    returnTime: '18:00'
   });
-
-  const statuses = ['pending', 'in_progress', 'completed', 'cancelled'];
-  const statusLabels = {
-    pending: 'ממתין',
-    in_progress: 'בביצוע',
-    completed: 'הושלם',
-    cancelled: 'בוטל'
-  };
 
   const loadData = useCallback(async () => {
     if (!user) return;
@@ -84,6 +76,9 @@ const Referrals: React.FC = () => {
       const referralsPolicy = userPermissions.policies.find(policy => 
         policy.paths.includes(SystemPath.REFERRALS)
       );
+      
+      // עדכון אוטומטי של סטטוס הפניות
+      // await updateReferralStatusesAutomatically(); // This line is removed
       
       // טעינת כל הנתונים קודם
       const [allSoldiers, allFrameworks] = await Promise.all([
@@ -168,7 +163,8 @@ const Referrals: React.FC = () => {
         date: referral.date,
         location: referral.location,
         reason: referral.reason,
-        status: referral.status
+        departureTime: referral.departureTime || '06:00',
+        returnTime: referral.returnTime || '18:00'
       });
     } else {
       setEditId(null);
@@ -180,7 +176,8 @@ const Referrals: React.FC = () => {
         date: '',
         location: '',
         reason: '',
-        status: 'pending'
+        departureTime: '06:00',
+        returnTime: '18:00'
       });
     }
     setOpenForm(true);
@@ -197,7 +194,8 @@ const Referrals: React.FC = () => {
       date: '',
       location: '',
       reason: '',
-      status: 'pending'
+      departureTime: '06:00',
+      returnTime: '18:00'
     });
   };
 
@@ -265,26 +263,20 @@ const Referrals: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'warning';
-      case 'in_progress': return 'info';
-      case 'completed': return 'success';
-      case 'cancelled': return 'error';
-      default: return 'default';
-    }
-  };
-
   const filteredReferrals = referrals.filter(referral => {
-    const matchesSearch = referral.soldierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         referral.reason.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         referral.location.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = !filterStatus || referral.status === filterStatus;
-    const matchesTeam = !filterTeam || referral.team === filterTeam;
-    return matchesSearch && matchesStatus && matchesTeam;
+    // אם הצ'קבוקס מסומן - הצג הכל
+    if (showCompleted) {
+      return true;
+    }
+    
+    // אחרת - הצג רק הפניות שעוד לא הגיע שעת החזרה שלהן (בזמן ישראל)
+    if (referral.returnTime) {
+      const now = getCurrentIsraelTime();
+      const returnDateTime = new Date(`${referral.date}T${referral.returnTime}`);
+      return now < returnDateTime;
+    }
+    return true;
   });
-
-  const teams = Array.from(new Set(soldiers.map(s => s.frameworkId).filter(Boolean)));
 
   if (loading) {
     return (
@@ -333,51 +325,18 @@ const Referrals: React.FC = () => {
         )}
       </Box>
 
-      {/* Search and Filters */}
+      {/* Show Completed Checkbox */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
-            <TextField
-              label="חיפוש"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              size="small"
-              sx={{ minWidth: 200 }}
-              InputProps={{
-                startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
-              }}
-            />
-            <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>סטטוס</InputLabel>
-              <Select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                label="סטטוס"
-              >
-                <MenuItem value="">הכל</MenuItem>
-                {statuses.map(status => (
-                  <MenuItem key={status} value={status}>
-                    {statusLabels[status as keyof typeof statusLabels]}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>צוות</InputLabel>
-              <Select
-                value={filterTeam}
-                onChange={(e) => setFilterTeam(e.target.value)}
-                label="צוות"
-              >
-                <MenuItem value="">הכל</MenuItem>
-                {teams.map(team => (
-                  <MenuItem key={team} value={team}>
-                    {team}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={showCompleted}
+                onChange={(e) => setShowCompleted(e.target.checked)}
+              />
+            }
+            label="הצג הפניות שהסתיימו"
+          />
         </CardContent>
       </Card>
 
@@ -404,15 +363,16 @@ const Referrals: React.FC = () => {
                       {referral.personalNumber} • {referral.team}
                     </Typography>
                   </Box>
-                  <Chip 
-                    label={statusLabels[referral.status]} 
-                    color={getStatusColor(referral.status) as any}
-                    size="small"
-                  />
                 </Box>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 1 }}>
                   <Typography variant="body2" color="text.secondary">
                     <strong>תאריך:</strong> {referral.date}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>שעת יציאה:</strong> {referral.departureTime || '06:00'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>שעת חזרה:</strong> {referral.returnTime || '18:00'}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     <strong>מיקום:</strong> {referral.location}
@@ -461,9 +421,10 @@ const Referrals: React.FC = () => {
                 <TableCell>חייל</TableCell>
                 <TableCell>צוות</TableCell>
                 <TableCell>תאריך</TableCell>
+                <TableCell>שעת יציאה</TableCell>
+                <TableCell>שעת חזרה</TableCell>
                 <TableCell>מיקום</TableCell>
                 <TableCell>סיבה</TableCell>
-                <TableCell>סטטוס</TableCell>
                 {(permissions.canEdit || permissions.canDelete) && (
                   <TableCell>פעולות</TableCell>
                 )}
@@ -484,15 +445,10 @@ const Referrals: React.FC = () => {
                   </TableCell>
                   <TableCell>{referral.team}</TableCell>
                   <TableCell>{referral.date}</TableCell>
+                  <TableCell>{referral.departureTime || '06:00'}</TableCell>
+                  <TableCell>{referral.returnTime || '18:00'}</TableCell>
                   <TableCell>{referral.location}</TableCell>
                   <TableCell>{referral.reason}</TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={statusLabels[referral.status]} 
-                      color={getStatusColor(referral.status) as any}
-                      size="small"
-                    />
-                  </TableCell>
                   {(permissions.canEdit || permissions.canDelete) && (
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
@@ -569,6 +525,26 @@ const Referrals: React.FC = () => {
                 fullWidth
                 InputLabelProps={{ shrink: true }}
               />
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <TextField
+                  name="departureTime"
+                  label="שעת יציאה"
+                  type="time"
+                  value={formData.departureTime}
+                  onChange={handleChange}
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                />
+                <TextField
+                  name="returnTime"
+                  label="שעת חזרה"
+                  type="time"
+                  value={formData.returnTime}
+                  onChange={handleChange}
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Box>
               <TextField
                 name="location"
                 label="מיקום ההפניה"
@@ -587,21 +563,6 @@ const Referrals: React.FC = () => {
                 multiline
                 rows={3}
               />
-              <FormControl fullWidth>
-                <InputLabel>סטטוס</InputLabel>
-                <Select
-                  name="status"
-                  value={formData.status}
-                  onChange={(e) => handleSelectChange('status', e.target.value)}
-                  label="סטטוס"
-                >
-                  {statuses.map(status => (
-                    <MenuItem key={status} value={status}>
-                      {statusLabels[status as keyof typeof statusLabels]}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
             </Box>
           </DialogContent>
           <DialogActions>

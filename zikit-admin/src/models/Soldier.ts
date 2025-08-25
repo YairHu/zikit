@@ -13,6 +13,6 @@ export interface Soldier extends BasePerson {
   drivingLicenses?: string[]; // היתרים לנהיגה (רק לנהגים)
 
   // שדות סטטוס מיוחדים
-  absenceUntil?: string; // עד מתי בהיעדרות (קורס/גימלים/חופש)
+  absenceUntil?: string; // עד מתי בהיעדרות (קורס/גימלים/חופש) - כולל שעה (ברירת מחדל 23:59)
   previousStatus?: string; // הסטטוס הקודם לפני היעדרות
 } 

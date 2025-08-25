@@ -1,27 +1,9 @@
+import { getStatusColor as getPresenceStatusColor } from './presenceStatus';
+
 // פונקציות צבע מרכזיות למערכת
 export const getPresenceColor = (presence?: string) => {
-  switch (presence) {
-    case 'בבסיס':
-      return '#4CAF50'; // ירוק
-    case 'בפעילות':
-      return '#F44336'; // אדום
-    case 'בנסיעה':
-      return '#FF9800'; // כתום
-    case 'בתורנות':
-      return '#9C27B0'; // סגול
-    case 'במנוחה':
-      return '#2196F3'; // כחול
-    case 'קורס':
-      return '#E91E63'; // ורוד ייחודי לקורס
-    case 'חופש':
-      return '#00BCD4'; // טורקיז ייחודי לחופש
-    case 'גימלים':
-      return '#FFD600'; // צהוב ייחודי לגימלים
-    case 'אחר':
-      return '#9C27B0'; // סגול
-    default:
-      return '#9E9E9E'; // אפור
-  }
+  if (!presence) return '#9E9E9E'; // אפור
+  return getPresenceStatusColor(presence as any);
 };
 
 export const getProfileColor = (profile: string) => {

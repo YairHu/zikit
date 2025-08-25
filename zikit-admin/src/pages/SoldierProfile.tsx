@@ -66,8 +66,9 @@ import { getTripsBySoldier } from '../services/tripService';
 import { updateTripStatusesAutomatically, updateDriverStatuses } from '../services/tripService';
 import { updateDutyStatusesAutomatically } from '../services/dutyService';
 import { getPresenceColor, getProfileColor, getRoleColor, getStatusColor } from '../utils/colors';
-import { formatToIsraelString } from '../utils/dateUtils';
+import { formatToIsraelString, getCurrentIsraelTime } from '../utils/dateUtils';
 import { getSoldierCurrentStatus, getStatusColor as getSoldierStatusColor, getStatusText } from '../services/soldierService';
+import { requiresAbsenceDate } from '../utils/presenceStatus';
 import { Soldier } from '../models/Soldier';
 import { Activity } from '../models/Activity';
 import { Duty } from '../models/Duty';
@@ -156,15 +157,6 @@ const SoldierProfile: React.FC = () => {
 
   const isDriver = soldier?.qualifications?.includes('נהג');
   const hasDrivingLicenses = soldier?.drivingLicenses && soldier.drivingLicenses.length > 0;
-
-
-
-  const statusLabels = {
-    pending: 'ממתין',
-    in_progress: 'בביצוע',
-    completed: 'הושלם',
-    cancelled: 'בוטל'
-  };
 
   const handleOpenEditForm = () => {
     setShowEditForm(true);
@@ -409,9 +401,9 @@ const SoldierProfile: React.FC = () => {
                           fontWeight: 600
                         }}
                       />
-                      {(soldier.presence === 'קורס' || soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.absenceUntil && (
+                      {requiresAbsenceDate(soldier.presence as any) && soldier.absenceUntil && (
                         <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                          עד תאריך {formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                          {`עד ${formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}`}
                         </Typography>
                       )}
                     </Box>
@@ -672,15 +664,15 @@ const SoldierProfile: React.FC = () => {
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
 
             {/* Activities */}
-            {activities.length > 0 && (
+            {activities.filter(activity => activity.status !== 'הסתיימה').length > 0 && (
               <Card>
                 <CardContent>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                    <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
-                      <AssignmentIcon sx={{ mr: 1, fontSize: 20 }} />
-                      פעילויות מבצעיות ({activities.length})
-                    </Typography>
-                    <Badge badgeContent={activities.length} color="primary">
+                                          <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
+                        <AssignmentIcon sx={{ mr: 1, fontSize: 20 }} />
+                        פעילויות מבצעיות ({activities.filter(activity => activity.status !== 'הסתיימה').length})
+                      </Typography>
+                      <Badge badgeContent={activities.filter(activity => activity.status !== 'הסתיימה').length} color="primary">
                       <AssignmentIcon />
                     </Badge>
                   </Box>
@@ -696,7 +688,7 @@ const SoldierProfile: React.FC = () => {
                   {/* Cards View */}
                   {viewMode === 'cards' && (
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      {activities.map((activity) => (
+                      {activities.filter(activity => activity.status !== 'הסתיימה').map((activity) => (
                         <Card key={activity.id} sx={{ cursor: 'default' }}>
                           <CardContent>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
@@ -773,7 +765,7 @@ const SoldierProfile: React.FC = () => {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {activities.map((activity) => (
+                          {activities.filter(activity => activity.status !== 'הסתיימה').map((activity) => (
                             <TableRow key={activity.id} sx={{ cursor: 'default' }}>
                               <TableCell>
                                 <Typography variant="body2" fontWeight="bold">
@@ -807,21 +799,21 @@ const SoldierProfile: React.FC = () => {
             )}
 
             {/* Duties */}
-            {duties.length > 0 && (
+            {duties.filter(duty => duty.status === 'פעילה').length > 0 && (
               <Card>
                 <CardContent>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                     <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
                       <ScheduleIcon sx={{ mr: 1, fontSize: 20 }} />
-                      תורנויות ({duties.length})
+                      תורנויות ({duties.filter(duty => duty.status === 'פעילה').length})
                     </Typography>
-                    <Badge badgeContent={duties.length} color="secondary">
+                    <Badge badgeContent={duties.filter(duty => duty.status === 'פעילה').length} color="secondary">
                       <ScheduleIcon />
                     </Badge>
                   </Box>
 
                   <List>
-                    {duties.map((duty) => (
+                    {duties.filter(duty => duty.status === 'פעילה').map((duty) => (
                       <ListItem 
                         key={duty.id} 
                         sx={{ 
@@ -874,7 +866,7 @@ const SoldierProfile: React.FC = () => {
             )}
 
             {/* Trips */}
-            {trips.length > 0 && (
+            {trips.filter(trip => trip.status !== 'הסתיימה').length > 0 && (
               <Card>
                 <CardContent>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -946,21 +938,57 @@ const SoldierProfile: React.FC = () => {
             )}
 
             {/* Referrals */}
-            {referrals.length > 0 && (
+            {referrals.filter(referral => {
+              // הצג רק הפניות שעוד לא הגיע שעת החזרה שלהן (בזמן ישראל)
+              if (referral.returnTime) {
+                const now = getCurrentIsraelTime();
+                const returnDateTime = new Date(`${referral.date}T${referral.returnTime}`);
+                return now < returnDateTime;
+              }
+              
+              return true;
+            }).length > 0 && (
               <Card>
                 <CardContent>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                     <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
                       <ReferralIcon sx={{ mr: 1, fontSize: 20 }} />
-                      הפניות ({referrals.length})
+                      הפניות ({referrals.filter(referral => {
+                        // הצג רק הפניות שעוד לא הגיע שעת החזרה שלהן (בזמן ישראל)
+                        if (referral.returnTime) {
+                          const now = getCurrentIsraelTime();
+                          const returnDateTime = new Date(`${referral.date}T${referral.returnTime}`);
+                          return now < returnDateTime;
+                        }
+                        
+                        return true;
+                      }).length})
                     </Typography>
-                    <Badge badgeContent={referrals.length} color="warning">
+                    <Badge badgeContent={referrals.filter(referral => {
+                      // הצג רק הפניות שעוד לא הגיע שעת החזרה שלהן (בזמן ישראל)
+                      if (referral.returnTime) {
+                        const now = getCurrentIsraelTime();
+                        const returnDateTime = new Date(`${referral.date}T${referral.returnTime}`);
+                        return now < returnDateTime;
+                      }
+                      
+                      return true;
+                    }).length} color="warning">
                       <ReferralIcon />
                     </Badge>
                   </Box>
 
                   <List>
-                    {referrals.map((referral) => (
+                    {referrals.filter(referral => {
+                      // הצג רק הפניות שעוד לא הגיע שעת החזרה שלהן (בזמן ישראל)
+                      if (referral.returnTime) {
+                        const now = getCurrentIsraelTime();
+                        const returnDateTime = new Date(`${referral.date}T${referral.returnTime}`);
+                        return now < returnDateTime;
+                      }
+                      
+                      return true;
+                    }).map((referral) => (
                       <ListItem 
                         key={referral.id} 
                         sx={{ 
@@ -975,11 +1003,6 @@ const SoldierProfile: React.FC = () => {
                               <Typography variant="h6" fontWeight="bold">
                                 {referral.reason}
                               </Typography>
-                              <Chip 
-                                label={statusLabels[referral.status]} 
-                                color={getStatusColor(referral.status) as any}
-                                size="small"
-                              />
                             </Box>
                           }
                           secondary={

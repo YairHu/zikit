@@ -3,6 +3,7 @@ import AppRoutes from './routes';
 import { UserProvider } from './contexts/UserContext';
 import { initializeTableUpdates, checkTableUpdatesStatus, localStorageService } from './services/cacheService';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { startAutomaticStatusUpdates } from './services/soldierService';
 
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -172,6 +173,7 @@ function App() {
   useEffect(() => {
     // אתחול מערכת המטמון רק אחרי שהמשתמש מחובר
     const auth = getAuth();
+    let stopAutomaticUpdates: (() => void) | null = null;
     
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -184,12 +186,19 @@ function App() {
           
           // יצירת listener אחד בלבד לטבלת העדכונים
           localStorageService.initializeUpdateListeners();
+          
+          // הפעלת עדכון אוטומטי של סטטוסי נוכחות
+          stopAutomaticUpdates = startAutomaticStatusUpdates();
         } catch (error) {
           console.error('❌ [LOCAL_STORAGE] שגיאה באתחול מערכת מטמון מקומי:', error);
         }
       } else {
         // ניקוי listeners כשהמשתמש מתנתק
         localStorageService.cleanup();
+        if (stopAutomaticUpdates) {
+          stopAutomaticUpdates();
+          stopAutomaticUpdates = null;
+        }
       }
     });
 
@@ -197,6 +206,9 @@ function App() {
       unsubscribe();
       // ניקוי listeners כשהאפליקציה נסגרת
       localStorageService.cleanup();
+      if (stopAutomaticUpdates) {
+        stopAutomaticUpdates();
+      }
     };
   }, []);
 

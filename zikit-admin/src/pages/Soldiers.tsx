@@ -7,6 +7,7 @@ import { getPresenceColor, getProfileColor } from '../utils/colors';
 import { formatToIsraelString } from '../utils/dateUtils';
 import { getSoldierCurrentStatus, getStatusColor, getStatusText } from '../services/soldierService';
 import { Link } from 'react-router-dom';
+import { getAllStatuses, requiresAbsenceDate, requiresCustomText } from '../utils/presenceStatus';
 import SoldierForm from '../components/SoldierForm';
 import HierarchicalChart from '../components/HierarchicalChart';
 import { useUser } from '../contexts/UserContext';
@@ -462,12 +463,11 @@ const Soldiers: React.FC = () => {
                         label="נוכחות"
                       >
                         <MenuItem value="">כל הנוכחויות</MenuItem>
-                        <MenuItem value="בבסיס">בבסיס</MenuItem>
-                        <MenuItem value="בפעילות">בפעילות</MenuItem>
-                        <MenuItem value="קורס">קורס</MenuItem>
-                        <MenuItem value="חופש">חופש</MenuItem>
-                        <MenuItem value="גימלים">גימלים</MenuItem>
-                        <MenuItem value="אחר">אחר</MenuItem>
+                        {getAllStatuses().map(status => (
+                          <MenuItem key={status} value={status}>
+                            {status}
+                          </MenuItem>
+                        ))}
                       </Select>
                     </FormControl>
                   </Box>
@@ -595,9 +595,9 @@ const Soldiers: React.FC = () => {
                                   fontWeight: 600
                                 }}
                               />
-                              {(soldier.presence === 'קורס' || soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.absenceUntil && (
+                              {requiresAbsenceDate(soldier.presence as any) && soldier.absenceUntil && (
                                 <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                                  עד תאריך {formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                                  {`עד ${formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}`}
                                 </Typography>
                               )}
                             </Box>
@@ -800,9 +800,9 @@ const Soldiers: React.FC = () => {
                         fontWeight: 600
                       }}
                     />
-                                                {(soldier.presence === 'קורס' || soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.absenceUntil && (
+                                                {requiresAbsenceDate(soldier.presence as any) && soldier.absenceUntil && (
                               <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                                עד תאריך {formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                                {`עד ${formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}`}
                               </Typography>
                             )}
                   </Box>

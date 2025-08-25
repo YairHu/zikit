@@ -37,7 +37,8 @@ import {
   Select,
   MenuItem,
   Snackbar,
-  TextField
+  TextField,
+  IconButton
 } from '@mui/material';
 import {
   Group as GroupIcon,
@@ -50,7 +51,8 @@ import {
   ViewList as ViewListIcon,
   ViewModule as ViewModuleIcon,
   AccountTree as AccountTreeIcon,
-  Print as PrintIcon
+  Print as PrintIcon,
+  LooksOne as LooksOneIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
 import { DataScope, PermissionLevel, SystemPath } from '../models/UserRole';
@@ -62,7 +64,15 @@ import { getAllSoldiers } from '../services/soldierService';
 import { getAllFrameworks, getFrameworkWithDetails, getFrameworkNamesByIds } from '../services/frameworkService';
 import { getUserPermissions, canUserEditSoldierPresence } from '../services/permissionService';
 import { getPresenceColor, getProfileColor, getRoleColor } from '../utils/colors';
+import { 
+  getAllStatuses, 
+  requiresAbsenceDate, 
+  requiresCustomText,
+  getStatusLabel,
+  mapStatusForReport
+} from '../utils/presenceStatus';
 import { formatToIsraelString } from '../utils/dateUtils';
+import ReportDialog from '../components/ReportDialog';
 
 const Frameworks: React.FC = () => {
   const navigate = useNavigate();
@@ -171,23 +181,7 @@ const Frameworks: React.FC = () => {
     navigate(`/frameworks/${frameworkId}`);
   };
 
-  // פונקציה למיפוי הסטטוס לדוח (משותפת)
-  const mapStatusForReport = (status: string) => {
-    switch (status) {
-      case 'בבסיס':
-      case 'בפעילות':
-      case 'בתורנות':
-      case 'בנסיעה':
-      case 'במנוחה':
-        return 'בבסיס';
-      case 'גימלים':
-        return 'גימלים';
-      case 'חופש':
-        return 'בחופש';
-      default:
-        return 'בבסיס';
-    }
-  };
+
 
   const handleGenerateReport = (framework: FrameworkWithDetails) => {
     if (!framework || !framework.allSoldiersInHierarchy) {
@@ -203,8 +197,10 @@ const Frameworks: React.FC = () => {
       personalNumber: soldier.personalNumber,
       frameworkName: frameworkNames[soldier.frameworkId] || soldier.frameworkId,
       presence: soldier.presence || 'לא מוגדר',
-      editedPresence: mapStatusForReport(soldier.presence || 'לא מוגדר'), // מיפוי ראשוני
-      otherText: '' // שדה לטקסט חופשי
+      presenceOther: soldier.presenceOther || '',
+      absenceUntil: soldier.absenceUntil || '',
+      editedPresence: soldier.presence ? mapStatusForReport(soldier.presence as any) : 'בבסיס', // מיפוי ראשוני
+      otherText: soldier.presenceOther || '' // שדה לטקסט חופשי
     }));
     
     setReportData(report);
@@ -215,7 +211,7 @@ const Frameworks: React.FC = () => {
   const handleUpdateReportPresence = (soldierId: string, newPresence: string) => {
     setReportData(prev => prev.map(item => 
       item.id === soldierId 
-        ? { ...item, editedPresence: newPresence, otherText: newPresence === 'אחר' ? item.otherText : '' }
+        ? { ...item, editedPresence: newPresence, otherText: requiresCustomText(newPresence as any) ? item.otherText : '' }
         : item
     ));
   };
@@ -228,30 +224,33 @@ const Frameworks: React.FC = () => {
     ));
   };
 
-  const handlePrintReport = () => {
-    if (!selectedFramework) return;
+
+
+  // פונקציה לחישוב זמינים במסגרת
+  const calculateAvailability = (framework: FrameworkWithDetails) => {
+    if (!framework.allSoldiersInHierarchy || framework.allSoldiersInHierarchy.length === 0) {
+      return '0/0';
+    }
     
-    const reportText = reportData.map(soldier => {
-      const status = soldier.editedPresence === 'אחר' && soldier.otherText 
-        ? soldier.otherText 
-        : mapStatusForReport(soldier.editedPresence);
-      return `${soldier.name} - ${soldier.role} - ${soldier.personalNumber} - ${soldier.frameworkName} - ${status}`;
-    }).join('\n');
+    const totalSoldiers = framework.allSoldiersInHierarchy.length;
+    const availableSoldiers = framework.allSoldiersInHierarchy.filter(soldier => 
+      soldier.presence === 'בבסיס'
+    ).length;
     
-    alert(`דוח 1 - סטטוס נוכחות חיילים במסגרת ${selectedFramework.name}:\n\n${reportText}`);
-    setReportDialogOpen(false);
+    return `${availableSoldiers}/${totalSoldiers}`;
   };
 
-  // פונקציה לחישוב נוכחות במסגרת
+  // פונקציה לחישוב נוכחות במסגרת (לפי מיפוי דוח 1)
   const calculatePresence = (framework: FrameworkWithDetails) => {
     if (!framework.allSoldiersInHierarchy || framework.allSoldiersInHierarchy.length === 0) {
       return '0/0';
     }
     
     const totalSoldiers = framework.allSoldiersInHierarchy.length;
-    const presentSoldiers = framework.allSoldiersInHierarchy.filter(soldier => 
-      soldier.presence === 'בבסיס'
-    ).length;
+    const presentSoldiers = framework.allSoldiersInHierarchy.filter(soldier => {
+      const mappedStatus = mapStatusForReport(soldier.presence as any);
+      return mappedStatus === 'בבסיס';
+    }).length;
     
     return `${presentSoldiers}/${totalSoldiers}`;
   };
@@ -339,19 +338,18 @@ const Frameworks: React.FC = () => {
                   
                   <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
                     {canEditPersonnel ? (
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<PrintIcon />}
+                      <IconButton
+                        color="primary"
                         onClick={() => handleGenerateReport(framework)}
                         sx={{ 
-                          borderRadius: 2,
-                          textTransform: 'none',
-                          fontWeight: 600
+                          bgcolor: 'primary.main',
+                          color: 'white',
+                          '&:hover': { bgcolor: 'primary.dark' }
                         }}
+                        title="צור דוח 1"
                       >
-                        צור דוח 1
-                      </Button>
+                        <LooksOneIcon />
+                      </IconButton>
                     ) : (
                       <Button
                         variant="outlined"
@@ -425,7 +423,7 @@ const Frameworks: React.FC = () => {
                 <TableHead>
                   <TableRow>
                     <TableCell>שם המסגרת</TableCell>
-                    <TableCell>נוכחות</TableCell>
+                                          <TableCell>זמינים</TableCell>
                     <TableCell>מפקד</TableCell>
                     <TableCell>פעולות</TableCell>
                   </TableRow>
@@ -450,24 +448,36 @@ const Frameworks: React.FC = () => {
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Chip 
-                          label={calculatePresence(framework)} 
-                          color="primary" 
-                          variant="outlined"
-                          size="small"
-                        />
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                          <Chip 
+                            label={`זמינים: ${calculateAvailability(framework)}`}
+                            color="primary" 
+                            variant="outlined"
+                            size="small"
+                          />
+                          <Chip 
+                            label={`נוכחות: ${calculatePresence(framework)}`}
+                            color="secondary" 
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Box>
                       </TableCell>
                       <TableCell>{framework.commander?.name || 'לא מוגדר'}</TableCell>
                       <TableCell>
                         {canEditPersonnel ? (
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            startIcon={<PrintIcon />}
+                          <IconButton
+                            color="primary"
                             onClick={() => handleGenerateReport(framework)}
+                            sx={{ 
+                              bgcolor: 'primary.main',
+                              color: 'white',
+                              '&:hover': { bgcolor: 'primary.dark' }
+                            }}
+                            title="צור דוח 1"
                           >
-                            צור דוח 1
-                          </Button>
+                            <LooksOneIcon />
+                          </IconButton>
                         ) : (
                           <Button
                             variant="outlined"
@@ -488,94 +498,14 @@ const Frameworks: React.FC = () => {
       )}
 
       {/* Report Dialog */}
-      <Dialog 
-        open={reportDialogOpen} 
+      <ReportDialog
+        open={reportDialogOpen}
         onClose={() => setReportDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          דוח 1 - סטטוס נוכחות חיילים במסגרת {selectedFramework?.name}
-        </DialogTitle>
-        <DialogContent>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>שם</TableCell>
-                  <TableCell>תפקיד</TableCell>
-                  <TableCell>מספר אישי</TableCell>
-                  <TableCell>מסגרת</TableCell>
-                  <TableCell>סטטוס נוכחות</TableCell>
-                  <TableCell>עריכת דוח</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {reportData.map((soldier) => (
-                  <TableRow key={soldier.id}>
-                    <TableCell>{soldier.name}</TableCell>
-                    <TableCell>{soldier.role}</TableCell>
-                    <TableCell>{soldier.personalNumber}</TableCell>
-                    <TableCell>{soldier.frameworkName}</TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                        <Chip 
-                          label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence} 
-                          sx={{ 
-                            bgcolor: getPresenceColor(soldier.presence),
-                            color: 'white'
-                          }}
-                          size="small"
-                        />
-                                                    {(soldier.presence === 'קורס' || soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.absenceUntil && (
-                              <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                                עד תאריך {formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
-                              </Typography>
-                            )}
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <FormControl size="small" sx={{ minWidth: 120 }}>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                          <FormControl size="small" sx={{ minWidth: 120 }}>
-                            <Select
-                              value={soldier.editedPresence}
-                              onChange={(e) => handleUpdateReportPresence(soldier.id, e.target.value)}
-                              size="small"
-                            >
-                              <MenuItem value="בבסיס">בבסיס</MenuItem>
-                              <MenuItem value="חופש">חופש</MenuItem>
-                              <MenuItem value="גימלים">גימלים</MenuItem>
-                              <MenuItem value="אחר">אחר</MenuItem>
-                            </Select>
-                          </FormControl>
-                          {soldier.editedPresence === 'אחר' && (
-                            <TextField
-                              size="small"
-                              placeholder="הזן טקסט חופשי"
-                              value={soldier.otherText || ''}
-                              onChange={(e) => handleUpdateReportOtherText(soldier.id, e.target.value)}
-                              sx={{ minWidth: 200 }}
-                            />
-                          )}
-                        </Box>
-                      </FormControl>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setReportDialogOpen(false)}>
-            ביטול
-          </Button>
-          <Button onClick={handlePrintReport} variant="contained" startIcon={<PrintIcon />}>
-            הפק דוח
-          </Button>
-        </DialogActions>
-      </Dialog>
+        frameworkName={selectedFramework?.name || ''}
+        reportData={reportData}
+        onUpdateReportPresence={handleUpdateReportPresence}
+        onUpdateReportOtherText={handleUpdateReportOtherText}
+      />
 
       {/* Snackbar */}
       <Snackbar

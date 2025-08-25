@@ -1,4 +1,9 @@
 import { Soldier } from '../models/Soldier';
+import { 
+  isAbsenceStatus, 
+  getUnavailabilityReason, 
+  requiresAbsenceDate 
+} from './presenceStatus';
 
 export interface SoldierWithStatusInfo extends Soldier {
   isUnavailable?: boolean;
@@ -13,7 +18,7 @@ export const getSoldierAvailabilityInfo = (soldier: Soldier, activityDate?: stri
   const result: SoldierWithStatusInfo = { ...soldier };
   
   // בדיקה אם החייל בהיעדרות (קורס/גימלים/חופש)
-  if (soldier.presence === 'קורס' || soldier.presence === 'גימלים' || soldier.presence === 'חופש') {
+  if (isAbsenceStatus(soldier.presence as any)) {
     // אם יש תאריך פעילות, בדוק אם החייל עדיין לא זמין
     if (activityDate && activityDate.trim() !== '' && soldier.absenceUntil) {
       try {
@@ -34,7 +39,7 @@ export const getSoldierAvailabilityInfo = (soldier: Soldier, activityDate?: stri
     }
     
     result.isUnavailable = true;
-    result.unavailabilityReason = soldier.presence === 'קורס' ? 'בקורס' : soldier.presence === 'גימלים' ? 'בגימלים' : 'בחופש';
+    result.unavailabilityReason = getUnavailabilityReason(soldier.presence as any);
     
     // אם יש תאריך סיום להיעדרות
     if (soldier.absenceUntil) {

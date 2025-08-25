@@ -17,7 +17,9 @@ import {
   FormControlLabel,
   Button,
   Chip,
-  Divider
+  Divider,
+  Tabs,
+  Tab
 } from '@mui/material';
 import {
   AccountTree as TreeIcon,
@@ -33,16 +35,31 @@ import {
 import { useUser } from '../contexts/UserContext';
 import { getAllFrameworks } from '../services/frameworkService';
 import { getAllSoldiers, getAllSoldiersWithFrameworkNames } from '../services/soldierService';
+import { getAllActivities } from '../services/activityService';
+import { getAllDuties } from '../services/dutyService';
+import { getAllReferrals } from '../services/referralService';
+import { getAllTrips } from '../services/tripService';
 import { Framework } from '../models/Framework';
 import { Soldier } from '../models/Soldier';
+import { Activity } from '../models/Activity';
+import { Duty } from '../models/Duty';
+import { Referral } from '../models/Referral';
+import { Trip } from '../models/Trip';
 import { getPresenceColor } from '../utils/colors';
 import { formatToIsraelString } from '../utils/dateUtils';
 import { canUserAccessPath, getUserPermissions } from '../services/permissionService';
 import { SystemPath, PermissionLevel, DataScope } from '../models/UserRole';
+import TripsTimeline from '../components/TripsTimeline';
+import SoldiersTimeline from '../components/SoldiersTimeline';
+import { getStatusColor, PresenceStatus, isAbsenceActive, parseAbsenceUntilTime } from '../utils/presenceStatus';
 
 interface OrganizationalStructure {
   frameworks: Framework[];
   soldiers: (Soldier & { frameworkName?: string })[];
+  activities: Activity[];
+  duties: Duty[];
+  referrals: Referral[];
+  trips: Trip[];
   loading: boolean;
   lastUpdated: Date;
 }
@@ -58,6 +75,7 @@ const Hamal: React.FC = () => {
   const [zoom, setZoom] = useState(1);
   const [showSoldiers, setShowSoldiers] = useState(true);
   const [showPresence, setShowPresence] = useState(true);
+  const [activeTab, setActiveTab] = useState(0);
   const [permissions, setPermissions] = useState({
     canView: false,
     canViewFrameworks: false,
@@ -112,10 +130,14 @@ const Hamal: React.FC = () => {
       );
       
       // טעינת כל הנתונים
-      const [allFrameworks, allSoldiers, allSoldiersWithNames] = await Promise.all([
+      const [allFrameworks, allSoldiers, allSoldiersWithNames, allActivities, allDuties, allReferrals, allTrips] = await Promise.all([
         getAllFrameworks(),
         getAllSoldiers(),
-        getAllSoldiersWithFrameworkNames()
+        getAllSoldiersWithFrameworkNames(),
+        getAllActivities(),
+        getAllDuties(),
+        getAllReferrals(),
+        getAllTrips()
       ]);
       
       let frameworksData = allFrameworks;
@@ -158,6 +180,10 @@ const Hamal: React.FC = () => {
       setData({
         frameworks: frameworksData,
         soldiers: soldiersData,
+        activities: allActivities,
+        duties: allDuties,
+        referrals: allReferrals,
+        trips: allTrips,
         loading: false,
         lastUpdated: new Date()
       });
@@ -167,6 +193,10 @@ const Hamal: React.FC = () => {
       setData({
         frameworks: [],
         soldiers: [],
+        activities: [],
+        duties: [],
+        referrals: [],
+        trips: [],
         loading: false,
         lastUpdated: new Date()
       });
@@ -174,6 +204,138 @@ const Hamal: React.FC = () => {
       setLoading(false);
     }
   }, [user]);
+
+  // יצירת פריטי טיימליין לחיילים
+  const generateSoldiersTimelineItems = useCallback(() => {
+    if (!data) return [];
+    
+    const { soldiers, activities, duties, referrals, trips } = data;
+    const items: any[] = [];
+    
+    soldiers.forEach(soldier => {
+      // פעילויות
+      const soldierActivities = activities.filter(activity => 
+        activity.participants.some(p => p.soldierId === soldier.id)
+      );
+      
+      soldierActivities.forEach(activity => {
+        if (activity.plannedDate && activity.plannedTime && activity.duration) {
+          const startTime = new Date(`${activity.plannedDate}T${activity.plannedTime}`);
+          const endTime = new Date(startTime.getTime() + (activity.duration * 60 * 60 * 1000));
+          
+          items.push({
+            id: `activity-${activity.id}-${soldier.id}`,
+            title: `פעילות: ${activity.name}`,
+            start: startTime,
+            end: endTime,
+            type: 'activity',
+            soldier,
+            activity
+          });
+        }
+      });
+      
+      // תורנויות
+      const soldierDuties = duties.filter(duty => 
+        duty.participants.some(p => p.soldierId === soldier.id)
+      );
+      
+      soldierDuties.forEach(duty => {
+        if (duty.startDate && duty.startTime && duty.endTime) {
+          const startTime = new Date(`${duty.startDate}T${duty.startTime}`);
+          const endTime = new Date(`${duty.startDate}T${duty.endTime}`);
+          
+          items.push({
+            id: `duty-${duty.id}-${soldier.id}`,
+            title: `תורנות: ${duty.type}`,
+            start: startTime,
+            end: endTime,
+            type: 'duty',
+            soldier,
+            duty
+          });
+        }
+      });
+      
+      // הפניות
+      const soldierReferrals = referrals.filter(referral => 
+        referral.soldierId === soldier.id
+      );
+      
+      soldierReferrals.forEach(referral => {
+        if (referral.date && referral.departureTime && referral.returnTime) {
+          const startTime = new Date(`${referral.date}T${referral.departureTime}`);
+          const endTime = new Date(`${referral.date}T${referral.returnTime}`);
+          
+          items.push({
+            id: `referral-${referral.id}-${soldier.id}`,
+            title: `הפניה: ${referral.reason}`,
+            start: startTime,
+            end: endTime,
+            type: 'referral',
+            soldier,
+            referral
+          });
+        }
+      });
+      
+      // נסיעות (רק אם החייל הוא הנהג)
+      const soldierTrips = trips.filter(trip => 
+        trip.driverId === soldier.id
+      );
+      
+      soldierTrips.forEach(trip => {
+        if (trip.departureTime && trip.returnTime) {
+          const startTime = new Date(trip.departureTime);
+          const endTime = new Date(trip.returnTime);
+          
+          items.push({
+            id: `trip-${trip.id}-${soldier.id}`,
+            title: `נסיעה: ${trip.purpose}`,
+            start: startTime,
+            end: endTime,
+            type: 'trip',
+            soldier,
+            trip
+          });
+        }
+      });
+      
+      // היעדרויות (קורס, גימלים, חופש)
+      if (soldier.presence && ['קורס', 'גימלים', 'חופש'].includes(soldier.presence)) {
+        if (soldier.absenceUntil) {
+          const endTime = parseAbsenceUntilTime(soldier.absenceUntil);
+          const startTime = new Date(); // התחלה מהיום
+          
+          items.push({
+            id: `absence-${soldier.id}`,
+            title: soldier.presence,
+            start: startTime,
+            end: endTime,
+            type: 'absence',
+            soldier
+          });
+        }
+      }
+      
+      // מנוחה (רק לנהגים)
+      if (soldier.qualifications?.includes('נהג') && soldier.restUntil) {
+        const restEndTime = new Date(soldier.restUntil);
+        const restStartTime = new Date(restEndTime.getTime() - (7 * 60 * 60 * 1000));
+        
+        items.push({
+          id: `rest-${soldier.id}`,
+          title: 'מנוחה',
+          start: restStartTime,
+          end: restEndTime,
+          type: 'rest',
+          soldier
+        });
+      }
+    });
+    
+    return items.sort((a, b) => a.start.getTime() - b.start.getTime());
+  }, [data]);
 
   // יצירת תבנית Mermaid
   const generateMermaidDiagram = useCallback(() => {
@@ -235,16 +397,20 @@ const Hamal: React.FC = () => {
     
     // פונקציה לקבלת צבע נוכחות
     const getPresenceClass = (presence: string) => {
-      switch (presence) {
-        case 'בבסיס': return 'presenceBase';
-        case 'בפעילות': return 'presenceActivity';
-        case 'בנסיעה': return 'presenceTrip';
-        case 'בתורנות': return 'presenceDuty';
-        case 'במנוחה': return 'presenceRest';
-        case 'קורס': return 'presenceCourse';
-        case 'חופש': return 'presenceLeave';
-        case 'גימלים': return 'presenceGimel';
-        case 'אחר': return 'presenceOther';
+      // המרת צבע מ-presenceStatus.ts לשם class ב-Mermaid
+      const color = getStatusColor(presence as PresenceStatus);
+      
+      // מיפוי צבעים לשמות classes
+      switch (color) {
+        case '#4CAF50': return 'presenceBase'; // בבסיס
+        case '#2196F3': return 'presenceActivity'; // בפעילות
+        case '#FF9800': return 'presenceTrip'; // בנסיעה
+        case '#9C27B0': return 'presenceDuty'; // בתורנות
+        case '#607D8B': return 'presenceRest'; // במנוחה
+        case '#E91E63': return 'presenceCourse'; // קורס
+        case '#00BCD4': return 'presenceLeave'; // חופש
+        case '#FF5722': return 'presenceGimel'; // גימלים
+        case '#795548': return 'presenceOther'; // אחר
         default: return 'presenceUnknown';
       }
     };
@@ -476,56 +642,68 @@ const Hamal: React.FC = () => {
           </Box>
         </Box>
 
-        {/* Controls */}
+        {/* Tabs */}
         <Card sx={{ mb: 3, bgcolor: fullscreen ? '#1a1a1a' : 'inherit' }}>
           <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={showSoldiers}
-                      onChange={(e) => setShowSoldiers(e.target.checked)}
-                    />
-                  }
-                  label="הצג חיילים"
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={showPresence}
-                      onChange={(e) => setShowPresence(e.target.checked)}
-                      disabled={!showSoldiers}
-                    />
-                  }
-                  label="צבע לפי נוכחות"
-                />
+            <Tabs 
+              value={activeTab} 
+              onChange={(_, newValue) => setActiveTab(newValue)}
+              sx={{ mb: 2 }}
+            >
+              <Tab label="תצוגה גראפית" />
+              <Tab label="ציר זמן נסיעות" />
+              <Tab label="ציר זמן חיילים" />
+            </Tabs>
+            
+            {activeTab === 0 && (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={showSoldiers}
+                        onChange={(e) => setShowSoldiers(e.target.checked)}
+                      />
+                    }
+                    label="הצג חיילים"
+                  />
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={showPresence}
+                        onChange={(e) => setShowPresence(e.target.checked)}
+                        disabled={!showSoldiers}
+                      />
+                    }
+                    label="צבע לפי נוכחות"
+                  />
+                </Box>
+                
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Tooltip title="הקטן">
+                    <IconButton 
+                      onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}
+                      disabled={zoom <= 0.5}
+                    >
+                      <ZoomOutIcon />
+                    </IconButton>
+                  </Tooltip>
+                  <Typography variant="body2" sx={{ minWidth: 60, textAlign: 'center' }}>
+                    {Math.round(zoom * 100)}%
+                  </Typography>
+                  <Tooltip title="הגדל">
+                    <IconButton 
+                      onClick={() => setZoom(Math.min(2, zoom + 0.1))}
+                      disabled={zoom >= 2}
+                    >
+                      <ZoomInIcon />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
               </Box>
-              
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Tooltip title="הקטן">
-                  <IconButton 
-                    onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}
-                    disabled={zoom <= 0.5}
-                  >
-                    <ZoomOutIcon />
-                  </IconButton>
-                </Tooltip>
-                <Typography variant="body2" sx={{ minWidth: 60, textAlign: 'center' }}>
-                  {Math.round(zoom * 100)}%
-                </Typography>
-                <Tooltip title="הגדל">
-                  <IconButton 
-                    onClick={() => setZoom(Math.min(2, zoom + 0.1))}
-                    disabled={zoom >= 2}
-                  >
-                    <ZoomInIcon />
-                  </IconButton>
-                </Tooltip>
-                      </Box>
-                    </Box>
-                  </CardContent>
-                </Card>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Statistics */}
         {stats && (
@@ -553,29 +731,51 @@ const Hamal: React.FC = () => {
           </Card>
         )}
 
-        {/* Mermaid Diagram */}
-        <Card sx={{ bgcolor: fullscreen ? '#1a1a1a' : 'inherit' }}>
-          <CardContent sx={{ p: 0, overflow: 'auto' }}>
-            <Box 
-                        sx={{
-                width: '100%',
-                minHeight: '600px',
-                transform: `scale(${zoom})`,
-                transformOrigin: 'top left',
-                transition: 'transform 0.3s ease'
-              }}
-            >
-              <div 
-                ref={mermaidRef}
-                style={{ 
-                  direction: 'ltr',
-                  textAlign: 'left',
-                  fontSize: fullscreen ? '16px' : '14px'
+        {/* Content based on active tab */}
+        {activeTab === 0 ? (
+          /* Mermaid Diagram */
+          <Card sx={{ bgcolor: fullscreen ? '#1a1a1a' : 'inherit' }}>
+            <CardContent sx={{ p: 0, overflow: 'auto' }}>
+              <Box 
+                sx={{
+                  width: '100%',
+                  minHeight: '600px',
+                  transform: `scale(${zoom})`,
+                  transformOrigin: 'top left',
+                  transition: 'transform 0.3s ease'
                 }}
-                          />
-                        </Box>
-                  </CardContent>
-                </Card>
+              >
+                <div 
+                  ref={mermaidRef}
+                  style={{ 
+                    direction: 'ltr',
+                    textAlign: 'left',
+                    fontSize: fullscreen ? '16px' : '14px'
+                  }}
+                />
+              </Box>
+            </CardContent>
+          </Card>
+        ) : activeTab === 1 ? (
+          /* Trips Timeline */
+          <TripsTimeline
+            trips={data?.trips || []}
+            vehicles={[]}
+            drivers={data?.soldiers || []}
+            activities={data?.activities || []}
+            frameworks={data?.frameworks || []}
+          />
+        ) : (
+          /* Soldiers Timeline */
+          <SoldiersTimeline
+            soldiers={data?.soldiers || []}
+            activities={data?.activities || []}
+            duties={data?.duties || []}
+            referrals={data?.referrals || []}
+            trips={data?.trips || []}
+            frameworks={data?.frameworks || []}
+          />
+        )}
 
         {/* Legend */}
         <Card sx={{ mt: 3, bgcolor: fullscreen ? '#1a1a1a' : 'inherit' }}>

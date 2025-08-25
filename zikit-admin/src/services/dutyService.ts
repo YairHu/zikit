@@ -3,7 +3,7 @@ import { db } from '../firebase';
 import { Duty, DutyParticipant } from '../models/Duty';
 import { localStorageService, updateTableTimestamp } from './cacheService';
 import { updateSoldierStatus } from './soldierService';
-import { isDutyActive } from '../utils/dateUtils';
+import { isDutyActive, getCurrentIsraelTime } from '../utils/dateUtils';
 
 const COLLECTION_NAME = 'duties';
 
@@ -104,7 +104,7 @@ export const getDutiesByFramework = async (frameworkId: string): Promise<Duty[]>
       .map(doc => ({ id: doc.id, ...doc.data() } as Duty))
       .filter(duty => 
         duty.status === 'פעילה' &&
-        (duty.frameworkId === frameworkId || duty.team === frameworkId || duty.participants.some(p => p.soldierId && p.soldierId.startsWith(frameworkId)))
+        (duty.frameworkId === frameworkId || duty.participants.some(p => p.soldierId && p.soldierId.startsWith(frameworkId)))
       )
       .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
     
@@ -149,15 +149,21 @@ export const updateDutyStatusesAutomatically = async (): Promise<void> => {
       let shouldUpdate = false;
       let newStatus: 'פעילה' | 'הסתיימה' | 'בוטלה' = duty.status;
       
-      // בדיקה אם התורנות פעילה כרגע
-      const isActive = isDutyActive(
-        duty.startDate,
-        duty.startTime,
-        duty.endTime
-      );
+      // בדיקה אם התורנות הסתיימה (עבר זמן הסיום)
+      const now = getCurrentIsraelTime();
+      const dutyDate = new Date(duty.startDate);
+      const startDateTime = new Date(`${duty.startDate}T${duty.startTime}`);
+      const endDateTime = duty.endTime 
+        ? new Date(`${duty.startDate}T${duty.endTime}`)
+        : new Date(startDateTime.getTime() + (8 * 60 * 60 * 1000)); // 8 שעות ברירת מחדל
+      
+      const isDutyEnded = now > endDateTime;
+      const isDutyStarted = now >= startDateTime;
+      
+      console.log(`🔍 [AUTO] בדיקת תורנות ${duty.id}: תאריך=${duty.startDate}, זמן=${duty.startTime}-${duty.endTime}, התחילה=${isDutyStarted}, הסתיימה=${isDutyEnded}, סטטוס=${duty.status}`);
       
       // בדיקה אם צריך לעדכן סטטוס
-      if (duty.status === 'פעילה' && !isActive) {
+      if (duty.status === 'פעילה' && isDutyEnded) {
         // זמן סיום הגיע - עדכון להסתיימה
         newStatus = 'הסתיימה';
         shouldUpdate = true;
@@ -181,6 +187,25 @@ export const updateDutyStatusesAutomatically = async (): Promise<void> => {
           }
         }
       }
+      
+              // עדכון סטטוס חיילים בתחילת התורנות
+        if (duty.status === 'פעילה' && isDutyStarted && !isDutyEnded && duty.participants) {
+          for (const participant of duty.participants) {
+            // בדיקה אם החייל צריך להיות בתורנות
+            const { getSoldierById, getSoldierCurrentStatus } = await import('./soldierService');
+            const soldier = await getSoldierById(participant.soldierId);
+            if (soldier) {
+              const currentStatus = getSoldierCurrentStatus(soldier);
+              
+              if (currentStatus !== 'בתורנות') {
+                console.log(`🔄 [AUTO] עדכון חייל ${participant.soldierName} לסטטוס בתורנות`);
+                await updateSoldierStatus(participant.soldierId, 'בתורנות', { 
+                  dutyId: duty.id
+                });
+              }
+            }
+          }
+        }
     }
     
     if (updatedDuties > 0) {

@@ -2,6 +2,8 @@ import { Referral } from '../models/Referral';
 import { db } from '../firebase';
 import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
 import { localStorageService, updateTableTimestamp } from './cacheService';
+import { updateSoldierStatus } from './soldierService';
+import { getCurrentIsraelTime, isTimeInRange } from '../utils/dateUtils';
 
 const referralsCollection = collection(db, 'referrals');
 
@@ -42,8 +44,8 @@ export const getReferralsByTeam = async (team: string): Promise<Referral[]> => {
 export const addReferral = async (referral: Omit<Referral, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
   const docRef = await addDoc(referralsCollection, {
     ...referral,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    createdAt: getCurrentIsraelTime().toISOString(),
+    updatedAt: getCurrentIsraelTime().toISOString()
   });
   
   // עדכון טבלת העדכונים וניקוי מטמון מקומי
@@ -57,7 +59,7 @@ export const addReferral = async (referral: Omit<Referral, 'id' | 'createdAt' | 
 export const updateReferral = async (id: string, updates: Partial<Referral>): Promise<void> => {
   await updateDoc(doc(referralsCollection, id), {
     ...updates,
-    updatedAt: new Date().toISOString()
+    updatedAt: getCurrentIsraelTime().toISOString()
   });
   
   // עדכון טבלת העדכונים וניקוי מטמון מקומי
@@ -73,4 +75,21 @@ export const deleteReferral = async (id: string): Promise<void> => {
   console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי הפניות');
   await updateTableTimestamp('referrals');
   localStorageService.invalidateLocalStorage('referrals');
+};
+
+// פונקציה לבדיקה אם הפניה פעילה כרגע
+const isReferralActive = (date: string, departureTime: string, returnTime: string): boolean => {
+  const now = getCurrentIsraelTime();
+  const referralDate = new Date(date);
+  
+  // בדיקה אם זה אותו יום
+  if (now.toDateString() !== referralDate.toDateString()) {
+    return false;
+  }
+  
+  // יצירת תאריכים עם שעות
+  const departureDateTime = new Date(date + 'T' + departureTime);
+  const returnDateTime = new Date(date + 'T' + returnTime);
+  
+  return isTimeInRange(now, departureDateTime, returnDateTime);
 }; 

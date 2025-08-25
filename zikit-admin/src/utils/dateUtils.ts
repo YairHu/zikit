@@ -13,6 +13,30 @@ export const toIsraelTime = (date: Date | string): Date => {
 };
 
 /**
+ * יצירת תאריך ישראל מתאריך string
+ * @param dateString - מחרוזת תאריך (YYYY-MM-DD)
+ * @returns תאריך בזמן ישראל
+ */
+export const createIsraelDate = (dateString: string): Date => {
+  const date = new Date(dateString + 'T00:00:00');
+  return toIsraelTime(date);
+};
+
+/**
+ * בדיקה אם תאריך הוא היום בזמן ישראל
+ * @param date - תאריך לבדיקה
+ * @returns true אם זה היום
+ */
+export const isTodayInIsrael = (date: Date): boolean => {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const israelToday = toIsraelTime(today);
+  const israelDate = toIsraelTime(date);
+  
+  return israelDate.getTime() === israelToday.getTime();
+};
+
+/**
  * המרת תאריך לפורמט datetime-local (זמן ישראל)
  * @param dateString - מחרוזת תאריך
  * @returns מחרוזת בפורמט datetime-local
@@ -59,8 +83,8 @@ export const formatToIsraelString = (
 };
 
 /**
- * קבלת תאריך נוכחי בזמן ישראל
- * @returns תאריך נוכחי בזמן ישראל
+ * קבלת השעה הנוכחית בזמן ישראל
+ * @returns תאריך עם השעה הנוכחית בזמן ישראל
  */
 export const getCurrentIsraelTime = (): Date => {
   return toIsraelTime(new Date());

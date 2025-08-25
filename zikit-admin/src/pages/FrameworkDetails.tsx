@@ -53,16 +53,27 @@ import {
   CalendarMonth as CalendarMonthIcon,
   DirectionsCar as CarIcon,
   Print as PrintIcon,
-  Save as SaveIcon
+  Save as SaveIcon,
+  LooksOne as LooksOneIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
-import { FrameworkWithDetails } from '../models/Framework';
+import { FrameworkWithDetails, Framework } from '../models/Framework';
 import { getAllFrameworks, getFrameworkWithDetails, getFrameworkNamesByIds } from '../services/frameworkService';
 import { getAllSoldiers, updateSoldier } from '../services/soldierService';
 import { getPresenceColor, getProfileColor, getRoleColor } from '../utils/colors';
 import { formatToIsraelString } from '../utils/dateUtils';
 import { getUserPermissions, canUserEditSoldierPresence } from '../services/permissionService';
 import { PermissionLevel, SystemPath } from '../models/UserRole';
+import { 
+  getAllStatuses, 
+  requiresAbsenceDate, 
+  requiresCustomText,
+  mapStatusForReport as mapStatusForReportUtil,
+  getStatusLabel,
+  isAbsenceActive
+} from '../utils/presenceStatus';
+import { createIsraelDate, isTodayInIsrael, getCurrentIsraelTime } from '../utils/dateUtils';
+import ReportDialog from '../components/ReportDialog';
 
 const FrameworkDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -71,7 +82,7 @@ const FrameworkDetails: React.FC = () => {
   const [framework, setFramework] = useState<FrameworkWithDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
-  const [activeTab, setActiveTab] = useState(0);
+
   const [frameworkNames, setFrameworkNames] = useState<{ [key: string]: string }>({});
   const [canManageFrameworks, setCanManageFrameworks] = useState<boolean>(false);
   const [canEditPersonnel, setCanEditPersonnel] = useState<boolean>(false);
@@ -149,11 +160,30 @@ const FrameworkDetails: React.FC = () => {
         setError('מסגרת לא נמצאה');
         return;
       }
-      setFramework(frameworkData);
+
+      // טעינת פרטים מלאים לכל תת-מסגרת
+      const childFrameworksWithDetails = await Promise.all(
+        frameworkData.childFrameworks.map(async (child) => {
+          try {
+            return await getFrameworkWithDetails(child.id);
+          } catch (error) {
+            console.error(`שגיאה בטעינת תת-מסגרת ${child.id}:`, error);
+            return child; // החזר את המסגרת הבסיסית אם נכשל
+          }
+        })
+      );
+
+      // עדכון המסגרת עם תת-המסגרות המלאות
+      const updatedFramework = {
+        ...frameworkData,
+        childFrameworks: childFrameworksWithDetails.filter((f): f is Framework => f !== null)
+      };
+
+      setFramework(updatedFramework);
       
       // קבלת שמות המסגרות עבור החיילים בהיררכיה
-      if (frameworkData.allSoldiersInHierarchy) {
-        const frameworkIds = Array.from(new Set(frameworkData.allSoldiersInHierarchy.map(s => s.frameworkId)));
+      if (updatedFramework.allSoldiersInHierarchy) {
+        const frameworkIds = Array.from(new Set(updatedFramework.allSoldiersInHierarchy.map(s => s.frameworkId)));
         const names = await getFrameworkNamesByIds(frameworkIds);
         setFrameworkNames(names);
       }
@@ -168,6 +198,18 @@ const FrameworkDetails: React.FC = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // פונקציה לקבלת הנוכחות האמיתית של החייל
+  const getActualPresence = (soldier: any) => {
+    if (requiresAbsenceDate(soldier.presence as any)) {
+      if (isAbsenceActive(soldier.absenceUntil)) {
+        return soldier.presence;
+      } else {
+        return 'בבסיס';
+      }
+    }
+    return soldier.presence;
+  };
 
   const handleSoldierClick = (soldierId: string) => {
     navigate(`/soldiers/${soldierId}`);
@@ -198,11 +240,11 @@ const FrameworkDetails: React.FC = () => {
       const updateData: any = { presence: finalPresence };
       
       // אם נבחר קורס, גימלים או חופש, הוסף את התאריך
-      if ((editingPresence === 'קורס' || editingPresence === 'גימלים' || editingPresence === 'חופש') && editingAbsenceUntil) {
+      if (requiresAbsenceDate(editingPresence as any) && editingAbsenceUntil) {
         updateData.absenceUntil = editingAbsenceUntil;
       } else {
         // אם לא קורס/גימלים/חופש, נקה את התאריך
-        updateData.absenceUntil = null;
+        updateData.absenceUntil = undefined;
       }
       
       await updateSoldier(editingSoldier, updateData);
@@ -224,24 +266,17 @@ const FrameworkDetails: React.FC = () => {
     }
   };
 
+  const handleUpdateReportOtherText = (soldierId: string, otherText: string) => {
+    setReportData(prev => prev.map(item => 
+      item.id === soldierId 
+        ? { ...item, otherText }
+        : item
+    ));
+  };
+
   // פונקציה למיפוי הסטטוס לדוח (משותפת)
   const mapStatusForReport = (status: string) => {
-    switch (status) {
-      case 'בבסיס':
-      case 'בפעילות':
-      case 'בתורנות':
-      case 'בנסיעה':
-      case 'במנוחה':
-        return 'בבסיס';
-      case 'קורס':
-        return 'קורס';
-      case 'גימלים':
-        return 'גימלים';
-      case 'חופש':
-        return 'בחופש';
-      default:
-        return 'בבסיס';
-    }
+    return mapStatusForReportUtil(status as any);
   };
 
   const handleGenerateReport = () => {
@@ -255,7 +290,8 @@ const FrameworkDetails: React.FC = () => {
       frameworkName: frameworkNames[soldier.frameworkId] || soldier.frameworkId,
       presence: soldier.presence || 'לא מוגדר',
       presenceOther: soldier.presenceOther || '',
-      editedPresence: mapStatusForReport(soldier.presence || 'לא מוגדר'), // מיפוי ראשוני
+      absenceUntil: soldier.absenceUntil || '',
+      editedPresence: soldier.presence ? mapStatusForReport(soldier.presence as any) : 'בבסיס', // מיפוי ראשוני
       otherText: soldier.presenceOther || '' // שדה לטקסט חופשי
     }));
     
@@ -266,46 +302,36 @@ const FrameworkDetails: React.FC = () => {
   const handleUpdateReportPresence = (soldierId: string, newPresence: string) => {
     setReportData(prev => prev.map(item => 
       item.id === soldierId 
-        ? { ...item, editedPresence: newPresence, otherText: (newPresence === 'אחר' || newPresence === 'קורס') ? item.otherText : '' }
+        ? { ...item, editedPresence: newPresence, otherText: requiresCustomText(newPresence as any) ? item.otherText : '' }
         : item
     ));
   };
 
-  const handleUpdateReportOtherText = (soldierId: string, otherText: string) => {
-    setReportData(prev => prev.map(item => 
-      item.id === soldierId 
-        ? { ...item, otherText }
-        : item
-    ));
-  };
-
-  const handlePrintReport = () => {
-    const reportText = reportData.map(soldier => {
-      let status;
-      if (soldier.editedPresence === 'אחר' && soldier.otherText) {
-        status = soldier.otherText;
-      } else if (soldier.editedPresence === 'קורס' && soldier.otherText) {
-        status = `קורס - ${soldier.otherText}`;
-      } else {
-        status = mapStatusForReport(soldier.editedPresence);
-      }
-      return `${soldier.name} - ${soldier.role} - ${soldier.personalNumber} - ${soldier.frameworkName} - ${status}`;
-    }).join('\n');
+  // פונקציה לחישוב זמינים במסגרת
+  const calculateAvailability = () => {
+    if (!framework || !framework.allSoldiersInHierarchy || framework.allSoldiersInHierarchy.length === 0) {
+      return '0/0';
+    }
     
-    alert(`דוח 1 - סטטוס נוכחות חיילים במסגרת ${framework?.name}:\n\n${reportText}`);
-    setReportDialogOpen(false);
+    const totalSoldiers = framework.allSoldiersInHierarchy.length;
+    const availableSoldiers = framework.allSoldiersInHierarchy.filter(soldier => 
+      soldier.presence === 'בבסיס'
+    ).length;
+    
+    return `${availableSoldiers}/${totalSoldiers}`;
   };
 
-  // פונקציה לחישוב נוכחות במסגרת
+  // פונקציה לחישוב נוכחות במסגרת (לפי מיפוי דוח 1)
   const calculatePresence = () => {
     if (!framework || !framework.allSoldiersInHierarchy || framework.allSoldiersInHierarchy.length === 0) {
       return '0/0';
     }
     
     const totalSoldiers = framework.allSoldiersInHierarchy.length;
-    const presentSoldiers = framework.allSoldiersInHierarchy.filter(soldier => 
-      soldier.presence === 'בבסיס'
-    ).length;
+    const presentSoldiers = framework.allSoldiersInHierarchy.filter(soldier => {
+      const mappedStatus = mapStatusForReport(soldier.presence as any);
+      return mappedStatus === 'בבסיס';
+    }).length;
     
     return `${presentSoldiers}/${totalSoldiers}`;
   };
@@ -338,36 +364,57 @@ const FrameworkDetails: React.FC = () => {
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: { xs: 'column', sm: 'row' },
+        alignItems: { xs: 'flex-start', sm: 'center' }, 
+        mb: 3,
+        gap: { xs: 2, sm: 0 }
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
         <IconButton onClick={() => navigate('/frameworks')} sx={{ mr: 2 }}>
           <ArrowBackIcon />
         </IconButton>
         <Box sx={{ flex: 1 }}>
-          <Typography variant="h4" component="h1" fontWeight="bold">
+            <Typography variant="h4" component="h1" fontWeight="bold" sx={{ fontSize: { xs: '1.5rem', sm: '2.125rem' } }}>
             {framework.name}
           </Typography>
-          <Typography variant="body1" color="text.secondary">
-            {framework.totalSoldiers} חיילים • נוכחות: {calculatePresence()}
-          </Typography>
+
         </Box>
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        </Box>
+                  <Box sx={{ 
+            display: 'flex', 
+            gap: 1, 
+            flexDirection: { xs: 'row', sm: 'row' },
+            width: { xs: '100%', sm: 'auto' }
+          }}>
           {canEditPersonnel && (
-            <Button
-              variant="outlined"
-              startIcon={<PrintIcon />}
+              <IconButton
+                color="primary"
               onClick={handleGenerateReport}
-            >
-              הפק דוח 1
-            </Button>
+                sx={{ 
+                  bgcolor: 'primary.main', 
+                  color: 'white',
+                  '&:hover': { bgcolor: 'primary.dark' }
+                }}
+                title="צור דוח 1"
+              >
+                <LooksOneIcon />
+              </IconButton>
           )}
         {canManageFrameworks && (
-          <Button
-            variant="outlined"
-            startIcon={<AccountTreeIcon />}
+              <IconButton
+                color="primary"
             onClick={() => navigate('/framework-management')}
-          >
-            ניהול מסגרות
-          </Button>
+                sx={{ 
+                  bgcolor: 'secondary.main', 
+                  color: 'white',
+                  '&:hover': { bgcolor: 'secondary.dark' }
+                }}
+                title="ניהול מסגרות"
+              >
+                <AccountTreeIcon />
+              </IconButton>
         )}
         </Box>
       </Box>
@@ -391,19 +438,23 @@ const FrameworkDetails: React.FC = () => {
           
           <Divider sx={{ my: 2 }} />
           
-          <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+          <Box sx={{ 
+            display: 'grid', 
+            gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
+            gap: { xs: 2, sm: 3 }
+          }}>
             <Box>
-              <Typography variant="subtitle2" color="text.secondary">
+              <Typography variant="subtitle2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                 מפקד המסגרת
               </Typography>
-              <Typography variant="body1" fontWeight={600}>
+              <Typography variant="body1" fontWeight={600} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                 {framework.commander?.name || 'לא מוגדר'}
               </Typography>
             </Box>
             
             {framework.parentFramework && (
               <Box>
-                <Typography variant="subtitle2" color="text.secondary">
+                <Typography variant="subtitle2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                   מסגרת אב
                 </Typography>
                 <Typography 
@@ -412,7 +463,8 @@ const FrameworkDetails: React.FC = () => {
                   sx={{ 
                     cursor: 'pointer',
                     color: 'primary.main',
-                    '&:hover': { textDecoration: 'underline' }
+                    '&:hover': { textDecoration: 'underline' },
+                    fontSize: { xs: '0.875rem', sm: '1rem' }
                   }}
                   onClick={() => handleChildFrameworkClick(framework.parentFramework!.id)}
                 >
@@ -422,19 +474,28 @@ const FrameworkDetails: React.FC = () => {
             )}
             
             <Box>
-              <Typography variant="subtitle2" color="text.secondary">
-                מסגרות בנות
+              <Typography variant="subtitle2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                תת-מסגרות
               </Typography>
-              <Typography variant="body1" fontWeight={600}>
+              <Typography variant="body1" fontWeight={600} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                 {framework.childFrameworks.length}
               </Typography>
             </Box>
 
             <Box>
-              <Typography variant="subtitle2" color="text.secondary">
+              <Typography variant="subtitle2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                זמינים
+              </Typography>
+              <Typography variant="body1" fontWeight={600} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                {calculateAvailability()}
+              </Typography>
+            </Box>
+
+            <Box>
+              <Typography variant="subtitle2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                 נוכחות
               </Typography>
-              <Typography variant="body1" fontWeight={600}>
+              <Typography variant="body1" fontWeight={600} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                 {calculatePresence()}
               </Typography>
             </Box>
@@ -442,521 +503,845 @@ const FrameworkDetails: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)}>
-          <Tab label={`חיילים ישירים (${framework.soldiers.length})`} />
-          <Tab label={`כל החיילים בהיררכיה (${framework.totalSoldiers})`} />
-          <Tab label={`מסגרות בנות (${framework.childFrameworks.length})`} />
-          <Tab label={`פעילויות (${framework.activities?.filter(activity => activity.status !== 'הושלם').length || 0})`} />
-          <Tab label={`תורנויות (${framework.duties?.filter(duty => duty.status !== 'הסתיימה').length || 0})`} />
-          <Tab label={`נסיעות (${framework.trips?.filter(trip => trip.status !== 'הסתיימה').length || 0})`} />
-        </Tabs>
-      </Box>
-
-      {/* Tab Content */}
-      {activeTab === 0 && (
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              חיילי המסגרת (ישירים)
+      {/* Accordion Sections */}
+      
+      {/* חיילים ישירים */}
+      <Accordion defaultExpanded>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <GroupIcon sx={{ mr: 2 }} />
+            <Typography variant="h6" fontWeight={600}>
+              חיילים ישירים ({framework.soldiers.length})
             </Typography>
+          </Box>
+        </AccordionSummary>
+        <AccordionDetails>
             {framework.soldiers.length > 0 ? (
-              <TableContainer component={Paper}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>שם</TableCell>
-                      <TableCell>תפקיד</TableCell>
-                      <TableCell>מספר אישי</TableCell>
-                      <TableCell>סטטוס נוכחות</TableCell>
-                      {canEditPersonnel && <TableCell>פעולות</TableCell>}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
+            <Box>
                 {framework.soldiers.map((soldier) => (
-                      <TableRow key={soldier.id}>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            <Avatar sx={{ bgcolor: getRoleColor(soldier.role), mr: 2, width: 32, height: 32 }}>
+                <Box key={soldier.id} sx={{ display: 'flex', alignItems: 'center', mb: 2, p: 1, border: '1px solid #e0e0e0', borderRadius: 1 }}>
+                  <Avatar sx={{ bgcolor: getRoleColor(soldier.role), mr: 2, width: 40, height: 40 }}>
                           {soldier.name.charAt(0)}
                         </Avatar>
+                  <Box sx={{ flex: 1 }}>
                             <Typography 
-                              variant="body1" 
+                      variant="subtitle1" 
+                      fontWeight={600}
                               sx={{ cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
                               onClick={() => handleSoldierClick(soldier.id)}
                             >
                               {soldier.name}
                             </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {soldier.role} • {soldier.personalNumber}
+                            </Typography>
                           </Box>
-                        </TableCell>
-                        <TableCell>{soldier.role}</TableCell>
-                        <TableCell>{soldier.personalNumber}</TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Chip 
-                              label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'} 
+                              label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : getActualPresence(soldier) || 'לא מוגדר'} 
                               sx={{ 
-                                bgcolor: getPresenceColor(soldier.presence || ''),
-                                color: 'white'
+                                bgcolor: getPresenceColor(getActualPresence(soldier) || ''),
+                                color: 'white',
+                                fontSize: { xs: '0.7rem', sm: '0.75rem' }
                               }}
                               size="small"
                             />
-                            {(soldier.presence === 'קורס' || soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.absenceUntil && (
-                              <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                                עד תאריך {formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
-                              </Typography>
+                    {requiresAbsenceDate(soldier.presence as any) && soldier.absenceUntil && editingSoldier !== soldier.id && (
+                      <Typography variant="caption" sx={{ 
+                        color: 'text.secondary', 
+                        fontStyle: 'italic',
+                        fontSize: { xs: '0.65rem', sm: '0.75rem' }
+                      }}>
+                        {`עד ${formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}`}
+                      </Typography>
                             )}
-                          </Box>
-                        </TableCell>
                         {canEditPersonnel && (
-                          <TableCell>
-                            {editingSoldier === soldier.id ? (
-                              <Box sx={{ display: 'flex', gap: 1, flexDirection: 'column' }}>
-                                <Box sx={{ display: 'flex', gap: 1 }}>
-                                  <FormControl size="small" sx={{ minWidth: 120 }}>
+                      editingSoldier === soldier.id ? (
+                        <Box sx={{ 
+                          display: 'flex', 
+                          flexDirection: 'column', 
+                          gap: 1, 
+                          width: '100%',
+                          mt: 1,
+                          pt: 1,
+                          borderTop: '1px solid #e0e0e0'
+                        }}>
+                          <FormControl size="small" fullWidth>
                                     <Select
                                       value={editingPresence}
                                       onChange={(e) => setEditingPresence(e.target.value)}
                                       size="small"
                                     >
-                                      <MenuItem value="בבסיס">בבסיס</MenuItem>
-                                      <MenuItem value="בפעילות">בפעילות</MenuItem>
-                                      <MenuItem value="קורס">קורס</MenuItem>
-                                      <MenuItem value="חופש">חופש</MenuItem>
-                                      <MenuItem value="גימלים">גימלים</MenuItem>
-                                      <MenuItem value="אחר">אחר</MenuItem>
+                              {getAllStatuses().map((status) => (
+                                <MenuItem key={status} value={status}>
+                                  {getStatusLabel(status)}
+                                </MenuItem>
+                              ))}
                                     </Select>
                                   </FormControl>
-                                  <IconButton size="small" onClick={handleSavePresence} color="primary">
-                                    <SaveIcon />
-                                  </IconButton>
-                                </Box>
-                                {(editingPresence === 'קורס' || editingPresence === 'גימלים' || editingPresence === 'חופש') && (
-                                  <TextField
-                                    size="small"
-                                    label={`${editingPresence} עד איזה יום? כולל`}
-                                    type="date"
-                                    value={editingAbsenceUntil}
-                                    onChange={(e) => setEditingAbsenceUntil(e.target.value)}
-                                    InputLabelProps={{ shrink: true }}
-                                    sx={{ minWidth: 200 }}
-                                  />
-                                )}
-                                {editingPresence === 'אחר' && (
+                                                      {requiresAbsenceDate(editingPresence as any) && (
+                              <TextField
+                                size="small"
+                                label={`${editingPresence} עד מתי?`}
+                                type="date"
+                                value={editingAbsenceUntil ? new Date(editingAbsenceUntil).toISOString().split('T')[0] : ''}
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    const israelDate = createIsraelDate(e.target.value);
+                                    israelDate.setHours(23, 59, 0, 0);
+                                    setEditingAbsenceUntil(israelDate.toISOString());
+                                  } else {
+                                    setEditingAbsenceUntil('');
+                                  }
+                                }}
+                                InputLabelProps={{ shrink: true }}
+                                fullWidth
+                              />
+                            )}
+                          {requiresCustomText(editingPresence as any) && (
                                   <TextField
                                     size="small"
                                     label="הזן סטטוס מותאם אישית"
                                     value={editingPresenceOther}
                                     onChange={(e) => setEditingPresenceOther(e.target.value)}
-                                    sx={{ minWidth: 200 }}
-                                  />
-                                )}
+                              fullWidth
+                            />
+                          )}
+                          <Box sx={{ display: 'flex', gap: 1 }}>
+                            <Button size="small" onClick={handleSavePresence} variant="contained">
+                              שמור
+                            </Button>
+                            <Button size="small" onClick={() => setEditingSoldier(null)}>
+                              ביטול
+                            </Button>
+                          </Box>
                               </Box>
                             ) : (
                               <IconButton 
                                 size="small" 
                                 onClick={() => handleEditPresence(soldier.id, soldier.presence || '', soldier.absenceUntil, soldier.presenceOther)}
+                          sx={{ bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' } }}
                               >
                                 <EditIcon />
                               </IconButton>
+                      )
                             )}
-                          </TableCell>
-                        )}
-                      </TableRow>
+                  </Box>
+                </Box>
                     ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+            </Box>
             ) : (
               <Typography color="text.secondary" align="center">
                 אין חיילים במסגרת זו
               </Typography>
             )}
-          </CardContent>
-        </Card>
-      )}
+        </AccordionDetails>
+      </Accordion>
 
-      {activeTab === 1 && (
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              כל החיילים בהיררכיה (כולל מסגרות בנות)
-            </Typography>
+      {/* כל החיילים במסגרת */}
+      {framework.childFrameworks.length > 0 && (
+        <Accordion>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <GroupIcon sx={{ mr: 2 }} />
+              <Typography variant="h6" fontWeight={600}>
+                כל החיילים במסגרת ({framework.totalSoldiers})
+              </Typography>
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails>
             {framework.allSoldiersInHierarchy && framework.allSoldiersInHierarchy.length > 0 ? (
-              <TableContainer component={Paper}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>שם</TableCell>
-                      <TableCell>תפקיד</TableCell>
-                      <TableCell>מספר אישי</TableCell>
-                      <TableCell>מסגרת</TableCell>
-                      <TableCell>סטטוס נוכחות</TableCell>
-                      {canEditPersonnel && <TableCell>פעולות</TableCell>}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
+              <Box>
                 {framework.allSoldiersInHierarchy.map((soldier) => (
-                      <TableRow key={soldier.id}>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            <Avatar sx={{ bgcolor: getRoleColor(soldier.role), mr: 2, width: 32, height: 32 }}>
-                          {soldier.name.charAt(0)}
-                        </Avatar>
-                            <Typography 
-                              variant="body1" 
-                              sx={{ cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
-                              onClick={() => handleSoldierClick(soldier.id)}
-                            >
-                              {soldier.name}
-                            </Typography>
-                          </Box>
-                        </TableCell>
-                        <TableCell>{soldier.role}</TableCell>
-                        <TableCell>{soldier.personalNumber}</TableCell>
-                        <TableCell>{frameworkNames[soldier.frameworkId] || soldier.frameworkId}</TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                            <Chip 
-                              label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'} 
-                              sx={{ 
-                                bgcolor: getPresenceColor(soldier.presence || ''),
-                                color: 'white'
-                              }}
-                              size="small"
-                            />
-                            {(soldier.presence === 'קורס' || soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.absenceUntil && (
-                              <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                                עד תאריך {formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
-                              </Typography>
-                            )}
-                          </Box>
-                        </TableCell>
-                        {canEditPersonnel && (
-                          <TableCell>
-                            {editingSoldier === soldier.id ? (
-                              <Box sx={{ display: 'flex', gap: 1, flexDirection: 'column' }}>
-                                <Box sx={{ display: 'flex', gap: 1 }}>
-                                  <FormControl size="small" sx={{ minWidth: 120 }}>
-                                    <Select
-                                      value={editingPresence}
-                                      onChange={(e) => setEditingPresence(e.target.value)}
-                                      size="small"
-                                    >
-                                      <MenuItem value="בבסיס">בבסיס</MenuItem>
-                                      <MenuItem value="בפעילות">בפעילות</MenuItem>
-                                      <MenuItem value="קורס">קורס</MenuItem>
-                                      <MenuItem value="חופש">חופש</MenuItem>
-                                      <MenuItem value="גימלים">גימלים</MenuItem>
-                                      <MenuItem value="אחר">אחר</MenuItem>
-                                    </Select>
-                                  </FormControl>
-                                  <IconButton size="small" onClick={handleSavePresence} color="primary">
-                                    <SaveIcon />
-                                  </IconButton>
-                                </Box>
-                                {(editingPresence === 'קורס' || editingPresence === 'גימלים' || editingPresence === 'חופש') && (
-                                  <TextField
-                                    size="small"
-                                    label={`${editingPresence} עד איזה יום? כולל`}
-                                    type="date"
-                                    value={editingAbsenceUntil}
-                                    onChange={(e) => setEditingAbsenceUntil(e.target.value)}
-                                    InputLabelProps={{ shrink: true }}
-                                    sx={{ minWidth: 200 }}
-                                  />
-                                )}
-                                {editingPresence === 'אחר' && (
-                                  <TextField
-                                    size="small"
-                                    label="הזן סטטוס מותאם אישית"
-                                    value={editingPresenceOther}
-                                    onChange={(e) => setEditingPresenceOther(e.target.value)}
-                                    sx={{ minWidth: 200 }}
-                                  />
-                                )}
-                              </Box>
-                            ) : (
-                              <IconButton 
-                                size="small" 
-                                onClick={() => handleEditPresence(soldier.id, soldier.presence || '', soldier.absenceUntil, soldier.presenceOther)}
+                  <Box key={soldier.id} sx={{ display: 'flex', alignItems: 'center', mb: 2, p: 1, border: '1px solid #e0e0e0', borderRadius: 1 }}>
+                    <Avatar sx={{ bgcolor: getRoleColor(soldier.role), mr: 2, width: 40, height: 40 }}>
+                      {soldier.name.charAt(0)}
+                    </Avatar>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography 
+                        variant="subtitle1" 
+                        fontWeight={600}
+                        sx={{ cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
+                        onClick={() => handleSoldierClick(soldier.id)}
+                      >
+                        {soldier.name}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {soldier.role} • {soldier.personalNumber} • {frameworkNames[soldier.frameworkId] || soldier.frameworkId}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Chip 
+                        label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : getActualPresence(soldier) || 'לא מוגדר'} 
+                        sx={{ 
+                          bgcolor: getPresenceColor(getActualPresence(soldier) || ''),
+                          color: 'white',
+                          fontSize: { xs: '0.7rem', sm: '0.75rem' }
+                        }}
+                        size="small"
+                      />
+                      {requiresAbsenceDate(soldier.presence as any) && soldier.absenceUntil && editingSoldier !== soldier.id && (
+                        <Typography variant="caption" sx={{ 
+                          color: 'text.secondary', 
+                          fontStyle: 'italic',
+                          fontSize: { xs: '0.65rem', sm: '0.75rem' }
+                        }}>
+                          {`עד ${formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}`}
+                        </Typography>
+                      )}
+                      {canEditPersonnel && (
+                        editingSoldier === soldier.id ? (
+                          <Box sx={{ 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            gap: 1, 
+                            width: '100%',
+                            mt: 1,
+                            pt: 1,
+                            borderTop: '1px solid #e0e0e0'
+                          }}>
+                            <FormControl size="small" fullWidth>
+                              <Select
+                                value={editingPresence}
+                                onChange={(e) => setEditingPresence(e.target.value)}
+                                size="small"
                               >
-                                <EditIcon />
-                              </IconButton>
+                                {getAllStatuses().map((status) => (
+                                  <MenuItem key={status} value={status}>
+                                    {getStatusLabel(status)}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                            {requiresAbsenceDate(editingPresence as any) && (
+                              <TextField
+                                size="small"
+                                label={`${editingPresence} עד מתי?`}
+                                type="date"
+                                value={editingAbsenceUntil ? new Date(editingAbsenceUntil).toISOString().split('T')[0] : ''}
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    // יצירת תאריך בזמן ישראל
+                                    const date = new Date(e.target.value + 'T00:00:00');
+                                    const israelDate = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }));
+                                    israelDate.setHours(23, 59, 0, 0);
+                                    setEditingAbsenceUntil(israelDate.toISOString());
+                                  } else {
+                                    setEditingAbsenceUntil('');
+                                  }
+                                }}
+                                InputLabelProps={{ shrink: true }}
+                                fullWidth
+                              />
                             )}
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                            {requiresCustomText(editingPresence as any) && (
+                              <TextField
+                                size="small"
+                                label="הזן סטטוס מותאם אישית"
+                                value={editingPresenceOther}
+                                onChange={(e) => setEditingPresenceOther(e.target.value)}
+                                fullWidth
+                              />
+                            )}
+                            <Box sx={{ display: 'flex', gap: 1 }}>
+                              <Button size="small" onClick={handleSavePresence} variant="contained">
+                                שמור
+                              </Button>
+                              <Button size="small" onClick={() => setEditingSoldier(null)}>
+                                ביטול
+                              </Button>
+                            </Box>
+                          </Box>
+                        ) : (
+                          <IconButton 
+                            size="small" 
+                            onClick={() => handleEditPresence(soldier.id, soldier.presence || '', soldier.absenceUntil, soldier.presenceOther)}
+                            sx={{ bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' } }}
+                          >
+                            <EditIcon />
+                          </IconButton>
+                        )
+                      )}
+                    </Box>
+                  </Box>
+                ))}
+              </Box>
             ) : (
               <Typography color="text.secondary" align="center">
                 אין חיילים בהיררכיה זו
               </Typography>
             )}
-          </CardContent>
-        </Card>
+          </AccordionDetails>
+        </Accordion>
       )}
 
-      {activeTab === 2 && (
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              מסגרות בנות
-            </Typography>
-            {framework.childFrameworks.length > 0 ? (
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2 }}>
-                {framework.childFrameworks.map((child) => (
-                  <Card key={child.id} variant="outlined">
-                    <CardContent>
-                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        <Avatar sx={{ bgcolor: 'secondary.main', mr: 2 }}>
-                          <AccountTreeIcon />
-                        </Avatar>
-                        <Box sx={{ flex: 1 }}>
-                          <Typography 
-                            variant="h6" 
-                            fontWeight="bold"
-                            sx={{ 
-                              cursor: 'pointer',
-                              '&:hover': { 
-                                color: 'primary.main',
-                                textDecoration: 'underline'
-                              }
-                            }}
-                            onClick={() => handleChildFrameworkClick(child.id)}
-                          >
-                            {child.name}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            רמה: {child.level}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                ))}
-              </Box>
-            ) : (
-              <Typography color="text.secondary" align="center">
-                אין מסגרות בנות
+      {/* תת-מסגרות */}
+      {framework.childFrameworks.length > 0 && (
+        <Accordion>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <AccountTreeIcon sx={{ mr: 2 }} />
+              <Typography variant="h6" fontWeight={600}>
+                תת-מסגרות ({framework.childFrameworks.length})
               </Typography>
-            )}
-          </CardContent>
-        </Card>
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Box>
+              {framework.childFrameworks.map((child) => (
+                <Accordion key={child.id} sx={{ mb: 1 }}>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                      <Avatar sx={{ bgcolor: 'secondary.main', mr: 2, width: 40, height: 40 }}>
+                        <AccountTreeIcon />
+                      </Avatar>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography 
+                          variant="subtitle1" 
+                          fontWeight={600}
+                          sx={{ 
+                            cursor: 'pointer',
+                            '&:hover': { 
+                              color: 'primary.main',
+                              textDecoration: 'underline'
+                            }
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleChildFrameworkClick(child.id);
+                          }}
+                        >
+                          {child.name}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {(child as any).soldiers?.length || 0} חיילים ישירים
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    {(child as any).childFrameworks && (child as any).childFrameworks.length > 0 ? (
+                      <Box>
+                        {(child as any).childFrameworks.map((grandChild: any) => (
+                          <Card key={grandChild.id} variant="outlined" sx={{ mb: 1 }}>
+                            <CardContent>
+                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                <Avatar sx={{ bgcolor: 'secondary.main', mr: 2, width: 32, height: 32 }}>
+                                  <AccountTreeIcon />
+                                </Avatar>
+                                <Box sx={{ flex: 1 }}>
+                                  <Typography 
+                                    variant="body1" 
+                                    fontWeight="bold"
+                                    sx={{ 
+                                      cursor: 'pointer',
+                                      '&:hover': { 
+                                        color: 'primary.main',
+                                        textDecoration: 'underline'
+                                      }
+                                    }}
+                                    onClick={() => handleChildFrameworkClick(grandChild.id)}
+                                  >
+                                    {grandChild.name}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {(grandChild as any).soldiers?.length || 0} חיילים ישירים
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </Box>
+                    ) : (
+                      <Typography color="text.secondary" align="center" variant="body2">
+                        אין תת-מסגרות נוספות
+                      </Typography>
+                    )}
+                  </AccordionDetails>
+                </Accordion>
+              ))}
+            </Box>
+          </AccordionDetails>
+        </Accordion>
       )}
 
-      {activeTab === 3 && (
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              פעילויות
-            </Typography>
-            {framework.activities && framework.activities.filter(activity => activity.status !== 'הושלם').length > 0 ? (
-              <List>
-                {framework.activities.filter(activity => activity.status !== 'הושלם').map((activity) => (
-                  <ListItem key={activity.id} disablePadding>
-                    <ListItemButton>
-                      <ListItemAvatar>
-                        <Avatar sx={{ bgcolor: getPresenceColor(activity.status) }}>
-                          <AssignmentIcon />
-                        </Avatar>
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={activity.name}
-                        secondary={`${activity.status} • ${formatToIsraelString(activity.plannedDate, { year: 'numeric', month: '2-digit', day: '2-digit' })} • ${
+      {/* פעילויות */}
+      {framework.activities && framework.activities.filter(activity => activity.status !== 'הושלם' && activity.status !== 'הסתיימה').length > 0 && (
+        <Accordion>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <AssignmentIcon sx={{ mr: 2 }} />
+              <Typography variant="h6" fontWeight={600}>
+                פעילויות ({framework.activities.filter(activity => activity.status !== 'הושלם' && activity.status !== 'הסתיימה').length})
+              </Typography>
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Box>
+              {framework.activities.filter(activity => activity.status !== 'הושלם' && activity.status !== 'הסתיימה').map((activity) => (
+                <Accordion key={activity.id} sx={{ mb: 1 }}>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                      <Avatar sx={{ bgcolor: getPresenceColor(activity.status), mr: 2, width: 40, height: 40 }}>
+                        <AssignmentIcon />
+                      </Avatar>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="subtitle1" fontWeight={600}>
+                          {activity.name}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {activity.status} • {formatToIsraelString(activity.plannedDate, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2">
+                        <strong>משתתפים:</strong> {
                           activity.participantsFromCurrentFramework?.length > 0 
-                            ? `משתתפים: ${activity.participantsFromCurrentFramework.map((p: any) => p.soldierName).join(', ')}`
+                            ? activity.participantsFromCurrentFramework.map((p: any) => p.soldierName).join(', ')
                             : activity.commanderFromCurrentFramework 
                               ? `מפקד: ${activity.commanderFromCurrentFramework.soldierName}`
-                                                             : activity.taskLeaderFromCurrentFramework
-                                 ? `מוביל משימה: ${activity.taskLeaderFromCurrentFramework.soldierName}`
-                                : activity.sourceFrameworkName || activity.frameworkId || activity.team || ''
-                        }`}
-                      />
-                      <ArrowBackIcon color="action" />
-                    </ListItemButton>
-                  </ListItem>
-                ))}
-              </List>
-            ) : (
-              <Typography color="text.secondary" align="center">
-                אין פעילויות למסגרת זו
-              </Typography>
-            )}
-          </CardContent>
-        </Card>
+                              : activity.taskLeaderFromCurrentFramework
+                                ? `מוביל משימה: ${activity.taskLeaderFromCurrentFramework.soldierName}`
+                                : activity.sourceFrameworkName || activity.frameworkId || activity.team || 'אין משתתפים'
+                        }
+                      </Typography>
+                      {activity.description && (
+                        <Typography variant="body2">
+                          <strong>תיאור:</strong> {activity.description}
+                        </Typography>
+                      )}
+                      {activity.location && (
+                        <Typography variant="body2">
+                          <strong>מיקום:</strong> {activity.location}
+                        </Typography>
+                      )}
+                      {activity.region && (
+                        <Typography variant="body2">
+                          <strong>חטמ"ר:</strong> {activity.region}
+                        </Typography>
+                      )}
+                      {activity.activityType && (
+                        <Typography variant="body2">
+                          <strong>סוג פעילות:</strong> {activity.activityType}
+                          {activity.activityTypeOther && ` - ${activity.activityTypeOther}`}
+                        </Typography>
+                      )}
+                      {activity.plannedDate && (
+                        <Typography variant="body2">
+                          <strong>תאריך מתוכנן:</strong> {formatToIsraelString(activity.plannedDate, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                        </Typography>
+                      )}
+                      {activity.plannedTime && (
+                        <Typography variant="body2">
+                          <strong>שעה מתוכננת:</strong> {activity.plannedTime}
+                        </Typography>
+                      )}
+                      {activity.duration && (
+                        <Typography variant="body2">
+                          <strong>משך:</strong> {activity.duration} שעות
+                        </Typography>
+                      )}
+                      {activity.commanderFromCurrentFramework && (
+                        <Typography variant="body2">
+                          <strong>מפקד הפעילות:</strong> {activity.commanderFromCurrentFramework.soldierName}
+                        </Typography>
+                      )}
+                      {activity.taskLeaderFromCurrentFramework && (
+                        <Typography variant="body2">
+                          <strong>מוביל משימה:</strong> {activity.taskLeaderFromCurrentFramework.soldierName}
+                        </Typography>
+                      )}
+                      {activity.mobility && (
+                        <Typography variant="body2">
+                          <strong>ניוד:</strong> {
+                            activity.mobility.includes('TRIP_ID:') 
+                              ? activity.mobility.split(';')
+                                  .map((mobilityItem: string) => {
+                                    const tripId = mobilityItem.replace('TRIP_ID:', '').trim();
+                                    const trip = framework.trips?.find(t => t.id === tripId);
+                                    return trip ? trip.purpose : tripId;
+                                  })
+                                  .filter(Boolean)
+                                  .join(' | ')
+                              : activity.mobility
+                          }
+                        </Typography>
+                      )}
+                      {activity.participants && activity.participants.length > 0 && (
+                        <Typography variant="body2">
+                          <strong>משתתפים מפורטים:</strong>
+                        </Typography>
+                      )}
+                      {activity.participants && activity.participants.map((participant: any, index: number) => (
+                        <Box key={index} sx={{ ml: 2, p: 1, border: '1px solid #e0e0e0', borderRadius: 1, mb: 1 }}>
+                          <Typography variant="body2">
+                            <strong>{participant.soldierName}</strong> - {participant.role}
+                            {participant.vehicleId && ` (רכב: ${participant.vehicleId})`}
+                          </Typography>
+                        </Box>
+                      ))}
+                      {activity.activitySummary && (
+                        <Typography variant="body2">
+                          <strong>סיכום פעילות:</strong> {activity.activitySummary}
+                        </Typography>
+                      )}
+                      {activity.deliverables && activity.deliverables.length > 0 && (
+                        <Typography variant="body2">
+                          <strong>תוצרים:</strong>
+                        </Typography>
+                      )}
+                      {activity.deliverables && activity.deliverables.map((deliverable: any, index: number) => (
+                        <Box key={index} sx={{ ml: 2, p: 1, border: '1px solid #e0e0e0', borderRadius: 1, mb: 1 }}>
+                          <Typography variant="body2">
+                            <strong>{deliverable.title}</strong> - {deliverable.type}
+                          </Typography>
+                          {deliverable.description && (
+                            <Typography variant="body2" color="text.secondary">
+                              {deliverable.description}
+                            </Typography>
+                          )}
+                        </Box>
+                      ))}
+                      {activity.notes && (
+                        <Typography variant="body2">
+                          <strong>הערות:</strong> {activity.notes}
+                        </Typography>
+                      )}
+                    </Box>
+                  </AccordionDetails>
+                </Accordion>
+              ))}
+            </Box>
+          </AccordionDetails>
+        </Accordion>
       )}
 
-      {activeTab === 4 && (
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              תורנויות
-            </Typography>
-            {framework.duties && framework.duties.filter(duty => duty.status !== 'הסתיימה').length > 0 ? (
-              <List>
-                {framework.duties.filter(duty => duty.status !== 'הסתיימה').map((duty) => (
-                  <ListItem key={duty.id} disablePadding>
-                    <ListItemButton onClick={() => navigate(`/duties/${duty.id}`)}>
-                      <ListItemAvatar>
-                        <Avatar sx={{ bgcolor: 'secondary.main' }}>
-                          <CalendarMonthIcon />
-                        </Avatar>
-                      </ListItemAvatar>
-                       <ListItemText
-                         primary={`תורנות ${duty.type}`}
-                         secondary={`${duty.status} • ${formatToIsraelString(duty.startDate, { year: 'numeric', month: '2-digit', day: '2-digit' })} • ${duty.location} • ${
-                           duty.participantsFromCurrentFramework?.length > 0 
-                             ? `משתתפים: ${duty.participantsFromCurrentFramework.map((p: any) => p.soldierName).join(', ')}`
-                             : duty.sourceFrameworkName || duty.frameworkId || duty.team || ''
-                         }`}
-                       />
-                      <ArrowBackIcon color="action" />
-                    </ListItemButton>
-                  </ListItem>
-                ))}
-              </List>
-            ) : (
-              <Typography color="text.secondary" align="center">
-                אין תורנויות למסגרת זו
+      {/* תורנויות */}
+      {framework.duties && framework.duties.filter(duty => duty.status !== 'הסתיימה' && duty.status !== 'הושלם').length > 0 && (
+        <Accordion>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <CalendarMonthIcon sx={{ mr: 2 }} />
+              <Typography variant="h6" fontWeight={600}>
+                תורנויות ({framework.duties.filter(duty => duty.status !== 'הסתיימה' && duty.status !== 'הושלם').length})
               </Typography>
-            )}
-          </CardContent>
-        </Card>
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Box>
+              {framework.duties.filter(duty => duty.status !== 'הסתיימה' && duty.status !== 'הושלם').map((duty) => (
+                <Box key={duty.id} sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  mb: 2, 
+                  p: 2, 
+                  border: '1px solid #e0e0e0', 
+                  borderRadius: 1,
+                  bgcolor: 'background.paper'
+                }}>
+                  <Avatar sx={{ bgcolor: 'secondary.main', mr: 2, width: 40, height: 40 }}>
+                    <CalendarMonthIcon />
+                  </Avatar>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="subtitle1" fontWeight={600}>
+                      תורנות {duty.type}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {formatToIsraelString(duty.startDate, { year: 'numeric', month: '2-digit', day: '2-digit' })} • {duty.startTime === '06:00' ? 'בוקר' : 'ערב'}
+                    </Typography>
+                    {duty.participantsFromCurrentFramework?.length > 0 && (
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        משתתפים: {duty.participantsFromCurrentFramework.map((p: any) => p.soldierName).join(', ')}
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+          </AccordionDetails>
+        </Accordion>
       )}
 
-      {activeTab === 5 && (
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              נסיעות
-            </Typography>
-            {framework.trips && framework.trips.filter(trip => trip.status !== 'הסתיימה').length > 0 ? (
-              <List>
-                {framework.trips.filter(trip => trip.status !== 'הסתיימה').map((trip) => (
-                  <ListItem key={trip.id} disablePadding>
-                    <ListItemButton onClick={() => navigate(`/trips/${trip.id}`)}>
-                      <ListItemAvatar>
-                        <Avatar sx={{ bgcolor: 'primary.main' }}>
-                          <CarIcon />
-                        </Avatar>
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={`נסיעה ${trip.purpose}`}
-                        secondary={`${trip.status} • ${trip.departureTime} • ${trip.location} • ${
+      {/* נסיעות */}
+      {framework.trips && framework.trips.filter(trip => trip.status !== 'הסתיימה' && trip.status !== 'הושלם').length > 0 && (
+        <Accordion>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <CarIcon sx={{ mr: 2 }} />
+              <Typography variant="h6" fontWeight={600}>
+                נסיעות ({framework.trips.filter(trip => trip.status !== 'הסתיימה' && trip.status !== 'הושלם').length})
+              </Typography>
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Box>
+              {framework.trips.filter(trip => trip.status !== 'הסתיימה' && trip.status !== 'הושלם').map((trip) => (
+                <Accordion key={trip.id} sx={{ mb: 1 }}>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                      <Avatar sx={{ bgcolor: 'primary.main', mr: 2, width: 40, height: 40 }}>
+                        <CarIcon />
+                      </Avatar>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="subtitle1" fontWeight={600}>
+                          נסיעה {trip.purpose}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {trip.status} • {trip.departureTime?.replace('T', ' ') || ''} • {trip.location}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2">
+                        <strong>נהג:</strong> {
                           trip.driverFromCurrentFramework 
-                            ? `נהג: ${trip.driverFromCurrentFramework.soldierName}`
-                            : trip.sourceFrameworkName || trip.frameworkId || trip.team || ''
-                        }`}
-                      />
-                      <ArrowBackIcon color="action" />
-                    </ListItemButton>
-                  </ListItem>
-                ))}
-              </List>
-            ) : (
-              <Typography color="text.secondary" align="center">
-                אין נסיעות למסגרת זו
-              </Typography>
-            )}
-          </CardContent>
-        </Card>
+                            ? trip.driverFromCurrentFramework.soldierName
+                            : trip.sourceFrameworkName || trip.frameworkId || trip.team || 'לא מוגדר'
+                        }
+                      </Typography>
+                      {trip.vehicle && (
+                        <Typography variant="body2">
+                          <strong>רכב:</strong> {trip.vehicle}
+                        </Typography>
+                      )}
+                      {trip.vehicleNumber && (
+                        <Typography variant="body2">
+                          <strong>מספר רכב:</strong> {trip.vehicleNumber}
+                        </Typography>
+                      )}
+                      {trip.vehicleType && (
+                        <Typography variant="body2">
+                          <strong>סוג רכב:</strong> {trip.vehicleType}
+                        </Typography>
+                      )}
+                      {trip.purpose && (
+                        <Typography variant="body2">
+                          <strong>מטרה:</strong> {trip.purpose}
+                        </Typography>
+                      )}
+                      {trip.purposeType && (
+                        <Typography variant="body2">
+                          <strong>סוג מטרה:</strong> {trip.purposeType}
+                          {trip.purposeOther && ` - ${trip.purposeOther}`}
+                        </Typography>
+                      )}
+                      {trip.location && (
+                        <Typography variant="body2">
+                          <strong>יעד:</strong> {trip.location}
+                        </Typography>
+                      )}
+                      {trip.departureTime && (
+                        <Typography variant="body2">
+                          <strong>שעת יציאה:</strong> {trip.departureTime.replace('T', ' ')}
+                        </Typography>
+                      )}
+                      {trip.returnTime && (
+                        <Typography variant="body2">
+                          <strong>שעת חזרה:</strong> {trip.returnTime.replace('T', ' ')}
+                        </Typography>
+                      )}
+                      {trip.departureDate && (
+                        <Typography variant="body2">
+                          <strong>תאריך יציאה:</strong> {formatToIsraelString(trip.departureDate, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                        </Typography>
+                      )}
+                      {trip.returnDate && (
+                        <Typography variant="body2">
+                          <strong>תאריך חזרה:</strong> {formatToIsraelString(trip.returnDate, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                        </Typography>
+                      )}
+                      {trip.actualDepartureTime && (
+                        <Typography variant="body2">
+                          <strong>זמן יציאה בפועל:</strong> {trip.actualDepartureTime.replace('T', ' ')}
+                        </Typography>
+                      )}
+                      {trip.actualReturnTime && (
+                        <Typography variant="body2">
+                          <strong>זמן חזרה בפועל:</strong> {trip.actualReturnTime.replace('T', ' ')}
+                        </Typography>
+                      )}
+                      {trip.commanderFromCurrentFramework && (
+                        <Typography variant="body2">
+                          <strong>מפקד נסיעה:</strong> {trip.commanderFromCurrentFramework.soldierName}
+                        </Typography>
+                      )}
+                      {trip.passengers && trip.passengers.length > 0 && (
+                        <Typography variant="body2">
+                          <strong>נוסעים:</strong> {trip.passengers.map((p: any) => p.soldierName).join(', ')}
+                        </Typography>
+                      )}
+                      {trip.linkedActivityId && (
+                        <Typography variant="body2">
+                          <strong>פעילות מקושרת:</strong> {
+                            (() => {
+                              const linkedActivity = framework.activities?.find(a => a.id === trip.linkedActivityId);
+                              return linkedActivity ? linkedActivity.name : trip.linkedActivityId;
+                            })()
+                          }
+                        </Typography>
+                      )}
+                      {trip.team && (
+                        <Typography variant="body2">
+                          <strong>צוות:</strong> {trip.team}
+                        </Typography>
+                      )}
+                      {trip.frameworkId && (
+                        <Typography variant="body2">
+                          <strong>מסגרת:</strong> {trip.frameworkId}
+                        </Typography>
+                      )}
+                      {trip.autoStatusChanged && (
+                        <Typography variant="body2" color="warning.main">
+                          <strong>⚠️ סטטוס השתנה אוטומטית</strong>
+                        </Typography>
+                      )}
+                      {trip.autoStatusUpdateTime && (
+                        <Typography variant="body2">
+                          <strong>זמן עדכון אוטומטי:</strong> {formatToIsraelString(trip.autoStatusUpdateTime, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        </Typography>
+                      )}
+                      {trip.notes && (
+                        <Typography variant="body2">
+                          <strong>הערות:</strong> {trip.notes}
+                        </Typography>
+                      )}
+                    </Box>
+                  </AccordionDetails>
+                </Accordion>
+              ))}
+            </Box>
+          </AccordionDetails>
+        </Accordion>
+      )}
+
+      {/* הפניות */}
+      {framework.referrals && framework.referrals.filter(referral => {
+        // הצג רק הפניות שעוד לא הגיע שעת החזרה שלהן (בזמן ישראל)
+        if (referral.returnTime) {
+          const now = getCurrentIsraelTime();
+          const returnDateTime = new Date(`${referral.date}T${referral.returnTime}`);
+          return now < returnDateTime;
+        }
+        
+        return true;
+      }).length > 0 && (
+        <Accordion>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <AssignmentIcon sx={{ mr: 2 }} />
+                              <Typography variant="h6" fontWeight={600}>
+                  הפניות ({framework.referrals.filter(referral => {
+                    // הצג רק הפניות שעוד לא הגיע שעת החזרה שלהן (בזמן ישראל)
+                    if (referral.returnTime) {
+                      const now = getCurrentIsraelTime();
+                      const returnDateTime = new Date(`${referral.date}T${referral.returnTime}`);
+                      return now < returnDateTime;
+                    }
+                    
+                    return true;
+                  }).length})
+                </Typography>
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Box>
+              {framework.referrals.filter(referral => {
+                // הצג רק הפניות שעוד לא הגיע שעת החזרה שלהן (בזמן ישראל)
+                if (referral.returnTime) {
+                  const now = getCurrentIsraelTime();
+                  const returnDateTime = new Date(`${referral.date}T${referral.returnTime}`);
+                  return now < returnDateTime;
+                }
+                
+                return true;
+              }).map((referral) => (
+                <Accordion key={referral.id} sx={{ mb: 1 }}>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                      <Avatar sx={{ bgcolor: 'warning.main', mr: 2, width: 40, height: 40 }}>
+                        <AssignmentIcon />
+                      </Avatar>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="subtitle1" fontWeight={600}>
+                          הפניה {referral.type}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {referral.departureTime?.replace('T', ' ') || ''} • {referral.destination}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      {referral.soldierName && (
+                        <Typography variant="body2">
+                          <strong>חייל:</strong> {referral.soldierName}
+                        </Typography>
+                      )}
+                      {referral.type && (
+                        <Typography variant="body2">
+                          <strong>סוג הפניה:</strong> {referral.type}
+                        </Typography>
+                      )}
+                      {referral.destination && (
+                        <Typography variant="body2">
+                          <strong>יעד:</strong> {referral.destination}
+                        </Typography>
+                      )}
+                      {referral.departureTime && (
+                        <Typography variant="body2">
+                          <strong>שעת יציאה:</strong> {referral.departureTime.replace('T', ' ')}
+                        </Typography>
+                      )}
+                      {referral.returnTime && (
+                        <Typography variant="body2">
+                          <strong>שעת חזרה:</strong> {referral.returnTime.replace('T', ' ')}
+                        </Typography>
+                      )}
+                      {referral.departureDate && (
+                        <Typography variant="body2">
+                          <strong>תאריך יציאה:</strong> {formatToIsraelString(referral.departureDate, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                        </Typography>
+                      )}
+                      {referral.returnDate && (
+                        <Typography variant="body2">
+                          <strong>תאריך חזרה:</strong> {formatToIsraelString(referral.returnDate, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                        </Typography>
+                      )}
+                      {referral.reason && (
+                        <Typography variant="body2">
+                          <strong>סיבה:</strong> {referral.reason}
+                        </Typography>
+                      )}
+                      {referral.notes && (
+                        <Typography variant="body2">
+                          <strong>הערות:</strong> {referral.notes}
+                        </Typography>
+                      )}
+                    </Box>
+                  </AccordionDetails>
+                </Accordion>
+              ))}
+            </Box>
+          </AccordionDetails>
+        </Accordion>
       )}
 
       {/* Report Dialog */}
-      <Dialog 
+      <ReportDialog
         open={reportDialogOpen} 
         onClose={() => setReportDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          דוח 1 - סטטוס נוכחות חיילים במסגרת {framework.name}
-        </DialogTitle>
-        <DialogContent>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>שם</TableCell>
-                  <TableCell>תפקיד</TableCell>
-                  <TableCell>מספר אישי</TableCell>
-                  <TableCell>מסגרת</TableCell>
-                  <TableCell>סטטוס נוכחות</TableCell>
-                  <TableCell>עריכת דוח</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {reportData.map((soldier) => (
-                  <TableRow key={soldier.id}>
-                    <TableCell>{soldier.name}</TableCell>
-                    <TableCell>{soldier.role}</TableCell>
-                    <TableCell>{soldier.personalNumber}</TableCell>
-                    <TableCell>{soldier.frameworkName}</TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                        <Chip 
-                          label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence} 
-                          sx={{ 
-                            bgcolor: getPresenceColor(soldier.presence),
-                            color: 'white'
-                          }}
-                          size="small"
-                        />
-                        {(soldier.presence === 'קורס' || soldier.presence === 'גימלים' || soldier.presence === 'חופש') && soldier.absenceUntil && (
-                          <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                            עד תאריך {formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}
-                          </Typography>
-                        )}
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <FormControl size="small" sx={{ minWidth: 120 }}>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                          <FormControl size="small" sx={{ minWidth: 120 }}>
-                            <Select
-                              value={soldier.editedPresence}
-                              onChange={(e) => handleUpdateReportPresence(soldier.id, e.target.value)}
-                              size="small"
-                            >
-                              <MenuItem value="בבסיס">בבסיס</MenuItem>
-                              <MenuItem value="קורס">קורס</MenuItem>
-                              <MenuItem value="חופש">חופש</MenuItem>
-                              <MenuItem value="גימלים">גימלים</MenuItem>
-                              <MenuItem value="אחר">אחר</MenuItem>
-                            </Select>
-                          </FormControl>
-                          {(soldier.editedPresence === 'אחר' || soldier.editedPresence === 'קורס') && (
-                            <TextField
-                              size="small"
-                              placeholder={soldier.editedPresence === 'קורס' ? "הזן שם הקורס" : "הזן טקסט חופשי"}
-                              value={soldier.otherText || ''}
-                              onChange={(e) => handleUpdateReportOtherText(soldier.id, e.target.value)}
-                              sx={{ minWidth: 200 }}
-                            />
-                          )}
-                        </Box>
-                      </FormControl>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setReportDialogOpen(false)}>
-            ביטול
-          </Button>
-          <Button onClick={handlePrintReport} variant="contained" startIcon={<PrintIcon />}>
-            הפק דוח
-          </Button>
-        </DialogActions>
-      </Dialog>
+        frameworkName={framework?.name || ''}
+        reportData={reportData}
+        onUpdateReportPresence={handleUpdateReportPresence}
+        onUpdateReportOtherText={handleUpdateReportOtherText}
+      />
 
       {/* Snackbar */}
       <Snackbar

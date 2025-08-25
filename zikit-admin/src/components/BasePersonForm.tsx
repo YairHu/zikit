@@ -14,6 +14,8 @@ import {
 } from '@mui/material';
 import { BasePerson } from '../models/BasePerson';
 import { getFrameworkNameById } from '../services/frameworkService';
+import { getAllStatuses, requiresAbsenceDate, requiresCustomText } from '../utils/presenceStatus';
+import { createIsraelDate } from '../utils/dateUtils';
 
 interface BasePersonFormProps {
   open: boolean;
@@ -37,7 +39,7 @@ const emptyPerson: Omit<BasePerson, 'id'> = {
   drivingLicenses: [],
   presence: 'בבסיס',
   presenceOther: '',
-      absenceUntil: '',
+  absenceUntil: '',
   family: '',
   medicalProfile: '',
   
@@ -148,6 +150,16 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
           }
         };
       });
+    } else if (name === 'absenceUntil') {
+      // טיפול בשדה תאריך - הוספת שעה אוטומטית עם טיפול נכון באזורי זמן
+      if (value) {
+        const israelDate = createIsraelDate(value);
+        // absenceUntil - תמיד 23:59
+        israelDate.setHours(23, 59, 0, 0);
+        setFormData(prev => ({ ...prev, [name]: israelDate.toISOString() }));
+      } else {
+        setFormData(prev => ({ ...prev, [name]: '' }));
+      }
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -248,15 +260,14 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
                 onChange={(e: any) => setFormData(prev => ({ ...prev, presence: e.target.value }))}
                 label="נוכחות"
               >
-                <MenuItem value="בבסיס">בבסיס</MenuItem>
-                <MenuItem value="בפעילות">בפעילות</MenuItem>
-                <MenuItem value="קורס">קורס</MenuItem>
-                <MenuItem value="חופש">חופש</MenuItem>
-                <MenuItem value="גימלים">גימלים</MenuItem>
-                <MenuItem value="אחר">אחר</MenuItem>
+                {getAllStatuses().map(status => (
+                  <MenuItem key={status} value={status}>
+                    {status}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
-            {formData.presence === 'אחר' && (
+            {requiresCustomText(formData.presence as any) && (
               <TextField
                 fullWidth
                 label="פירוט אחר"
@@ -266,17 +277,18 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
                 helperText="פרט את המיקום הספציפי"
               />
             )}
-            {(formData.presence === 'קורס' || formData.presence === 'גימלים' || formData.presence === 'חופש') && (
-              <TextField
-                fullWidth
-                label={`${formData.presence} עד איזה יום? כולל`}
-                name="absenceUntil"
-                type="date"
-                value={formData.absenceUntil || ''}
-                onChange={handleChange}
-                InputLabelProps={{ shrink: true }}
-                helperText="בחר את התאריך האחרון של ההיעדרות"
-              />
+            {requiresAbsenceDate(formData.presence as any) && (
+              <>
+                <TextField
+                  fullWidth
+                  label={`${formData.presence} עד מתי?`}
+                  name="absenceUntil"
+                  type="date"
+                  value={formData.absenceUntil ? new Date(formData.absenceUntil).toISOString().split('T')[0] : ''}
+                  onChange={handleChange}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </>
             )}
             <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
               <TextField

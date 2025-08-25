@@ -48,19 +48,9 @@ import {
 import { useUser } from '../contexts/UserContext';
 import { getAllSoldiers } from '../services/soldierService';
 import { getAllVehicles } from '../services/vehicleService';
-import { getAllFrameworks } from '../services/frameworkService';
-import { getAllPolicies } from '../services/permissionService';
-import { getAllRoles } from '../services/permissionService';
-import { getAllMissions } from '../services/missionService';
-import { getAllActivities } from '../services/activityService';
-import { getAllDuties } from '../services/dutyService';
-import { getAllTrips } from '../services/tripService';
 import { 
   importSoldiers, 
-  importVehicles, 
-  importFrameworks, 
-  importPolicies, 
-  importRoles 
+  importVehicles
 } from '../services/importService';
 
 interface DataTable {
@@ -145,83 +135,6 @@ const DataImportExport: React.FC = () => {
           nextMaintenance: 'תחזוקה הבאה (תאריך)',
           seats: 'מספר מקומות',
           requiredLicense: 'היתר נדרש לנהיגה'
-        }
-      ]
-    },
-    {
-      id: 'frameworks',
-      name: 'מסגרות',
-      description: 'נתוני מסגרות במערכת',
-      icon: <TableIcon />,
-      getData: getAllFrameworks,
-      exportData: (data) => exportToCSV(data, 'frameworks'),
-      importData: async (data) => {
-        if (!user?.uid) throw new Error('משתמש לא מחובר');
-        const result = await importFrameworks(data, user.uid);
-        if (result.errors.length > 0) {
-          throw new Error(`שגיאות בייבוא: ${result.errors.join(', ')}`);
-        }
-        return result;
-      },
-      getTemplate: () => [
-        {
-          name: 'שם המסגרת',
-          parentFrameworkId: 'מזהה מסגרת אב',
-          commanderId: 'מזהה מפקד',
-          description: 'תיאור',
-          level: 'רמת מסגרת (company/platoon/squad/team/other)',
-          isActive: 'פעילה (true/false)',
-          createdAt: 'תאריך יצירה',
-          updatedAt: 'תאריך עדכון'
-        }
-      ]
-    },
-    {
-      id: 'policies',
-      name: 'מדיניות הרשאות',
-      description: 'מדיניות הרשאות במערכת',
-      icon: <TableIcon />,
-      getData: getAllPolicies,
-      exportData: (data) => exportToCSV(data, 'policies'),
-      importData: async (data) => {
-        if (!user?.uid) throw new Error('משתמש לא מחובר');
-        const result = await importPolicies(data, user.uid);
-        if (result.errors.length > 0) {
-          throw new Error(`שגיאות בייבוא: ${result.errors.join(', ')}`);
-        }
-        return result;
-      },
-      getTemplate: () => [
-        {
-          name: 'שם המדיניות',
-          description: 'תיאור',
-          paths: 'נתיבי מערכת (מופרד בפסיקים)',
-          dataScope: 'היקף נתונים',
-          permissions: 'הרשאות (מופרד בפסיקים)'
-        }
-      ]
-    },
-    {
-      id: 'roles',
-      name: 'תפקידים',
-      description: 'תפקידים במערכת',
-      icon: <TableIcon />,
-      getData: getAllRoles,
-      exportData: (data) => exportToCSV(data, 'roles'),
-      importData: async (data) => {
-        if (!user?.uid) throw new Error('משתמש לא מחובר');
-        const result = await importRoles(data, user.uid);
-        if (result.errors.length > 0) {
-          throw new Error(`שגיאות בייבוא: ${result.errors.join(', ')}`);
-        }
-        return result;
-      },
-      getTemplate: () => [
-        {
-          name: 'שם התפקיד',
-          description: 'תיאור',
-          policies: 'מדיניות (מופרד בפסיקים)',
-          isSystem: 'תפקיד מערכת (true/false)'
         }
       ]
     }
@@ -737,21 +650,6 @@ const DataImportExport: React.FC = () => {
         <Typography variant="body2">
           <strong>הוראות:</strong> בחר טבלה, הורד תבנית ריקה, מלא אותה בנתונים והעלה חזרה למערכת.
           או ייצא נתונים קיימים לעריכה חיצונית.
-        </Typography>
-      </Alert>
-
-      {/* CSV Encoding Warning */}
-      <Alert severity="warning" sx={{ mb: 3 }}>
-        <Typography variant="body2">
-          <strong>חשוב - תמיכה בעברית:</strong>
-          <br />
-          • קבצי CSV נוצרים עם קידוד UTF-8 ו-BOM לתמיכה מלאה בעברית
-          <br />
-          • ב-Excel: פתח את הקובץ באמצעות "נתונים" → "מטקסט/CSV" ובחר קידוד UTF-8
-          <br />
-          • ב-Google Sheets: הקובץ ייפתח אוטומטיך עם התמיכה הנכונה בעברית
-          <br />
-          • מערכים (רשימות) מופרדים בפסיק-נקודה (;) ואובייקטים מיוצגים כ-JSON
         </Typography>
       </Alert>
 

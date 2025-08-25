@@ -4,6 +4,23 @@ import { Soldier } from '../models/Soldier';
 import { getAuth } from 'firebase/auth';
 import { localStorageService, updateTableTimestamp } from './cacheService';
 import { getAllFrameworks } from './frameworkService';
+import { 
+  PresenceStatus, 
+  STATUS_HIERARCHY as PRESENCE_STATUS_HIERARCHY, 
+  requiresAbsenceDate, 
+  isAbsenceStatus, 
+  isRegularStatus,
+  getDefaultStatus, 
+  getDefaultAbsenceStatus,
+  getStatusPriority,
+  compareStatusPriority,
+  getHighestPriorityStatus,
+  mapStatusForReport,
+  getUnavailabilityReason,
+  getAllStatuses,
+  getStatusColor as getPresenceStatusColor,
+  getStatusLabel
+} from '../utils/presenceStatus';
 
 const soldiersCollection = collection(db, 'soldiers');
 
@@ -126,20 +143,10 @@ export const getAllSoldiersWithFrameworkNames = async (): Promise<(Soldier & { f
   });
 }; 
 
-// היררכיית סטטוסים - מלמעלה למטה (גבוה יותר = עדיפות גבוהה יותר)
-export const STATUS_HIERARCHY = {
-  'קורס': 9,        // קורס - הגבוה ביותר
-  'אחר': 8,         // אחר - גבוה מאוד (לא מתאפס אוטומטית)
-  'גימלים': 7,      // גימלים - גבוה מאוד
-  'חופש': 6,        // חופש - גבוה מאוד
-  'בפעילות': 5,
-  'בנסיעה': 4,
-  'בתורנות': 3,
-  'בבסיס': 2,
-  'במנוחה': 1
-} as const;
+// שימוש בהיררכיית הסטטוסים מהמחלקה המרכזית
+export const STATUS_HIERARCHY = PRESENCE_STATUS_HIERARCHY;
 
-export type SoldierStatus = keyof typeof STATUS_HIERARCHY;
+export type SoldierStatus = PresenceStatus;
 
 // פונקציה לעדכון אוטומטי של כל החיילים
 export const updateAllSoldiersStatusesAutomatically = async (): Promise<void> => {
@@ -166,15 +173,15 @@ export const updateAllSoldiersStatusesAutomatically = async (): Promise<void> =>
         const absenceUntil = new Date(soldier.absenceUntil);
         if (now >= absenceUntil) {
           // ההיעדרות הסתיימה - חזרה לסטטוס הקודם או לבסיס
-          newStatus = soldier.previousStatus as SoldierStatus || 'בבסיס';
+          newStatus = soldier.previousStatus as SoldierStatus || getDefaultStatus();
           shouldUpdate = true;
           console.log(`🔄 [AUTO] חייל ${soldier.name} (${soldier.id}) - היעדרות הסתיימה, חזרה ל-${newStatus}`);
-        } else if (soldier.presence !== 'קורס' && soldier.presence !== 'גימלים' && soldier.presence !== 'חופש') {
+        } else if (!isAbsenceStatus(soldier.presence as PresenceStatus)) {
           // החייל בהיעדרות אבל הסטטוס לא מעודכן
           // נקבע את הסטטוס לפי סוג ההיעדרות (אם יש אינדיקציה) או נשאיר את הנוכחי
-          if (soldier.presence === 'בבסיס' || soldier.presence === 'בפעילות' || soldier.presence === 'בנסיעה' || soldier.presence === 'בתורנות' || soldier.presence === 'במנוחה') {
+          if (isRegularStatus(soldier.presence as PresenceStatus)) {
             // אם החייל בסטטוס רגיל, נקבע אותו לקורס (ברירת מחדל)
-            newStatus = 'קורס';
+            newStatus = getDefaultAbsenceStatus();
             shouldUpdate = true;
             console.log(`🔄 [AUTO] חייל ${soldier.name} (${soldier.id}) - עדכון לקורס`);
           }
@@ -205,8 +212,8 @@ export const updateAllSoldiersStatusesAutomatically = async (): Promise<void> =>
         };
         
         // ניקוי שדות תאריך אם הסטטוס הסתיים
-        if (newStatus !== 'קורס' && newStatus !== 'גימלים' && newStatus !== 'חופש' && soldier.absenceUntil) {
-          updateData.absenceUntil = null;
+        if (!requiresAbsenceDate(newStatus) && soldier.absenceUntil) {
+          updateData.absenceUntil = undefined;
         }
         if (newStatus !== 'במנוחה' && soldier.restUntil) {
           updateData.restUntil = null;
@@ -267,19 +274,16 @@ export const updateSoldierStatus = async (
     let finalStatus = newStatus;
 
     // בדיקה מיוחדת לקורס, גימלים, חופש ואחר - אל תעדכן אותם אלא אם כן זה סיום פעילות במפורש
-    if ((currentStatus === 'קורס' || currentStatus === 'גימלים' || currentStatus === 'חופש' || currentStatus === 'אחר') && 
+    if (isAbsenceStatus(currentStatus) && 
         !context?.isEnding && 
-        newStatus !== 'קורס' && 
-        newStatus !== 'גימלים' && 
-        newStatus !== 'חופש' && 
-        newStatus !== 'אחר') {
+        !isAbsenceStatus(newStatus)) {
       console.log(`🚫 [STATUS] חייל בסטטוס ${currentStatus} - לא מעדכן ל-${newStatus} (רק סיום פעילות מותר)`);
       return;
     }
 
     if (context?.isEnding) {
       // אם זה סיום פעילות - בדוק אם החייל בקורס/גימלים/חופש/אחר, אם כן החזר אותו לסטטוס המקורי
-      if (currentStatus === 'קורס' || currentStatus === 'גימלים' || currentStatus === 'חופש' || currentStatus === 'אחר') {
+      if (isAbsenceStatus(currentStatus)) {
         finalStatus = currentStatus; // השאר בסטטוס המקורי
         console.log(`✅ [STATUS] סיום פעילות - מחזיר ל-${finalStatus}`);
       }
@@ -370,77 +374,35 @@ export const updateSoldierStatus = async (
 
 // פונקציה לקבלת הסטטוס הנוכחי של חייל
 export const getSoldierCurrentStatus = (soldier: Soldier): SoldierStatus => {
-  if (!soldier.presence) return 'בבסיס';
+  if (!soldier.presence) return getDefaultStatus();
   
   // אם זה נהג במנוחה - בדיקה אם המנוחה הסתיימה
   if (soldier.presence === 'במנוחה' && soldier.restUntil) {
     const now = new Date();
     const restUntil = new Date(soldier.restUntil);
     if (now >= restUntil) {
-      return 'בבסיס';
+      return getDefaultStatus();
     }
   }
   
   // בדיקה שהערך תקין - כולל סטטוסים מיוחדים
-  const validStatuses: SoldierStatus[] = ['בפעילות', 'בנסיעה', 'בתורנות', 'בבסיס', 'במנוחה', 'קורס', 'גימלים', 'חופש', 'אחר'];
+  const validStatuses = getAllStatuses();
   if (validStatuses.includes(soldier.presence as SoldierStatus)) {
     return soldier.presence as SoldierStatus;
   }
   
   // אם הערך לא תקין - חזרה לבסיס
-  return 'בבסיס';
+  return getDefaultStatus();
 };
 
 // פונקציה לקבלת צבע סטטוס
 export const getStatusColor = (status: SoldierStatus | string): string => {
-  switch (status) {
-    case 'בפעילות':
-      return '#F44336'; // אדום
-    case 'בנסיעה':
-      return '#FF9800'; // כתום
-    case 'בתורנות':
-      return '#9C27B0'; // סגול
-    case 'בבסיס':
-      return '#4CAF50'; // ירוק
-    case 'במנוחה':
-      return '#2196F3'; // כחול
-    case 'קורס':
-      return '#E91E63'; // ורוד
-    case 'גימלים':
-      return '#FFD600'; // צהוב
-    case 'חופש':
-      return '#00BCD4'; // כחול בהיר
-    case 'אחר':
-      return '#9C27B0'; // סגול
-    default:
-      return '#9E9E9E'; // אפור
-  }
+  return getPresenceStatusColor(status as PresenceStatus);
 };
 
 // פונקציה לקבלת טקסט סטטוס
 export const getStatusText = (status: SoldierStatus): string => {
-  switch (status) {
-    case 'בפעילות':
-      return 'בפעילות';
-    case 'בנסיעה':
-      return 'בנסיעה';
-    case 'בתורנות':
-      return 'בתורנות';
-    case 'בבסיס':
-      return 'בבסיס';
-    case 'במנוחה':
-      return 'במנוחה';
-    case 'קורס':
-      return 'קורס';
-    case 'גימלים':
-      return 'גימלים';
-    case 'חופש':
-      return 'חופש';
-    case 'אחר':
-      return 'אחר';
-    default:
-      return 'לא מוגדר';
-  }
+  return getStatusLabel(status);
 }; 
 
 // פונקציה לעדכון ידני של כל החיילים (לשימוש בכל מקום במערכת)
@@ -453,4 +415,59 @@ export const refreshAllSoldiersStatuses = async (): Promise<void> => {
     console.error('❌ [MANUAL] שגיאה בעדכון ידני:', error);
     throw error;
   }
+}; 
+
+// פונקציה לעדכון אוטומטי של סטטוסי נוכחות
+export const updateAbsenceStatusesAutomatically = async (): Promise<void> => {
+  try {
+    console.log('🔄 [AUTO] עדכון אוטומטי של סטטוסי נוכחות...');
+    
+    const allSoldiers = await getAllSoldiers();
+    const now = new Date();
+    let updatedCount = 0;
+    
+    for (const soldier of allSoldiers) {
+      // בדיקה אם החייל בסטטוס היעדרות
+      if (soldier.presence && isAbsenceStatus(soldier.presence as any)) {
+        if (soldier.absenceUntil) {
+          const untilTime = new Date(soldier.absenceUntil);
+          
+          // בדיקה אם ההיעדרות הסתיימה
+          if (now > untilTime) {
+            console.log(`✅ [AUTO] היעדרות הסתיימה לחייל ${soldier.name} - מחזיר לבסיס`);
+            await updateSoldier(soldier.id, {
+              presence: 'בבסיס',
+              absenceUntil: undefined,
+              previousStatus: undefined
+            });
+            updatedCount++;
+          } else {
+            // ההיעדרות פעילה - אין צורך לעדכן
+            console.log(`⏳ [AUTO] היעדרות פעילה לחייל ${soldier.name} - ${soldier.presence}`);
+          }
+        }
+      }
+    }
+    
+    console.log(`✅ [AUTO] עדכון אוטומטי הושלם - ${updatedCount} חיילים עודכנו`);
+  } catch (error) {
+    console.error('❌ [AUTO] שגיאה בעדכון אוטומטי של סטטוסי נוכחות:', error);
+  }
+};
+
+// פונקציה להפעלת עדכון אוטומטי כל דקה
+export const startAutomaticStatusUpdates = (): (() => void) => {
+  console.log('🚀 [AUTO] הפעלת עדכון אוטומטי של סטטוסי נוכחות...');
+  
+  // הפעלה ראשונית
+  updateAbsenceStatusesAutomatically();
+  
+  // הפעלה כל דקה
+  const interval = setInterval(updateAbsenceStatusesAutomatically, 60000);
+  
+  // פונקציה לעצירת העדכון האוטומטי
+  return () => {
+    console.log('🛑 [AUTO] עצירת עדכון אוטומטי של סטטוסי נוכחות...');
+    clearInterval(interval);
+  };
 }; 
