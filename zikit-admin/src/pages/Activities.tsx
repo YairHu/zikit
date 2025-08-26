@@ -14,6 +14,7 @@ import { getAllTrips, updateTrip } from '../services/tripService';
 import { getAllFrameworks } from '../services/frameworkService';
 import { UserRole, SystemPath, PermissionLevel, DataScope } from '../models/UserRole';
 import { getUserAllPermissions } from '../services/permissionService';
+import WeeklyActivitiesDashboard from '../components/WeeklyActivitiesDashboard';
 
 import {
   Container,
@@ -73,7 +74,8 @@ import {
   ViewList as ViewListIcon,
   ViewModule as ViewModuleIcon,
   Image as ImageIcon,
-  Description as DescriptionIcon
+  Description as DescriptionIcon,
+  CalendarViewWeek as CalendarViewWeekIcon
 } from '@mui/icons-material';
 
 const emptyActivity: Omit<Activity, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -116,7 +118,7 @@ const Activities: React.FC = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showCompletedActivities, setShowCompletedActivities] = useState(false);
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [viewMode, setViewMode] = useState<'dashboard' | 'cards' | 'table'>('dashboard');
 
   // הרשאות
   const [permissions, setPermissions] = useState({
@@ -1328,8 +1330,8 @@ const Activities: React.FC = () => {
           }}
         />
         <Tabs 
-          value={viewMode === 'cards' ? 0 : 1} 
-          onChange={(_, newValue) => setViewMode(newValue === 0 ? 'cards' : 'table')}
+          value={viewMode === 'dashboard' ? 0 : viewMode === 'cards' ? 1 : 2} 
+          onChange={(_, newValue) => setViewMode(newValue === 0 ? 'dashboard' : newValue === 1 ? 'cards' : 'table')}
           sx={{ 
             '& .MuiTab-root': {
               fontSize: { xs: '0.8rem', sm: '0.875rem' },
@@ -1337,13 +1339,28 @@ const Activities: React.FC = () => {
             }
           }}
         >
+                        <Tab icon={<CalendarViewWeekIcon />} label="דאשבורד פעילויות" />
           <Tab icon={<ViewModuleIcon />} label="כרטיסים" />
           <Tab icon={<ViewListIcon />} label="טבלה" />
         </Tabs>
       </Box>
 
       {/* Activities List */}
-      {viewMode === 'cards' ? (
+      {viewMode === 'dashboard' ? (
+        <WeeklyActivitiesDashboard
+          activities={activities}
+          frameworks={frameworks}
+          soldiers={soldiers}
+          permissions={permissions}
+          showCompletedActivities={showCompletedActivities}
+          onActivityClick={(activityId) => {
+            const activity = activities.find(a => a.id === activityId);
+            if (activity) {
+              handleOpenForm(activity);
+            }
+          }}
+        />
+      ) : viewMode === 'cards' ? (
         <Box sx={{ 
           display: 'grid', 
           gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAllSoldiersWithAvailability } from '../utils/soldierUtils';
+import { getAllSoldiersWithAvailability, SoldierWithStatusInfo } from '../utils/soldierUtils';
 import mermaid from 'mermaid';
 import {
   Container,
@@ -30,7 +30,8 @@ import {
   ZoomOut as ZoomOutIcon,
   Settings as SettingsIcon,
   Visibility as ViewIcon,
-  VisibilityOff as ViewOffIcon
+  VisibilityOff as ViewOffIcon,
+  CalendarViewWeek as CalendarViewWeekIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
 import { getAllFrameworks } from '../services/frameworkService';
@@ -45,12 +46,13 @@ import { Activity } from '../models/Activity';
 import { Duty } from '../models/Duty';
 import { Referral } from '../models/Referral';
 import { Trip } from '../models/Trip';
-import { getPresenceColor } from '../utils/colors';
+
 import { formatToIsraelString } from '../utils/dateUtils';
 import { canUserAccessPath, getUserPermissions } from '../services/permissionService';
 import { SystemPath, PermissionLevel, DataScope } from '../models/UserRole';
 import TripsTimeline from '../components/TripsTimeline';
 import SoldiersTimeline from '../components/SoldiersTimeline';
+import WeeklyActivitiesDashboard from '../components/WeeklyActivitiesDashboard';
 import { getStatusColor, PresenceStatus, isAbsenceActive, parseAbsenceUntilTime } from '../utils/presenceStatus';
 
 interface OrganizationalStructure {
@@ -325,7 +327,7 @@ const Hamal: React.FC = () => {
         
         items.push({
           id: `rest-${soldier.id}`,
-          title: 'מנוחה',
+          title: 'במנוחה',
           start: restStartTime,
           end: restEndTime,
           type: 'rest',
@@ -366,17 +368,18 @@ const Hamal: React.FC = () => {
     
     let mermaidCode = 'graph TD\n';
     mermaidCode += '    classDef frameworkClass fill:#e3f2fd,stroke:#1976d2,stroke-width:2px\n';
-    mermaidCode += '    classDef soldierClass fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px\n';
-    mermaidCode += '    classDef presenceBase fill:#4caf50,stroke:#2e7d32,stroke-width:1px,color:#fff\n';
-    mermaidCode += '    classDef presenceActivity fill:#f44336,stroke:#c62828,stroke-width:1px,color:#fff\n';
-    mermaidCode += '    classDef presenceTrip fill:#ff9800,stroke:#e65100,stroke-width:1px,color:#fff\n';
-    mermaidCode += '    classDef presenceDuty fill:#9c27b0,stroke:#6a1b9a,stroke-width:1px,color:#fff\n';
-    mermaidCode += '    classDef presenceRest fill:#2196f3,stroke:#1565c0,stroke-width:1px,color:#fff\n';
-    mermaidCode += '    classDef presenceCourse fill:#e91e63,stroke:#ad1457,stroke-width:1px,color:#fff\n';
-    mermaidCode += '    classDef presenceLeave fill:#00bcd4,stroke:#008ba3,stroke-width:1px,color:#fff\n';
-    mermaidCode += '    classDef presenceGimel fill:#ffd600,stroke:#f57f17,stroke-width:1px,color:#000\n';
-    mermaidCode += '    classDef presenceOther fill:#9c27b0,stroke:#6a1b9a,stroke-width:1px,color:#fff\n';
-    mermaidCode += '    classDef presenceUnknown fill:#9e9e9e,stroke:#616161,stroke-width:1px,color:#fff\n';
+
+    mermaidCode += '    classDef soldierClass fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px\n';
+    mermaidCode += '    classDef presenceBase fill:#4caf50,stroke:#2e7d32,stroke-width:2px,color:#fff\n';
+    mermaidCode += '    classDef presenceActivity fill:#2196f3,stroke:#1565c0,stroke-width:2px,color:#fff\n';
+    mermaidCode += '    classDef presenceTrip fill:#ff9800,stroke:#e65100,stroke-width:2px,color:#fff\n';
+    mermaidCode += '    classDef presenceDuty fill:#9c27b0,stroke:#6a1b9a,stroke-width:2px,color:#fff\n';
+    mermaidCode += '    classDef presenceRest fill:#607d8b,stroke:#455a64,stroke-width:2px,color:#fff\n';
+    mermaidCode += '    classDef presenceCourse fill:#e91e63,stroke:#ad1457,stroke-width:2px,color:#fff\n';
+    mermaidCode += '    classDef presenceLeave fill:#00bcd4,stroke:#008ba3,stroke-width:2px,color:#fff\n';
+    mermaidCode += '    classDef presenceGimel fill:#ff5722,stroke:#d84315,stroke-width:2px,color:#fff\n';
+    mermaidCode += '    classDef presenceOther fill:#795548,stroke:#5d4037,stroke-width:2px,color:#fff\n';
+    mermaidCode += '    classDef presenceUnknown fill:#9e9e9e,stroke:#616161,stroke-width:2px,color:#fff\n';
     
     // יצירת מפה של מסגרות לפי ID
     const frameworkMap = new Map<string, Framework>();
@@ -385,13 +388,13 @@ const Hamal: React.FC = () => {
     });
     
     // יצירת מפה של חיילים לפי מסגרת
-    const soldiersByFramework = new Map<string, (Soldier & { frameworkName?: string })[]>();
+    const soldiersByFramework = new Map<string, (SoldierWithStatusInfo & { frameworkName?: string })[]>();
     soldiers.forEach(soldier => {
       if (soldier.frameworkId) {
         if (!soldiersByFramework.has(soldier.frameworkId)) {
           soldiersByFramework.set(soldier.frameworkId, []);
         }
-        soldiersByFramework.get(soldier.frameworkId)!.push(soldier);
+        soldiersByFramework.get(soldier.frameworkId)!.push(soldier as SoldierWithStatusInfo & { frameworkName?: string });
       }
     });
     
@@ -400,7 +403,7 @@ const Hamal: React.FC = () => {
       // המרת צבע מ-presenceStatus.ts לשם class ב-Mermaid
       const color = getStatusColor(presence as PresenceStatus);
       
-      // מיפוי צבעים לשמות classes
+      // מיפוי צבעים לשמות classes לפי presenceStatus.ts
       switch (color) {
         case '#4CAF50': return 'presenceBase'; // בבסיס
         case '#2196F3': return 'presenceActivity'; // בפעילות
@@ -428,25 +431,40 @@ const Hamal: React.FC = () => {
       }
     });
     
-    // הוספת חיילים למסגרות
+    // הוספת חיילים למסגרות - קבוצה אחת לכל מסגרת
     if (showSoldiers) {
       const soldiersWithAvailability = getAllSoldiersWithAvailability(soldiers, '');
-      soldiersWithAvailability.forEach(soldier => {
-        if (soldier.frameworkId) {
-          const soldierId = `soldier_${soldier.id}`;
-          const presenceClass = showPresence ? getPresenceClass(soldier.presence || '') : 'soldierClass';
+      
+      // יצירת קבוצות חיילים לפי מסגרת
+      soldiersByFramework.forEach((frameworkSoldiers, frameworkId) => {
+        if (frameworkSoldiers.length > 0) {
+          const frameworkSoldiersWithAvailability = frameworkSoldiers.filter(soldier => 
+            soldiersWithAvailability.some(s => s.id === soldier.id)
+          );
           
-          // הוספת תאריך סיום להיעדרות
-          let soldierLabel = cleanTextForMermaid(soldier.name);
-          if (soldier.isUnavailable && soldier.unavailabilityUntil && soldier.unavailabilityUntil.trim() !== '') {
-            // שימוש ב-HTML line break במקום \n
-            soldierLabel += `<br/><small>עד ${cleanTextForMermaid(soldier.unavailabilityUntil)}</small>`;
+          if (frameworkSoldiersWithAvailability.length > 0) {
+            // יצירת קוביות נפרדות לכל חייל עם צבעים
+            frameworkSoldiersWithAvailability.forEach((soldier, index) => {
+              const soldierId = `soldier_${soldier.id}`;
+              const presenceClass = showPresence ? getPresenceClass(soldier.presence || '') : 'soldierClass';
+              
+              // הוספת תאריך סיום להיעדרות
+              let soldierLabel = cleanTextForMermaid(soldier.name);
+              if (soldier.isUnavailable && soldier.unavailabilityUntil && soldier.unavailabilityUntil.trim() !== '') {
+                soldierLabel += ` (עד ${cleanTextForMermaid(soldier.unavailabilityUntil)})`;
+              }
+              
+              // יצירת הקוביה של החייל עם הצבע המתאים
+              mermaidCode += `    ${soldierId}("${soldierLabel}"):::${presenceClass}\n`;
+            });
+            
+            // חיבור המסגרת לכל החיילים (חץ אחד לכל חייל)
+            const frameworkNodeId = `framework_${frameworkId}`;
+            frameworkSoldiersWithAvailability.forEach((soldier) => {
+              const soldierId = `soldier_${soldier.id}`;
+              mermaidCode += `    ${frameworkNodeId} --> ${soldierId}\n`;
+            });
           }
-          
-          mermaidCode += `    ${soldierId}("${soldierLabel}"):::${presenceClass}\n`;
-          
-          const frameworkId = `framework_${soldier.frameworkId}`;
-          mermaidCode += `    ${frameworkId} --> ${soldierId}\n`;
         }
       });
     }
@@ -650,9 +668,10 @@ const Hamal: React.FC = () => {
               onChange={(_, newValue) => setActiveTab(newValue)}
               sx={{ mb: 2 }}
             >
-              <Tab label="תצוגה גראפית" />
-              <Tab label="ציר זמן נסיעות" />
-              <Tab label="ציר זמן חיילים" />
+              <Tab icon={<TreeIcon />} label="תצוגה גראפית" />
+              <Tab icon={<CalendarViewWeekIcon />} label="דאשבורד פעילויות" />
+              <Tab icon={<ViewIcon />} label="ציר זמן נסיעות" />
+              <Tab icon={<ViewIcon />} label="ציר זמן חיילים" />
             </Tabs>
             
             {activeTab === 0 && (
@@ -720,7 +739,7 @@ const Hamal: React.FC = () => {
                     key={presence}
                     label={`${presence}: ${count}`}
                         sx={{
-                      bgcolor: getPresenceColor(presence),
+                      bgcolor: getStatusColor(presence as PresenceStatus),
                       color: 'white',
                       fontWeight: 600
                     }}
@@ -741,22 +760,49 @@ const Hamal: React.FC = () => {
                   width: '100%',
                   minHeight: '600px',
                   transform: `scale(${zoom})`,
-                  transformOrigin: 'top left',
-                  transition: 'transform 0.3s ease'
+                  transformOrigin: 'center',
+                  transition: 'transform 0.3s ease',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center'
                 }}
               >
                 <div 
                   ref={mermaidRef}
                   style={{ 
                     direction: 'ltr',
-                    textAlign: 'left',
-                    fontSize: fullscreen ? '16px' : '14px'
+                    textAlign: 'center',
+                    fontSize: fullscreen ? '16px' : '14px',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center'
                   }}
                 />
               </Box>
             </CardContent>
           </Card>
         ) : activeTab === 1 ? (
+          /* Weekly Activities Dashboard */
+          <Box>
+                          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                דאשבורד פעילויות
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                תצוגת שבוע עם פעילויות לפי מסגרות. לחיצה על פעילות תנווט למסך הפעילויות לעריכה.
+              </Typography>
+            <WeeklyActivitiesDashboard
+              activities={data?.activities || []}
+              frameworks={data?.frameworks || []}
+              soldiers={data?.soldiers || []}
+              permissions={{ canEdit: permissions.canViewSoldiers }}
+              showCompletedActivities={true}
+              onActivityClick={(activityId) => {
+                // ניווט למסך הפעילויות עם עריכת הפעילות
+                navigate(`/activities?edit=${activityId}`);
+              }}
+            />
+          </Box>
+        ) : activeTab === 2 ? (
           /* Trips Timeline */
           <TripsTimeline
             trips={data?.trips || []}
@@ -793,7 +839,7 @@ const Hamal: React.FC = () => {
                 <Typography variant="body2">בבסיס</Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box sx={{ width: 20, height: 20, bgcolor: '#f44336', border: '1px solid #c62828', borderRadius: 1 }} />
+                <Box sx={{ width: 20, height: 20, bgcolor: '#2196f3', border: '1px solid #1565c0', borderRadius: 1 }} />
                 <Typography variant="body2">בפעילות</Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -805,7 +851,7 @@ const Hamal: React.FC = () => {
                 <Typography variant="body2">בתורנות</Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box sx={{ width: 20, height: 20, bgcolor: '#2196f3', border: '1px solid #1565c0', borderRadius: 1 }} />
+                <Box sx={{ width: 20, height: 20, bgcolor: '#607d8b', border: '1px solid #455a64', borderRadius: 1 }} />
                 <Typography variant="body2">במנוחה</Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -817,11 +863,11 @@ const Hamal: React.FC = () => {
                 <Typography variant="body2">חופש</Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box sx={{ width: 20, height: 20, bgcolor: '#ffd600', border: '1px solid #f57f17', borderRadius: 1 }} />
+                <Box sx={{ width: 20, height: 20, bgcolor: '#ff5722', border: '1px solid #d84315', borderRadius: 1 }} />
                 <Typography variant="body2">גימלים</Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box sx={{ width: 20, height: 20, bgcolor: '#9c27b0', border: '1px solid #6a1b9a', borderRadius: 1 }} />
+                <Box sx={{ width: 20, height: 20, bgcolor: '#795548', border: '1px solid #5d4037', borderRadius: 1 }} />
                 <Typography variant="body2">אחר</Typography>
               </Box>
             </Box>

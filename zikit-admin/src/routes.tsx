@@ -17,6 +17,7 @@ import Referrals from './pages/Referrals';
 import Login from './pages/Login';
 import SoldierProfile from './pages/SoldierProfile';
 import UserManagement from './pages/UserManagement';
+import Contact from './pages/Contact';
 
 import ActivityStatistics from './pages/ActivityStatistics';
 import DutyDetails from './pages/DutyDetails';
@@ -48,6 +49,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import StorageIcon from '@mui/icons-material/Storage';
+import ContactSupportIcon from '@mui/icons-material/ContactSupport';
 
 const drawerWidth = 260;
 
@@ -72,7 +74,8 @@ const getMenuItems = async (user: any) => {
   const canViewHome = await canUserAccessPath(user.uid, SystemPath.HOME, PermissionLevel.VIEW);
   
   const baseItems = [
-    { text: 'התיק האישי', icon: <PersonIcon />, path: user.soldierDocId ? `/soldiers/${user.soldierDocId}` : '/soldiers' }
+    { text: 'התיק האישי', icon: <PersonIcon />, path: user.soldierDocId ? `/soldiers/${user.soldierDocId}` : '/soldiers' },
+    { text: 'צור קשר', icon: <ContactSupportIcon />, path: '/contact' }
   ];
 
   // הוספת דף ראשי רק למורשים
@@ -156,8 +159,8 @@ const SideDrawer: React.FC<{ open: boolean; onClose: () => void; onLogout: () =>
     <Drawer anchor="right" open={open} onClose={onClose} sx={{ '& .MuiDrawer-paper': { width: drawerWidth, direction: 'rtl' } }}>
       <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56, mb: 1 }}><ShieldIcon /></Avatar>
-        <Typography variant="h6" fontWeight={700}>zikit</Typography>
-        <Typography variant="body2" color="text.secondary">מערכת ניהול כוח אדם</Typography>
+        <Typography variant="h6" fontWeight={700}>זיקית</Typography>
+        <Typography variant="body2" color="text.secondary">הפלוגה הייעודית</Typography>
       </Box>
       <Divider />
       <List>
@@ -217,7 +220,7 @@ const SideDrawer: React.FC<{ open: boolean; onClose: () => void; onLogout: () =>
           </Avatar>
           {user.displayName}<br />
           {user.role === 'admin' ? 'מנהל מערכת' : 
-           user.role === 'chayal' ? 'חייל' : 'משתמש'}
+           user.role === 'chayal' ? 'חייל' : ''}
         </Box>
       )}
     </Drawer>
@@ -233,19 +236,36 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     navigate('/');
   };
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: 'background.default' }}>
       <AppBar position="fixed" sx={{ bgcolor: '#fff', color: '#222', boxShadow: 1, zIndex: 1201 }}>
         <Toolbar sx={{ justifyContent: 'space-between' }}>
           <IconButton edge="start" color="inherit" aria-label="menu" onClick={() => setDrawerOpen(true)}>
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" fontWeight={700} sx={{ flexGrow: 1, textAlign: 'right', mr: 2 }}>zikit</Typography>
+          <Typography variant="h6" fontWeight={700} sx={{ flexGrow: 1, textAlign: 'right', mr: 2 }}>זיקית</Typography>
         </Toolbar>
       </AppBar>
       <SideDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} onLogout={handleLogout} user={user} />
       {/* ViewModeIndicator was removed */}
       <Box component="main" sx={{ flexGrow: 1, pt: 9, px: 1, width: '100%' }}>
         {children}
+      </Box>
+      {/* Footer */}
+      <Box
+        component="footer"
+        sx={{
+          py: 2,
+          px: 2,
+          mt: 'auto',
+          backgroundColor: 'background.paper',
+          borderTop: '1px solid',
+          borderColor: 'divider',
+          textAlign: 'center'
+        }}
+      >
+        <Typography variant="body2" color="text.secondary">
+          © כל הזכויות שמורות למפתח 2025
+        </Typography>
       </Box>
     </Box>
   );
@@ -375,6 +395,11 @@ const AppRoutes: React.FC = () => {
           <Route path="/cache-monitor" element={
             <ProtectedRoute userRole={user.role as UserRole}>
               <CacheMonitor />
+            </ProtectedRoute>
+          } />
+          <Route path="/contact" element={
+            <ProtectedRoute userRole={user.role as UserRole}>
+              <Contact />
             </ProtectedRoute>
           } />
 

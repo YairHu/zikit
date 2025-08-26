@@ -148,3 +148,86 @@ export const isDutyActive = (
   
   return isTimeInRange(now, startDateTime, endDateTime);
 };
+
+/**
+ * קבלת תאריך התחלת השבוע (ראשון) בזמן ישראל
+ * @param date - תאריך כלשהו בשבוע
+ * @returns תאריך ראשון בשבוע
+ */
+export const getWeekStart = (date: Date = new Date()): Date => {
+  const israelDate = toIsraelTime(date);
+  const dayOfWeek = israelDate.getDay(); // 0 = ראשון, 1 = שני, וכו'
+  const weekStart = new Date(israelDate);
+  weekStart.setDate(israelDate.getDate() - dayOfWeek);
+  weekStart.setHours(0, 0, 0, 0);
+  return weekStart;
+};
+
+/**
+ * קבלת תאריך סיום השבוע (שבת) בזמן ישראל
+ * @param date - תאריך כלשהו בשבוע
+ * @returns תאריך שבת בשבוע
+ */
+export const getWeekEnd = (date: Date = new Date()): Date => {
+  const weekStart = getWeekStart(date);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  weekEnd.setHours(23, 59, 59, 999);
+  return weekEnd;
+};
+
+/**
+ * קבלת כל ימות השבוע בזמן ישראל
+ * @param date - תאריך כלשהו בשבוע
+ * @returns מערך של 7 תאריכים (ראשון עד שבת)
+ */
+export const getWeekDays = (date: Date = new Date()): Date[] => {
+  const weekStart = getWeekStart(date);
+  const days: Date[] = [];
+  
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(weekStart);
+    day.setDate(weekStart.getDate() + i);
+    days.push(day);
+  }
+  
+  return days;
+};
+
+/**
+ * בדיקה אם שני תאריכים הם באותו יום
+ * @param date1 - תאריך ראשון
+ * @param date2 - תאריך שני
+ * @returns true אם הם באותו יום
+ */
+export const isSameDay = (date1: Date, date2: Date): boolean => {
+  const israelDate1 = toIsraelTime(date1);
+  const israelDate2 = toIsraelTime(date2);
+  
+  return israelDate1.getFullYear() === israelDate2.getFullYear() &&
+         israelDate1.getMonth() === israelDate2.getMonth() &&
+         israelDate1.getDate() === israelDate2.getDate();
+};
+
+/**
+ * קבלת שם היום בעברית
+ * @param date - תאריך
+ * @returns שם היום בעברית
+ */
+export const getHebrewDayName = (date: Date): string => {
+  const israelDate = toIsraelTime(date);
+  const dayNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+  return dayNames[israelDate.getDay()];
+};
+
+/**
+ * קבלת מספר השבוע בשנה
+ * @param date - תאריך
+ * @returns מספר השבוע בשנה
+ */
+export const getWeekNumber = (date: Date = new Date()): number => {
+  const israelDate = toIsraelTime(date);
+  const startOfYear = new Date(israelDate.getFullYear(), 0, 1);
+  const days = Math.floor((israelDate.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
+  return Math.ceil((days + startOfYear.getDay() + 1) / 7);
+};

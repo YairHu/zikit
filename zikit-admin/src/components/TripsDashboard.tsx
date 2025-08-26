@@ -20,6 +20,7 @@ import { updateDriverStatuses, updateTripStatusesAutomatically } from '../servic
 // import { updateActivityStatusesAutomatically } from '../services/activityService';
 import { updateDutyStatusesAutomatically } from '../services/dutyService';
 import { getSoldierCurrentStatus } from '../services/soldierService';
+import { getStatusColor, PresenceStatus } from '../utils/presenceStatus';
 import TripsTimeline from './TripsTimeline';
 
 interface TripsDashboardProps {
@@ -183,22 +184,30 @@ const TripsDashboard: React.FC<TripsDashboardProps> = ({
               נהגים זמינים
             </Typography>
             <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-              <Chip size="small" label={`${stats.driversOnTrip} בנסיעה`} color="warning" sx={{ fontSize: { xs: '0.6rem', sm: '0.75rem' } }} />
-              <Chip size="small" label={`${stats.driversResting} במנוחה`} color="info" sx={{ fontSize: { xs: '0.6rem', sm: '0.75rem' } }} />
+              <Chip size="small" label={`${stats.driversOnTrip} בנסיעה`} sx={{ 
+                fontSize: { xs: '0.6rem', sm: '0.75rem' },
+                backgroundColor: getStatusColor('בנסיעה' as PresenceStatus),
+                color: '#fff'
+              }} />
+              <Chip size="small" label={`${stats.driversResting} במנוחה`} sx={{ 
+                fontSize: { xs: '0.6rem', sm: '0.75rem' },
+                backgroundColor: getStatusColor('במנוחה' as PresenceStatus),
+                color: '#fff'
+              }} />
               <Chip size="small" label={`${stats.driversOnSickLeave} בגימלים`} sx={{ 
                 fontSize: { xs: '0.6rem', sm: '0.75rem' },
-                backgroundColor: '#FFD600',
-                color: '#000'
+                backgroundColor: getStatusColor('גימלים' as PresenceStatus),
+                color: '#fff'
               }} />
               <Chip size="small" label={`${stats.driversOnVacation} בחופש`} sx={{ 
                 fontSize: { xs: '0.6rem', sm: '0.75rem' },
-                backgroundColor: '#00BCD4',
+                backgroundColor: getStatusColor('חופש' as PresenceStatus),
                 color: '#fff'
               }} />
               {stats.driversOther > 0 && (
                 <Chip size="small" label={`${stats.driversOther} אחר`} sx={{ 
                   fontSize: { xs: '0.6rem', sm: '0.75rem' },
-                  backgroundColor: '#9C27B0',
+                  backgroundColor: getStatusColor('אחר' as PresenceStatus),
                   color: '#fff'
                 }} />
               )}

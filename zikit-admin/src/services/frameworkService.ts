@@ -18,6 +18,7 @@ import {
   where,
   orderBy 
 } from 'firebase/firestore';
+import { getAllReferrals } from './referralService';
 
 export const getAllFrameworks = async (): Promise<Framework[]> => {
   return localStorageService.getFromLocalStorage('frameworks', async () => {
@@ -558,12 +559,82 @@ export const getFrameworkWithDetails = async (id: string): Promise<FrameworkWith
     });
   };
   
-  const [totalSoldiers, allSoldiersInHierarchy, activities, duties, trips] = await Promise.all([
+  // קבלת כל ההפניות בהיררכיה כולל מסגרות בנות
+  const getAllReferralsInHierarchy = async (frameworkId: string): Promise<any[]> => {
+    // קבלת כל ההפניות
+    const allReferrals = await getAllReferrals();
+    
+    // קבלת כל המסגרות בהיררכיה (כולל המסגרת הנוכחית ומסגרות בנות)
+    const getAllFrameworkIdsInHierarchy = async (currentFrameworkId: string): Promise<string[]> => {
+      const currentFramework = await getFrameworkById(currentFrameworkId);
+      if (!currentFramework) return [currentFrameworkId];
+      
+      const children = await getFrameworksByParent(currentFrameworkId);
+      const childrenIds = await Promise.all(
+        children.map(child => getAllFrameworkIdsInHierarchy(child.id))
+      );
+      
+      return [currentFrameworkId, ...childrenIds.flat()];
+    };
+    
+    const frameworkIdsInHierarchy = await getAllFrameworkIdsInHierarchy(frameworkId);
+    
+    // קבלת שמות המסגרות בהיררכיה
+    const allFrameworks = await getAllFrameworks();
+    const frameworkNamesInHierarchy = frameworkIdsInHierarchy.map(id => {
+      const framework = allFrameworks.find(f => f.id === id);
+      return framework ? framework.name : id;
+    });
+    
+    // קבלת כל החיילים בהיררכיה
+    const allSoldiersInHierarchy = allSoldiers.filter(s => s.frameworkId && frameworkIdsInHierarchy.includes(s.frameworkId));
+    const soldierIdsInHierarchy = allSoldiersInHierarchy.map(s => s.id);
+    
+    // סינון הפניות שמתאימות למסגרות בהיררכיה
+    const referralsInHierarchy = allReferrals.filter((referral: any) => {
+      // אם ההפניה מוגדרת למסגרת בהיררכיה
+      if (referral.frameworkId && frameworkIdsInHierarchy.includes(referral.frameworkId)) {
+        return true;
+      }
+      
+      // אם ההפניה מוגדרת לפי שם צוות שמתאים למסגרת בהיררכיה
+      if (referral.team && frameworkNamesInHierarchy.includes(referral.team)) {
+        return true;
+      }
+      
+      // אם החייל הוא מהמסגרת בהיררכיה
+      if (referral.soldierId && soldierIdsInHierarchy.includes(referral.soldierId)) {
+        return true;
+      }
+      
+      return false;
+    });
+    
+    return referralsInHierarchy.map((referral: any) => {
+      // מציאת שם המסגרת המקורית
+      let sourceFrameworkName = '';
+      if (referral.frameworkId) {
+        const framework = allFrameworks.find(f => f.id === referral.frameworkId);
+        sourceFrameworkName = framework ? framework.name : referral.frameworkId;
+      } else if (referral.team) {
+        sourceFrameworkName = referral.team;
+      }
+      
+      return { 
+        ...referral, 
+        frameworkId: referral.frameworkId || referral.team,
+        sourceFrameworkName: sourceFrameworkName || ''
+      };
+    });
+  };
+  
+  const [totalSoldiers, allSoldiersInHierarchy, activities, duties, trips, referrals] = await Promise.all([
     getAllSoldiersInHierarchy(id),
     getAllSoldiersInHierarchyList(id),
     getAllActivitiesInHierarchy(id),
     getAllDutiesInHierarchy(id),
-    getAllTripsInHierarchy(id)
+    getAllTripsInHierarchy(id),
+    getAllReferralsInHierarchy(id)
   ]);
   
   return {
@@ -602,9 +673,11 @@ export const getFrameworkWithDetails = async (id: string): Promise<FrameworkWith
     activities,
     duties,
     trips,
+    referrals,
     totalActivities: activities.length,
     totalDuties: duties.length,
-    totalTrips: trips.length
+    totalTrips: trips.length,
+    totalReferrals: referrals.length
   };
 };
 

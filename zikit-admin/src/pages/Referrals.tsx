@@ -270,11 +270,21 @@ const Referrals: React.FC = () => {
     }
     
     // אחרת - הצג רק הפניות שעוד לא הגיע שעת החזרה שלהן (בזמן ישראל)
-    if (referral.returnTime) {
-      const now = getCurrentIsraelTime();
-      const returnDateTime = new Date(`${referral.date}T${referral.returnTime}`);
-      return now < returnDateTime;
+    if (referral.returnTime && referral.date) {
+      try {
+        const now = getCurrentIsraelTime();
+        const returnDateTime = new Date(`${referral.date}T${referral.returnTime}`);
+        
+        // בדיקה שהתאריך תקין
+        if (!isNaN(returnDateTime.getTime())) {
+          return now < returnDateTime;
+        }
+      } catch (error) {
+        console.warn('תאריך לא תקין להפניה:', referral.date, referral.returnTime);
+      }
     }
+    
+    // אם אין שעת חזרה או תאריך - הצג את ההפניה
     return true;
   });
 

@@ -18,11 +18,15 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  TextField
+  TextField,
+  Switch,
+  FormControlLabel
 } from '@mui/material';
 import {
   Person as SoldierIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  ViewWeek as ViewWeekIcon,
+  ViewDay as ViewDayIcon
 } from '@mui/icons-material';
 import { Trip } from '../models/Trip';
 import { Soldier } from '../models/Soldier';
@@ -30,7 +34,7 @@ import { Activity } from '../models/Activity';
 import { Duty } from '../models/Duty';
 import { Referral } from '../models/Referral';
 import { isAbsenceStatus, getStatusColor, PresenceStatus, isAbsenceActive, parseAbsenceUntilTime } from '../utils/presenceStatus';
-import { formatToIsraelString } from '../utils/dateUtils';
+import { formatToIsraelString, getWeekDays, isSameDay, getHebrewDayName, getWeekNumber } from '../utils/dateUtils';
 
 interface SoldiersTimelineProps {
   soldiers: Soldier[];
@@ -64,6 +68,7 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
   frameworks = []
 }) => {
   const [selectionMode, setSelectionMode] = useState<'none' | 'selecting'>('none');
+  const [isWeekView, setIsWeekView] = useState(false);
   
   // פילטרים לחיילים
   const [soldierFilters, setSoldierFilters] = useState({
@@ -423,7 +428,7 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
               
               items.push({
                 id: `rest-${soldier.id}`,
-                title: 'מנוחה',
+                title: 'במנוחה',
                 start: restStartTime,
                 end: restEndTime,
                 type: 'rest',
@@ -454,7 +459,7 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
                   // הצג שעות מנוחה
                   items.push({
                     id: `rest-${soldier.id}`,
-                    title: 'מנוחה',
+                    title: 'במנוחה',
                     start: lastReturnTime,
                     end: calculatedRestEnd,
                     type: 'rest',
@@ -582,7 +587,13 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
   const dateRange = useMemo(() => {
     const now = new Date();
     
-    if (zoomLevel >= 2) {
+    if (isWeekView) {
+      // תצוגת שבוע - 7 ימים
+      const weekDays = getWeekDays(now);
+      const weekStart = new Date(weekDays[0].getTime() + panOffset);
+      const weekEnd = new Date(weekDays[6].getTime() + panOffset);
+      return { start: weekStart, end: weekEnd };
+    } else if (zoomLevel >= 2) {
       // תצוגת יום - שעות עגולות
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const start = new Date(today.getTime() + panOffset);
@@ -601,41 +612,68 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
       const end = new Date(monthStart.getTime() + (30 * 24 * 60 * 60 * 1000) + panOffset);
       return { start, end };
     }
-  }, [zoomLevel, panOffset, refreshKey]);
+  }, [zoomLevel, panOffset, refreshKey, isWeekView]);
 
   // חישוב מיקום אופקי מדויק של פריט (מימין לשמאל - עברית)
   const getItemPosition = (item: TimelineItem) => {
-    const totalDuration = dateRange.end.getTime() - dateRange.start.getTime();
-    
-    // הגבלת הפריט לטווח הנראה
-    const itemStart = Math.max(item.start.getTime(), dateRange.start.getTime());
-    const itemEnd = Math.min(item.end.getTime(), dateRange.end.getTime());
-    
-    // אם הפריט לא בטווח הנראה - לא להציג
-    if (itemStart >= dateRange.end.getTime() || itemEnd <= dateRange.start.getTime()) {
-      return { left: '0%', width: '0%', visible: false };
+    if (isWeekView) {
+      // בתצוגה שבועית - כל פריט תופס את כל הרוחב של היום שלו
+      const weekDays = getWeekDays(dateRange.start);
+      const itemDay = new Date(item.start);
+      const dayIndex = weekDays.findIndex(day => isSameDay(day, itemDay));
+      
+      if (dayIndex === -1) {
+        return { left: '0%', width: '0%', visible: false };
+      }
+      
+      // סדר עברי: ראשון ימין (0), שבת שמאל (6)
+      // הפיכת הסדר: 6-dayIndex כדי שראשון יהיה ימין ושבת שמאל
+      const reversedIndex = 6 - dayIndex;
+      const left = (reversedIndex / 7) * 100;
+      const width = 100 / 7; // כל יום תופס 1/7 מהרוחב
+      
+      return { 
+        left: `${left}%`, 
+        width: `${width}%`, 
+        visible: true,
+        roundedLeft: true,
+        roundedRight: true,
+        startTime: item.start,
+        endTime: item.end
+      };
+    } else {
+      const totalDuration = dateRange.end.getTime() - dateRange.start.getTime();
+      
+      // הגבלת הפריט לטווח הנראה
+      const itemStart = Math.max(item.start.getTime(), dateRange.start.getTime());
+      const itemEnd = Math.min(item.end.getTime(), dateRange.end.getTime());
+      
+      // אם הפריט לא בטווח הנראה - לא להציג
+      if (itemStart >= dateRange.end.getTime() || itemEnd <= dateRange.start.getTime()) {
+        return { left: '0%', width: '0%', visible: false };
+      }
+      
+      // בדיקה אם הפריט נחתך מהצדדים
+      const isStartCut = item.start.getTime() < dateRange.start.getTime();
+      const isEndCut = item.end.getTime() > dateRange.end.getTime();
+      
+      const itemStartOffset = itemStart - dateRange.start.getTime();
+      const itemDuration = itemEnd - itemStart;
+      
+      // חישוב מיקום מדויק עם דיוק של מילישניות
+      const left = Math.round((itemStartOffset / totalDuration) * 10000) / 100; // דיוק של 0.01%
+      const width = Math.max(0.1, Math.round((itemDuration / totalDuration) * 10000) / 100); // מינימום 0.1% רוחב
+      
+      return { 
+        left: `${left}%`, 
+        width: `${width}%`, 
+        visible: true,
+        roundedLeft: !isStartCut,  // עיגול רק אם לא נחתך משמאל
+        roundedRight: !isEndCut,   // עיגול רק אם לא נחתך מימין
+        startTime: item.start,     // הוספת זמן התחלה למידע
+        endTime: item.end          // הוספת זמן סיום למידע
+      };
     }
-    
-    // בדיקה אם הפריט נחתך מהצדדים
-    const isStartCut = item.start.getTime() < dateRange.start.getTime();
-    const isEndCut = item.end.getTime() > dateRange.end.getTime();
-    
-    const itemStartOffset = itemStart - dateRange.start.getTime();
-    const itemDuration = itemEnd - itemStart;
-    
-    // חישוב מיקום מדויק עם דיוק של מילישניות
-    const left = Math.round((itemStartOffset / totalDuration) * 10000) / 100; // דיוק של 0.01%
-    const width = Math.max(0.1, Math.round((itemDuration / totalDuration) * 10000) / 100); // מינימום 0.1% רוחב
-    
-    return { 
-      left: `${left}%`, 
-      width: `${width}%`, 
-      visible: true,
-      roundedLeft: !isStartCut,  // עיגול רק אם לא נחתך משמאל
-      roundedRight: !isEndCut,   // עיגול רק אם לא נחתך מימין
-      startTime: item.start,     // הוספת זמן התחלה למידע
-      endTime: item.end          // הוספת זמן סיום למידע
-    };
   };
 
   // פונקציה לקבלת צבע לפי פריט טיימליין
@@ -649,9 +687,27 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
 
   // קבלת פריטים לשורה ספציפית
   const getItemsForRow = (yItem: Soldier) => {
-    return timelineItems.filter(item => {
+    const items = timelineItems.filter(item => {
       return item.soldier.id === yItem.id;
     });
+
+    // אם זה תצוגת שבוע, נקבץ פריטים לפי יום
+    if (isWeekView) {
+      const groupedItems: { [dayKey: string]: TimelineItem[] } = {};
+      
+      items.forEach(item => {
+        const dayKey = item.start.toDateString();
+        if (!groupedItems[dayKey]) {
+          groupedItems[dayKey] = [];
+        }
+        groupedItems[dayKey].push(item);
+      });
+
+      // החזרת כל הפריטים מקובצים לפי יום
+      return Object.values(groupedItems).flat();
+    }
+
+    return items;
   };
 
   // בדיקה אם טווח זמן פנוי
@@ -677,7 +733,17 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
     const end = new Date(dateRange.end);
     const duration = end.getTime() - start.getTime();
     
-    if (zoomLevel >= 2) {
+    if (isWeekView) {
+      // תצוגת שבוע - ימים (מימין לשמאל - ראשון ימין, שבת שמאל)
+      const weekDays = getWeekDays(start);
+      
+      // סדר עברי: ראשון ימין קיצון, שבת שמאל קיצון
+      for (let i = 0; i < weekDays.length; i++) {
+        const day = weekDays[i];
+        const label = `${getHebrewDayName(day)} ${day.getDate()}`;
+        slots.push({ time: new Date(day), label });
+      }
+    } else if (zoomLevel >= 2) {
       // רמת יום - שעות עגולות מדויקות (מימין לשמאל)
       const startHour = start.getHours();
       const endHour = end.getHours() + (end.getMinutes() > 0 ? 1 : 0); // עיגול כלפי מעלה אם יש דקות
@@ -845,14 +911,16 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
 
   // פונקציות ניווט (מימין לשמאל - עברית)
   const handlePrevious = () => {
-    const timeSpan = zoomLevel >= 2 ? 24 * 60 * 60 * 1000 : 
+    const timeSpan = isWeekView ? 7 * 24 * 60 * 60 * 1000 :
+                    zoomLevel >= 2 ? 24 * 60 * 60 * 1000 : 
                     zoomLevel >= 1 ? 7 * 24 * 60 * 60 * 1000 : 
                     30 * 24 * 60 * 60 * 1000;
     setPanOffset(panOffset + timeSpan); // הפיכה: + במקום -
   };
 
   const handleNext = () => {
-    const timeSpan = zoomLevel >= 2 ? 24 * 60 * 60 * 1000 : 
+    const timeSpan = isWeekView ? 7 * 24 * 60 * 60 * 1000 :
+                    zoomLevel >= 2 ? 24 * 60 * 60 * 1000 : 
                     zoomLevel >= 1 ? 7 * 24 * 60 * 60 * 1000 : 
                     30 * 24 * 60 * 60 * 1000;
     setPanOffset(panOffset - timeSpan); // הפיכה: - במקום +
@@ -935,6 +1003,30 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
               </Button>
             </Box>
 
+            {/* סוויץ תצוגה שבועית */}
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={isWeekView}
+                  onChange={(e) => setIsWeekView(e.target.checked)}
+                  size="small"
+                />
+              }
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  {isWeekView ? <ViewWeekIcon fontSize="small" /> : <ViewDayIcon fontSize="small" />}
+                  <Typography variant="caption" sx={{ fontSize: { xs: '0.7rem', sm: '0.8rem' } }}>
+                    {isWeekView ? 'תצוגת שבוע' : 'תצוגת יום'}
+                  </Typography>
+                </Box>
+              }
+              sx={{ 
+                ml: 1,
+                '& .MuiFormControlLabel-label': {
+                  fontSize: { xs: '0.7rem', sm: '0.8rem' }
+                }
+              }}
+            />
 
           </Box>
         </Box>
@@ -1146,15 +1238,28 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
               borderRight: 1,
               borderColor: 'divider',
               backgroundColor: 'grey.50',
-              fontWeight: 'bold'
+              fontWeight: 'bold',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center'
             }}>
-              <Typography variant="h6">
-                {dateRange.start.toLocaleDateString('he-IL', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })}
+              <Typography variant="h6" sx={{ textAlign: 'center' }}>
+                {isWeekView ? (
+                  `שבוע ${getWeekNumber(dateRange.start)} - ${formatToIsraelString(dateRange.start, { 
+                    month: '2-digit', 
+                    day: '2-digit' 
+                  })} עד ${formatToIsraelString(dateRange.end, { 
+                    month: '2-digit', 
+                    day: '2-digit' 
+                  })}`
+                ) : (
+                  dateRange.start.toLocaleDateString('he-IL', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })
+                )}
               </Typography>
             </Box>
           </Box>
@@ -1344,11 +1449,42 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
                      </Box>
 
                      {/* פריטי ציר זמן */}
-                     {items.map(item => {
+                     {items.map((item, index) => {
                        const position = getItemPosition(item);
                        
                        // אם הפריט לא נראה - לא להציג
                        if (!position.visible) return null;
+                       
+                       // בתצוגה שבועית, נציג פריטים אחד ליד השני ברוחב
+                       let adjustedPosition = { ...position };
+                       if (isWeekView && items.length > 1) {
+                         // קבוצת פריטים באותו יום
+                         const sameDayItems = items.filter(otherItem => {
+                           const itemDay = new Date(item.start);
+                           const otherDay = new Date(otherItem.start);
+                           return isSameDay(itemDay, otherDay);
+                         });
+                         
+                         const sameDayIndex = sameDayItems.findIndex(otherItem => otherItem.id === item.id);
+                         
+                         if (sameDayIndex !== -1) {
+                           const weekDays = getWeekDays(dateRange.start);
+                           const dayWidth = 100 / 7; // רוחב של יום אחד
+                           const itemWidth = dayWidth / sameDayItems.length; // חלוקת רוחב היום בין הפריטים
+                           const dayIndex = weekDays.findIndex(day => isSameDay(day, new Date(item.start)));
+                           const dayLeft = (6 - dayIndex) / 7 * 100; // מיקום היום (סדר עברי)
+                           const itemLeft = dayLeft + (sameDayIndex * itemWidth);
+                           
+                           adjustedPosition = {
+                             ...position,
+                             left: `${itemLeft}%`,
+                             width: `${itemWidth}%`
+                           };
+                         }
+                       }
+                       
+                       const topOffset = 10;
+                       const height = isWeekView ? 30 : 35;
                        
                        return (
                          <Tooltip
@@ -1390,10 +1526,10 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
                              onClick={(e) => handleActivityClick(e, item)}
                              sx={{
                                position: 'absolute',
-                               left: position.left,
-                               width: position.width,
-                               top: 10,
-                               height: 35,
+                               left: adjustedPosition.left,
+                               width: adjustedPosition.width,
+                               top: topOffset,
+                               height: height,
                                backgroundColor: getTimelineItemColor(item),
                                borderTopLeftRadius: position.roundedLeft ? 6 : 0,
                                borderBottomLeftRadius: position.roundedLeft ? 6 : 0,
@@ -1423,24 +1559,27 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
                                  fontWeight: 'bold',
                                  overflow: 'hidden',
                                  textOverflow: 'ellipsis',
-                                 whiteSpace: 'nowrap',
+                                 whiteSpace: isWeekView ? 'normal' : 'nowrap',
                                  fontSize: { xs: '0.6rem', sm: '0.65rem' },
                                  lineHeight: 1.1,
-                                 width: '100%'
+                                 width: '100%',
+                                 textAlign: 'center'
                                }}
                              >
-                               {item.title}
+                               {isWeekView ? item.title.split(':')[0] : item.title}
                              </Typography>
-                             <Chip
-                               label={item.status}
-                               size="small"
-                               sx={{
-                                 height: 14,
-                                 fontSize: '0.6rem',
-                                 backgroundColor: 'rgba(255,255,255,0.2)',
-                                 color: 'white'
-                               }}
-                             />
+                             {!isWeekView && (
+                               <Chip
+                                 label={item.status}
+                                 size="small"
+                                 sx={{
+                                   height: 14,
+                                   fontSize: '0.6rem',
+                                   backgroundColor: 'rgba(255,255,255,0.2)',
+                                   color: 'white'
+                                 }}
+                               />
+                             )}
                            </Box>
                          </Tooltip>
                        );

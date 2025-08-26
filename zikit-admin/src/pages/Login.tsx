@@ -48,10 +48,13 @@ const Login: React.FC = () => {
           {/* Header */}
           <Box sx={{ mb: 4 }}>
             <Typography variant="h4" component="h1" sx={{ fontWeight: 700, mb: 2 }}>
-              מערכת ניהול כוח אדם
+              זיקית
             </Typography>
-            <Typography variant="h6" sx={{ color: 'text.secondary' }}>
-              פלוגה לוחמת
+            <Typography variant="h6" sx={{ color: 'text.secondary', mb: 2 }}>
+              הפלוגה הייעודית
+            </Typography>
+            <Typography variant="body1" sx={{ color: 'text.secondary' }}>
+              אם הגעת לכאן סימן שזכית להיות חלק מפלוגת זיקית
             </Typography>
           </Box>
 
@@ -81,7 +84,7 @@ const Login: React.FC = () => {
 
           {/* Footer */}
           <Typography variant="body2" sx={{ mt: 3, color: 'text.secondary' }}>
-            משתמש מורשה בלבד
+            התחבר כדי להיכנס למערכת
           </Typography>
         </CardContent>
       </Card>

@@ -1,5 +1,5 @@
 import { db } from '../firebase';
-import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
+import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, query, where, deleteField } from 'firebase/firestore';
 import { Soldier } from '../models/Soldier';
 import { getAuth } from 'firebase/auth';
 import { localStorageService, updateTableTimestamp } from './cacheService';
@@ -58,7 +58,7 @@ export const addSoldier = async (soldier: Omit<Soldier, 'id'>): Promise<string> 
   return docRef.id;
 };
 
-export const updateSoldier = async (id: string, soldier: Partial<Soldier>) => {
+export const updateSoldier = async (id: string, soldier: Partial<Soldier> & { [key: string]: any }) => {
   try {
     const auth = getAuth();
     const currentUser = auth.currentUser;
@@ -69,8 +69,16 @@ export const updateSoldier = async (id: string, soldier: Partial<Soldier>) => {
 
     console.log(`✏️ [DB] מעדכן חייל ${id}:`, Object.keys(soldier));
 
+    // ניקוי שדות undefined וריקים
+    const cleanData: any = {};
+    Object.keys(soldier).forEach(key => {
+      if (soldier[key] !== undefined && soldier[key] !== null && soldier[key] !== '') {
+        cleanData[key] = soldier[key];
+      }
+    });
+    
     const updateData = {
-      ...soldier,
+      ...cleanData,
       updatedAt: new Date().toISOString()
     };
     
@@ -435,11 +443,16 @@ export const updateAbsenceStatusesAutomatically = async (): Promise<void> => {
           // בדיקה אם ההיעדרות הסתיימה
           if (now > untilTime) {
             console.log(`✅ [AUTO] היעדרות הסתיימה לחייל ${soldier.name} - מחזיר לבסיס`);
-            await updateSoldier(soldier.id, {
+            const updateData: any = {
               presence: 'בבסיס',
-              absenceUntil: undefined,
-              previousStatus: undefined
-            });
+              updatedAt: new Date().toISOString()
+            };
+            
+            // מחיקת השדות מהמסמך
+            updateData.absenceUntil = deleteField();
+            updateData.previousStatus = deleteField();
+            
+            await updateDoc(doc(soldiersCollection, soldier.id), updateData);
             updatedCount++;
           } else {
             // ההיעדרות פעילה - אין צורך לעדכן

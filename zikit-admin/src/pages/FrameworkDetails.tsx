@@ -60,6 +60,8 @@ import { useUser } from '../contexts/UserContext';
 import { FrameworkWithDetails, Framework } from '../models/Framework';
 import { getAllFrameworks, getFrameworkWithDetails, getFrameworkNamesByIds } from '../services/frameworkService';
 import { getAllSoldiers, updateSoldier } from '../services/soldierService';
+import { doc, updateDoc, deleteField } from 'firebase/firestore';
+import { db } from '../firebase';
 import { getPresenceColor, getProfileColor, getRoleColor } from '../utils/colors';
 import { formatToIsraelString } from '../utils/dateUtils';
 import { getUserPermissions, canUserEditSoldierPresence } from '../services/permissionService';
@@ -74,6 +76,9 @@ import {
 } from '../utils/presenceStatus';
 import { createIsraelDate, isTodayInIsrael, getCurrentIsraelTime } from '../utils/dateUtils';
 import ReportDialog from '../components/ReportDialog';
+import { collection } from 'firebase/firestore';
+
+const soldiersCollection = collection(db, 'soldiers');
 
 const FrameworkDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -237,17 +242,21 @@ const FrameworkDetails: React.FC = () => {
         finalPresence = editingPresenceOther.trim();
       }
       
-      const updateData: any = { presence: finalPresence };
+      // עדכון ישיר של המסמך
+      const updateData: any = { 
+        presence: finalPresence,
+        updatedAt: new Date().toISOString()
+      };
       
       // אם נבחר קורס, גימלים או חופש, הוסף את התאריך
       if (requiresAbsenceDate(editingPresence as any) && editingAbsenceUntil) {
         updateData.absenceUntil = editingAbsenceUntil;
       } else {
-        // אם לא קורס/גימלים/חופש, נקה את התאריך
-        updateData.absenceUntil = undefined;
+        // אם לא קורס/גימלים/חופש, מחק את השדה
+        updateData.absenceUntil = deleteField();
       }
       
-      await updateSoldier(editingSoldier, updateData);
+      await updateDoc(doc(soldiersCollection, editingSoldier), updateData);
       
       // רענון הנתונים מהשרת
       await loadData();
@@ -1223,42 +1232,69 @@ const FrameworkDetails: React.FC = () => {
       {/* הפניות */}
       {framework.referrals && framework.referrals.filter(referral => {
         // הצג רק הפניות שעוד לא הגיע שעת החזרה שלהן (בזמן ישראל)
-        if (referral.returnTime) {
-          const now = getCurrentIsraelTime();
-          const returnDateTime = new Date(`${referral.date}T${referral.returnTime}`);
-          return now < returnDateTime;
+        if (referral.returnTime && referral.date) {
+          try {
+            const now = getCurrentIsraelTime();
+            const returnDateTime = new Date(`${referral.date}T${referral.returnTime}`);
+            
+            // בדיקה שהתאריך תקין
+            if (!isNaN(returnDateTime.getTime())) {
+              return now < returnDateTime;
+            }
+          } catch (error) {
+            console.warn('תאריך לא תקין להפניה:', referral.date, referral.returnTime);
+          }
         }
         
+        // אם אין שעת חזרה או תאריך - הצג את ההפניה
         return true;
       }).length > 0 && (
         <Accordion>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <AssignmentIcon sx={{ mr: 2 }} />
-                              <Typography variant="h6" fontWeight={600}>
-                  הפניות ({framework.referrals.filter(referral => {
-                    // הצג רק הפניות שעוד לא הגיע שעת החזרה שלהן (בזמן ישראל)
-                    if (referral.returnTime) {
+              <Typography variant="h6" fontWeight={600}>
+                הפניות ({framework.referrals.filter(referral => {
+                  // הצג רק הפניות שעוד לא הגיע שעת החזרה שלהן (בזמן ישראל)
+                  if (referral.returnTime && referral.date) {
+                    try {
                       const now = getCurrentIsraelTime();
                       const returnDateTime = new Date(`${referral.date}T${referral.returnTime}`);
-                      return now < returnDateTime;
+                      
+                      // בדיקה שהתאריך תקין
+                      if (!isNaN(returnDateTime.getTime())) {
+                        return now < returnDateTime;
+                      }
+                    } catch (error) {
+                      console.warn('תאריך לא תקין להפניה:', referral.date, referral.returnTime);
                     }
-                    
-                    return true;
-                  }).length})
-                </Typography>
+                  }
+                  
+                  // אם אין שעת חזרה או תאריך - הצג את ההפניה
+                  return true;
+                }).length})
+              </Typography>
             </Box>
           </AccordionSummary>
           <AccordionDetails>
             <Box>
               {framework.referrals.filter(referral => {
                 // הצג רק הפניות שעוד לא הגיע שעת החזרה שלהן (בזמן ישראל)
-                if (referral.returnTime) {
-                  const now = getCurrentIsraelTime();
-                  const returnDateTime = new Date(`${referral.date}T${referral.returnTime}`);
-                  return now < returnDateTime;
+                if (referral.returnTime && referral.date) {
+                  try {
+                    const now = getCurrentIsraelTime();
+                    const returnDateTime = new Date(`${referral.date}T${referral.returnTime}`);
+                    
+                    // בדיקה שהתאריך תקין
+                    if (!isNaN(returnDateTime.getTime())) {
+                      return now < returnDateTime;
+                    }
+                  } catch (error) {
+                    console.warn('תאריך לא תקין להפניה:', referral.date, referral.returnTime);
+                  }
                 }
                 
+                // אם אין שעת חזרה או תאריך - הצג את ההפניה
                 return true;
               }).map((referral) => (
                 <Accordion key={referral.id} sx={{ mb: 1 }}>
@@ -1269,10 +1305,11 @@ const FrameworkDetails: React.FC = () => {
                       </Avatar>
                       <Box sx={{ flex: 1 }}>
                         <Typography variant="subtitle1" fontWeight={600}>
-                          הפניה {referral.type}
+                          הפניה {referral.soldierName && `- ${referral.soldierName}`}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          {referral.departureTime?.replace('T', ' ') || ''} • {referral.destination}
+                          {referral.departureTime?.replace('T', ' ') || ''} • {referral.location}
+                          {referral.personalNumber && ` • ${referral.personalNumber}`}
                         </Typography>
                       </Box>
                     </Box>
@@ -1284,14 +1321,9 @@ const FrameworkDetails: React.FC = () => {
                           <strong>חייל:</strong> {referral.soldierName}
                         </Typography>
                       )}
-                      {referral.type && (
+                      {referral.location && (
                         <Typography variant="body2">
-                          <strong>סוג הפניה:</strong> {referral.type}
-                        </Typography>
-                      )}
-                      {referral.destination && (
-                        <Typography variant="body2">
-                          <strong>יעד:</strong> {referral.destination}
+                          <strong>מיקום:</strong> {referral.location}
                         </Typography>
                       )}
                       {referral.departureTime && (
@@ -1304,14 +1336,9 @@ const FrameworkDetails: React.FC = () => {
                           <strong>שעת חזרה:</strong> {referral.returnTime.replace('T', ' ')}
                         </Typography>
                       )}
-                      {referral.departureDate && (
+                      {referral.date && (
                         <Typography variant="body2">
-                          <strong>תאריך יציאה:</strong> {formatToIsraelString(referral.departureDate, { year: 'numeric', month: '2-digit', day: '2-digit' })}
-                        </Typography>
-                      )}
-                      {referral.returnDate && (
-                        <Typography variant="body2">
-                          <strong>תאריך חזרה:</strong> {formatToIsraelString(referral.returnDate, { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                          <strong>תאריך:</strong> {formatToIsraelString(referral.date, { year: 'numeric', month: '2-digit', day: '2-digit' })}
                         </Typography>
                       )}
                       {referral.reason && (
