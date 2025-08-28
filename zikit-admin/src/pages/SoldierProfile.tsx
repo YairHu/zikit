@@ -549,7 +549,7 @@ const SoldierProfile: React.FC = () => {
               )}
 
               {/* ציוני מבחן בראור */}
-              {soldier.braurTest && (
+              {soldier.braurTest && soldier.braurTest.strength && soldier.braurTest.running && (
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="h6" sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
                     <SecurityIcon sx={{ mr: 1, fontSize: 20 }} />
@@ -602,10 +602,7 @@ const SoldierProfile: React.FC = () => {
                       <Typography variant="body2" color="text.secondary">ימי חופש שנותרו:</Typography>
                       <Typography variant="body2" fontWeight="bold">{soldier.vacationDays.total}</Typography>
                     </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="body2" color="text.secondary">ימי חופש שנוצלו:</Typography>
-                      <Typography variant="body2" fontWeight="bold">{soldier.vacationDays.used}</Typography>
-                    </Box>
+
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Typography variant="body2" color="text.secondary">מצב:</Typography>
                       <Chip

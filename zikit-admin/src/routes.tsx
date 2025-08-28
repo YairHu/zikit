@@ -57,11 +57,55 @@ const drawerWidth = 260;
 const ProtectedRoute: React.FC<{ 
   children: React.ReactNode; 
   userRole?: UserRole;
-}> = ({ children, userRole }) => {
+  requiredPath?: SystemPath;
+  requiredPermission?: PermissionLevel;
+}> = ({ children, userRole, requiredPath, requiredPermission }) => {
   const { user } = useUser();
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  
+  useEffect(() => {
+    const checkPermission = async () => {
+      if (!user) {
+        setHasPermission(false);
+        setLoading(false);
+        return;
+      }
+      
+      if (!requiredPath || !requiredPermission) {
+        setHasPermission(true);
+        setLoading(false);
+        return;
+      }
+      
+      try {
+        const canAccess = await canUserAccessPath(user.uid, requiredPath, requiredPermission);
+        setHasPermission(canAccess);
+      } catch (error) {
+        console.error('שגיאה בבדיקת הרשאות:', error);
+        setHasPermission(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    checkPermission();
+  }, [user, requiredPath, requiredPermission]);
+  
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+        <Typography>בודק הרשאות...</Typography>
+      </Box>
+    );
+  }
   
   if (!user) {
     return <Navigate to="/login" />;
+  }
+  
+  if (hasPermission === false) {
+    return <AccessDenied />;
   }
   
   return <>{children}</>;
@@ -94,6 +138,7 @@ const getMenuItems = async (user: any) => {
   const canViewForms = await canUserAccessPath(user.uid, SystemPath.FORMS, PermissionLevel.VIEW);
   const canViewUsers = await canUserAccessPath(user.uid, SystemPath.USERS, PermissionLevel.VIEW);
   const canViewHamal = await canUserAccessPath(user.uid, SystemPath.HAMAL, PermissionLevel.VIEW);
+  const canViewCacheMonitor = await canUserAccessPath(user.uid, SystemPath.CACHE_MONITOR, PermissionLevel.VIEW);
 
   const managementItems = [
     ...(canViewSoldiers ? [{ text: 'כוח אדם', icon: <GroupsIcon />, path: '/soldiers' }] : []),
@@ -112,7 +157,7 @@ const getMenuItems = async (user: any) => {
   const adminItems = [
     ...(canViewUsers ? [{ text: 'ניהול משתמשים', icon: <KeyIcon />, path: '/users' }] : []),
     ...(canViewFrameworks ? [{ text: 'ניהול מבנה פלוגה', icon: <GroupsIcon />, path: '/framework-management' }] : []),
-            { text: 'ניטור מטמון מקומי', icon: <StorageIcon />, path: '/cache-monitor' }
+    ...(canViewCacheMonitor ? [{ text: 'ניטור מטמון מקומי', icon: <StorageIcon />, path: '/cache-monitor' }] : [])
   ];
 
   return { baseItems, managementItems, adminItems };
@@ -393,7 +438,11 @@ const AppRoutes: React.FC = () => {
             </ProtectedRoute>
           } />
           <Route path="/cache-monitor" element={
-            <ProtectedRoute userRole={user.role as UserRole}>
+            <ProtectedRoute 
+              userRole={user.role as UserRole}
+              requiredPath={SystemPath.CACHE_MONITOR}
+              requiredPermission={PermissionLevel.VIEW}
+            >
               <CacheMonitor />
             </ProtectedRoute>
           } />

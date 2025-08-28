@@ -28,7 +28,8 @@ import {
   IconButton,
   Checkbox,
   FormGroup,
-  FormControlLabel
+  FormControlLabel,
+  CircularProgress
 } from '@mui/material';
 import {
   Person as PersonIcon,
@@ -38,7 +39,8 @@ import {
   Delete as DeleteIcon,
   Policy as PolicyIcon,
   Add as AddIcon,
-  Edit as EditIcon
+  Edit as EditIcon,
+  Search as SearchIcon
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
 import { User } from '../models/User';
@@ -134,6 +136,15 @@ const UserManagement: React.FC = () => {
     frameworkId: '',
     personalNumber: ''
   });
+  
+  // State for multiple selection
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+  const [bulkDeleteConfirmation, setBulkDeleteConfirmation] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState(0);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   
   // Policy management state
   const [editingPolicy, setEditingPolicy] = useState<PermissionPolicy | null>(null);
@@ -250,7 +261,10 @@ const UserManagement: React.FC = () => {
     try {
       await assignRoleByName(selectedUser.uid, selectedRole, currentUser.uid);
       setRoleDialogOpen(false);
-      loadUsers();
+      await Promise.all([
+        loadUsers(),
+        loadSoldiers()
+      ]);
     } catch (error) {
       console.error('שגיאה בשיבוץ תפקיד:', error);
       alert('שגיאה בשיבוץ תפקיד');
@@ -325,9 +339,112 @@ const UserManagement: React.FC = () => {
       await removeUserFromSystem(selectedUser.uid, currentUser.uid);
       setDeleteDialogOpen(false);
       alert('המשתמש הוסר בהצלחה מכל המקומות במערכת!');
-      loadUsers();
+      
+      // רענון כל הנתונים
+      await Promise.all([
+        loadUsers(),
+        loadSoldiers()
+      ]);
     } catch (error) {
       alert('שגיאה בהסרת משתמש: ' + error);
+    }
+  };
+
+  // פונקציות לטיפול בסימון מרובה
+  const handleSelectUser = (uid: string) => {
+    // בדיקה שהמשתמש לא מנסה לבחור את עצמו
+    if (uid === currentUser?.uid) {
+      alert('לא ניתן לבחור את עצמך למחיקה');
+      return;
+    }
+
+    const newSelected = new Set(selectedUsers);
+    if (newSelected.has(uid)) {
+      newSelected.delete(uid);
+    } else {
+      newSelected.add(uid);
+    }
+    setSelectedUsers(newSelected);
+  };
+
+  const handleSelectAllUsers = () => {
+    const allUserIds = [
+      ...users.map(u => u.uid),
+      ...getAssignedSoldiersWithoutUsers().map(s => s.id),
+      ...getPendingSoldiersWithoutUsers().map(s => s.id)
+    ].filter(uid => uid !== currentUser?.uid); // הסרת המשתמש הנוכחי מהרשימה
+    
+    if (selectedUsers.size === allUserIds.length) {
+      setSelectedUsers(new Set());
+    } else {
+      setSelectedUsers(new Set(allUserIds));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!currentUser || !permissions.canDelete) {
+      alert('אין לך הרשאה להסיר משתמשים');
+      return;
+    }
+
+    // בדיקה שהמשתמש לא מנסה למחוק את עצמו
+    if (selectedUsers.has(currentUser.uid)) {
+      alert('לא ניתן למחוק את עצמך מהמערכת');
+      return;
+    }
+
+    if (bulkDeleteConfirmation !== 'מחיקה') {
+      alert('יש להקליד "מחיקה" כדי לאשר את הפעולה');
+      return;
+    }
+
+    if (selectedUsers.size === 0) {
+      alert('לא נבחרו משתמשים למחיקה');
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteProgress(0);
+
+    try {
+      const selectedUsersArray = Array.from(selectedUsers);
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (let i = 0; i < selectedUsersArray.length; i++) {
+        const uid = selectedUsersArray[i];
+        try {
+          await removeUserFromSystem(uid, currentUser.uid);
+          successCount++;
+        } catch (error) {
+          console.error(`שגיאה בהסרת משתמש ${uid}:`, error);
+          errorCount++;
+        }
+        
+        // עדכון התקדמות
+        setDeleteProgress(((i + 1) / selectedUsersArray.length) * 100);
+      }
+
+      setShowBulkDeleteDialog(false);
+      setBulkDeleteConfirmation('');
+      setSelectedUsers(new Set());
+
+      if (errorCount === 0) {
+        alert(`${successCount} משתמשים הוסרו בהצלחה מכל המקומות במערכת!`);
+      } else {
+        alert(`${successCount} משתמשים הוסרו בהצלחה, ${errorCount} שגיאות התרחשו.`);
+      }
+
+      // רענון כל הנתונים
+      await Promise.all([
+        loadUsers(),
+        loadSoldiers()
+      ]);
+    } catch (error) {
+      alert('שגיאה במחיקה מרובה: ' + error);
+    } finally {
+      setIsDeleting(false);
+      setDeleteProgress(0);
     }
   };
 
@@ -742,18 +859,81 @@ const UserManagement: React.FC = () => {
 
       {/* Tab 1: כל המשתמשים */}
       <TabPanel value={tabValue} index={0}>
+        {/* Bulk Actions - Compact */}
+        {permissions.canDelete && (
+          <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={selectedUsers.size > 0}
+                  indeterminate={selectedUsers.size > 0 && selectedUsers.size < (users.length + getAssignedSoldiersWithoutUsers().length + getPendingSoldiersWithoutUsers().length)}
+                  onChange={handleSelectAllUsers}
+                  size="small"
+                />
+              }
+              label={`בחר הכל (${selectedUsers.size})`}
+              sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.875rem' } }}
+            />
+            <IconButton size="small" onClick={() => setShowSearch(!showSearch)} title="חיפוש">
+              <SearchIcon fontSize="small" />
+            </IconButton>
+            {showSearch && (
+              <TextField
+                size="small"
+                placeholder="חיפוש..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                sx={{ minWidth: 200 }}
+              />
+            )}
+            {selectedUsers.size > 0 && (
+              <Button
+                variant="contained"
+                color="error"
+                startIcon={<DeleteIcon />}
+                onClick={() => setShowBulkDeleteDialog(true)}
+                size="small"
+                sx={{ fontSize: '0.75rem', py: 0.5, px: 1 }}
+              >
+                הסר {selectedUsers.size}
+              </Button>
+            )}
+          </Box>
+        )}
+        
         <Box sx={{ 
           display: 'grid', 
           gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, 
           gap: 2 
         }}>
           {/* משתמשים רגילים */}
-          {users.map((userData) => (
+          {users
+            .filter(u => {
+              if (!searchTerm) return true;
+              const q = searchTerm.trim().toLowerCase();
+              return (
+                (u.displayName || '').toLowerCase().includes(q) ||
+                (u.email || '').toLowerCase().includes(q) ||
+                (u.personalNumber || '').toLowerCase().includes(q)
+              );
+            })
+            .map((userData) => (
             <Card key={userData.uid} sx={{ 
               transition: 'all 0.3s ease',
-              '&:hover': { boxShadow: 4 }
+              '&:hover': { boxShadow: 4 },
+              border: selectedUsers.has(userData.uid) ? '2px solid #f44336' : 'none'
             }}>
               <CardContent>
+                {permissions.canDelete && userData.uid !== currentUser?.uid && (
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+                    <Checkbox
+                      checked={selectedUsers.has(userData.uid)}
+                      onChange={() => handleSelectUser(userData.uid)}
+                      color="error"
+                      size="small"
+                    />
+                  </Box>
+                )}
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                   <Avatar sx={{ mr: 2 }}>
                     <PersonIcon />
@@ -889,14 +1069,34 @@ const UserManagement: React.FC = () => {
                       ))}
 
           {/* חיילים משובצים שלא התחברו לאפליקציה */}
-          {getAssignedSoldiersWithoutUsers().map((soldier) => (
+          {getAssignedSoldiersWithoutUsers()
+            .filter((soldier) => {
+              if (!searchTerm) return true;
+              const q = searchTerm.trim().toLowerCase();
+              return (
+                (soldier.name || soldier.fullName || '').toLowerCase().includes(q) ||
+                (soldier.email || '').toLowerCase().includes(q) ||
+                (soldier.personalNumber || '').toLowerCase().includes(q)
+              );
+            })
+            .map((soldier) => (
             <Card key={soldier.id} sx={{ 
               transition: 'all 0.3s ease',
               '&:hover': { boxShadow: 4 },
-              border: '2px solid #ff9800',
+              border: selectedUsers.has(soldier.id) ? '2px solid #f44336' : '2px solid #ff9800',
               opacity: 0.8
             }}>
               <CardContent>
+                {permissions.canDelete && soldier.id !== currentUser?.uid && (
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+                    <Checkbox
+                      checked={selectedUsers.has(soldier.id)}
+                      onChange={() => handleSelectUser(soldier.id)}
+                      color="error"
+                      size="small"
+                    />
+                  </Box>
+                )}
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                   <Avatar sx={{ mr: 2, bgcolor: '#ff9800' }}>
                     <PersonIcon />
@@ -983,6 +1183,34 @@ const UserManagement: React.FC = () => {
                   >
                     שנה שיבוץ
                   </Button>
+                  {permissions.canDelete && (
+                    <Button
+                      size="small"
+                      startIcon={<DeleteIcon />}
+                      onClick={() => {
+                        // יצירת אובייקט משתמש זמני לחייל
+                        const tempUser: User = {
+                          uid: soldier.id,
+                          email: soldier.email || '',
+                          displayName: soldier.name || soldier.fullName || 'שם לא מוגדר',
+                          role: soldier.role || 'טרם הוזנו פרטים',
+                          personalNumber: soldier.personalNumber || '',
+                          soldierDocId: soldier.id,
+                          team: '',
+                          pelaga: '',
+                          createdAt: new Date(),
+                          updatedAt: new Date(),
+                          isActive: true
+                        };
+                        openDeleteDialog(tempUser);
+                      }}
+                      variant="outlined"
+                      color="error"
+                      title="הסר חייל מהמערכת"
+                    >
+                      הסר מהמערכת
+                    </Button>
+                  )}
                 </Box>
               </CardContent>
             </Card>
@@ -994,7 +1222,8 @@ const UserManagement: React.FC = () => {
       <TabPanel value={tabValue} index={1}>
         {roles.map((role) => {
           const roleUsers = users.filter(u => u.role === role.name);
-          if (roleUsers.length === 0) return null;
+          const roleSoldiersWithoutUsers = getAssignedSoldiersWithoutUsers().filter(s => (s.role || '') === role.name);
+          if (roleUsers.length === 0 && roleSoldiersWithoutUsers.length === 0) return null;
 
           return (
             <Card key={role.id} sx={{ mb: 3 }}>
@@ -1008,7 +1237,7 @@ const UserManagement: React.FC = () => {
                       mr: 2
                     }}
                   />
-                  {roleUsers.length} משתמשים
+                  {roleUsers.length + roleSoldiersWithoutUsers.length} משתמשים/חיילים
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
                   {role.description}
@@ -1020,6 +1249,15 @@ const UserManagement: React.FC = () => {
                       label={`${userData.displayName}${userData.team ? ` (צוות ${userData.team})` : ''}`}
                       variant="outlined"
                       onClick={() => openRoleDialog(userData)}
+                      sx={{ cursor: 'pointer' }}
+                    />
+                  ))}
+                  {roleSoldiersWithoutUsers.map((soldier) => (
+                    <Chip
+                      key={soldier.id}
+                      label={`${soldier.name || soldier.fullName || 'שם לא מוגדר'} (חייל ללא משתמש)`}
+                      variant="outlined"
+                      onClick={() => navigate(`/soldiers/${soldier.id}`)}
                       sx={{ cursor: 'pointer' }}
                     />
                   ))}
@@ -1061,6 +1299,43 @@ const UserManagement: React.FC = () => {
             חיילים ממתינים לשיבוץ
           </Typography>
           
+          {/* Bulk Actions for Pending Soldiers - Compact */}
+          {permissions.canDelete && getPendingSoldiersWithoutUsers().length > 0 && (
+            <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={selectedUsers.size > 0}
+                    indeterminate={selectedUsers.size > 0 && selectedUsers.size < getPendingSoldiersWithoutUsers().length}
+                    onChange={() => {
+                      const pendingIds = getPendingSoldiersWithoutUsers().map(s => s.id);
+                      if (selectedUsers.size === pendingIds.length) {
+                        setSelectedUsers(new Set());
+                      } else {
+                        setSelectedUsers(new Set(pendingIds));
+                      }
+                    }}
+                    size="small"
+                  />
+                }
+                label={`בחר הכל (${selectedUsers.size})`}
+                sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.875rem' } }}
+              />
+              {selectedUsers.size > 0 && (
+                <Button
+                  variant="contained"
+                  color="error"
+                  startIcon={<DeleteIcon />}
+                  onClick={() => setShowBulkDeleteDialog(true)}
+                  size="small"
+                  sx={{ fontSize: '0.75rem', py: 0.5, px: 1 }}
+                >
+                  הסר {selectedUsers.size}
+                </Button>
+              )}
+            </Box>
+          )}
+          
           <Alert severity="info" sx={{ mb: 3 }}>
             <Typography variant="body2">
               חיילים שיובאו למערכת אך טרם שובצו למסגרת.
@@ -1073,13 +1348,33 @@ const UserManagement: React.FC = () => {
             gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, 
             gap: 2 
           }}>
-            {getPendingSoldiersWithoutUsers().map((soldier) => (
+            {getPendingSoldiersWithoutUsers()
+              .filter((soldier) => {
+                if (!searchTerm) return true;
+                const q = searchTerm.trim().toLowerCase();
+                return (
+                  (soldier.name || soldier.fullName || '').toLowerCase().includes(q) ||
+                  (soldier.email || '').toLowerCase().includes(q) ||
+                  (soldier.personalNumber || '').toLowerCase().includes(q)
+                );
+              })
+              .map((soldier) => (
               <Card key={soldier.id} sx={{ 
                 transition: 'all 0.3s ease',
                 '&:hover': { boxShadow: 4 },
-                border: '2px solid #ff9800'
+                border: selectedUsers.has(soldier.id) ? '2px solid #f44336' : '2px solid #ff9800'
               }}>
                 <CardContent>
+                  {permissions.canDelete && soldier.id !== currentUser?.uid && (
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+                      <Checkbox
+                        checked={selectedUsers.has(soldier.id)}
+                        onChange={() => handleSelectUser(soldier.id)}
+                        color="error"
+                        size="small"
+                      />
+                    </Box>
+                  )}
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                     <Avatar sx={{ mr: 2, bgcolor: '#ff9800' }}>
                       <PersonIcon />
@@ -1155,6 +1450,34 @@ const UserManagement: React.FC = () => {
                     >
                       ערוך פרטים
                     </Button>
+                    {permissions.canDelete && (
+                      <Button
+                        size="small"
+                        startIcon={<DeleteIcon />}
+                        onClick={() => {
+                          // יצירת אובייקט משתמש זמני לחייל
+                          const tempUser: User = {
+                            uid: soldier.id,
+                            email: soldier.email || '',
+                            displayName: soldier.name || soldier.fullName || 'שם לא מוגדר',
+                            role: soldier.role || 'טרם הוזנו פרטים',
+                            personalNumber: soldier.personalNumber || '',
+                            soldierDocId: soldier.id,
+                            team: '',
+                            pelaga: '',
+                            createdAt: new Date(),
+                            updatedAt: new Date(),
+                            isActive: true
+                          };
+                          openDeleteDialog(tempUser);
+                        }}
+                        variant="outlined"
+                        color="error"
+                        title="הסר חייל מהמערכת"
+                      >
+                        הסר מהמערכת
+                      </Button>
+                    )}
                   </Box>
                 </CardContent>
               </Card>
@@ -1740,6 +2063,100 @@ const UserManagement: React.FC = () => {
             variant="contained"
           >
             {editingRole && editingRole.id && editingRole.id !== '' ? 'עדכן' : 'צור'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog for Bulk Delete */}
+      <Dialog open={showBulkDeleteDialog} onClose={() => setShowBulkDeleteDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ color: 'error.main' }}>
+          מחיקה מרובה של משתמשים
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            האם אתה בטוח שברצונך להסיר {selectedUsers.size} משתמשים מהמערכת?
+          </Typography>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            <Typography variant="body2">
+              פעולה זו תמחק את המשתמשים לחלוטין מהמערכת ולא ניתן יהיה לשחזר את הנתונים.
+            </Typography>
+          </Alert>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            <Typography variant="body2">
+              <strong>שים לב:</strong> פעולה זו תיקח מספר שניות, נא להמתין עד לסיום התהליך.
+            </Typography>
+          </Alert>
+          <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+            המשתמשים שיימחקו:
+          </Typography>
+          <Box sx={{ maxHeight: 200, overflow: 'auto', mb: 2 }}>
+            {Array.from(selectedUsers).map((uid) => {
+              const user = users.find(u => u.uid === uid);
+              const soldier = [...getAssignedSoldiersWithoutUsers(), ...getPendingSoldiersWithoutUsers()].find(s => s.id === uid);
+              const displayName = user?.displayName || soldier?.name || soldier?.fullName || 'שם לא מוגדר';
+              return (
+                <Typography key={uid} variant="body2" sx={{ mb: 0.5, color: 'text.secondary' }}>
+                  • {displayName} ({uid})
+                </Typography>
+              );
+            })}
+          </Box>
+          <TextField
+            fullWidth
+            label="הקלד 'מחיקה' כדי לאשר"
+            value={bulkDeleteConfirmation}
+            onChange={(e) => setBulkDeleteConfirmation(e.target.value)}
+            placeholder="מחיקה"
+            sx={{ mb: 2 }}
+          />
+          <Alert severity="warning">
+            <Typography variant="body2">
+              יש להקליד בדיוק את המילה "מחיקה" כדי לאשר את הפעולה.
+            </Typography>
+          </Alert>
+          
+          {/* Progress Bar */}
+          {isDeleting && (
+            <Box sx={{ mt: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <CircularProgress size={16} />
+                <Typography variant="body2" color="text.secondary">
+                  מתקדם במחיקה...
+                </Typography>
+              </Box>
+              <Box sx={{ width: '100%', bgcolor: 'grey.200', borderRadius: 1, overflow: 'hidden' }}>
+                <Box 
+                  sx={{ 
+                    width: `${deleteProgress}%`, 
+                    height: 8, 
+                    bgcolor: 'error.main',
+                    transition: 'width 0.3s ease'
+                  }} 
+                />
+              </Box>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                {Math.round(deleteProgress)}% הושלם
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setShowBulkDeleteDialog(false);
+            setBulkDeleteConfirmation('');
+          }}
+          disabled={isDeleting}
+          >
+            ביטול
+          </Button>
+          <Button 
+            onClick={handleBulkDelete} 
+            variant="contained" 
+            color="error"
+            disabled={bulkDeleteConfirmation !== 'מחיקה' || isDeleting}
+            startIcon={isDeleting ? <CircularProgress size={16} color="inherit" /> : <DeleteIcon />}
+          >
+            {isDeleting ? `מסיר... ${Math.round(deleteProgress)}%` : `הסר ${selectedUsers.size} משתמשים`}
           </Button>
         </DialogActions>
       </Dialog>

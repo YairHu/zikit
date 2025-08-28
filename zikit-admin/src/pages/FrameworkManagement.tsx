@@ -50,12 +50,19 @@ import {
 } from '../services/frameworkService';
 import { getAllSoldiers, updateSoldier } from '../services/soldierService';
 import { Soldier } from '../models/Soldier';
+import { getAllRoles } from '../services/permissionService';
+import { Role } from '../models/UserRole';
+import { useUser } from '../contexts/UserContext';
+import { assignRoleByName, getAllUsers } from '../services/userService';
+import { localStorageService, updateTableTimestamp } from '../services/cacheService';
+import { useNavigate } from 'react-router-dom';
 
 
 interface FrameworkFormData {
   name: string;
   parentFrameworkId: string;
   commanderId: string;
+  commanderRoleId?: string;
   description: string;
 }
 
@@ -63,6 +70,7 @@ const FrameworkManagement: React.FC = () => {
   const [frameworks, setFrameworks] = useState<Framework[]>([]);
   const [frameworkTree, setFrameworkTree] = useState<FrameworkTree[]>([]);
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingFramework, setEditingFramework] = useState<Framework | null>(null);
@@ -70,6 +78,7 @@ const FrameworkManagement: React.FC = () => {
     name: '',
     parentFrameworkId: '',
     commanderId: '',
+    commanderRoleId: '',
     description: ''
   });
   const [error, setError] = useState<string>('');
@@ -77,23 +86,28 @@ const FrameworkManagement: React.FC = () => {
   const [openSoldiersDialog, setOpenSoldiersDialog] = useState(false);
   const [selectedFramework, setSelectedFramework] = useState<Framework | null>(null);
   const [frameworkSoldiers, setFrameworkSoldiers] = useState<Soldier[]>([]);
+  // הסרנו דיאלוג קביעת מפקד ייעודי – הכל בדיאלוג העריכה
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const { user: currentUser } = useUser();
+  const navigate = useNavigate();
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [frameworksData, soldiersData, treeData] = await Promise.all([
+      const [frameworksData, soldiersData, treeData, rolesData] = await Promise.all([
         getAllFrameworks(),
         getAllSoldiers(),
-        getFrameworkTree()
+        getFrameworkTree(),
+        getAllRoles()
       ]);
       
       setFrameworks(frameworksData);
       setSoldiers(soldiersData);
       setFrameworkTree(treeData);
+      setRoles(rolesData);
     } catch (error) {
       console.error('שגיאה בטעינת נתונים:', error);
       setError('שגיאה בטעינת נתונים');
@@ -113,6 +127,7 @@ const FrameworkManagement: React.FC = () => {
         name: framework.name,
         parentFrameworkId: framework.parentFrameworkId || '',
         commanderId: framework.commanderId,
+        commanderRoleId: '',
         description: framework.description || ''
       });
     } else {
@@ -121,6 +136,7 @@ const FrameworkManagement: React.FC = () => {
         name: '',
         parentFrameworkId: '',
         commanderId: '',
+        commanderRoleId: '',
         description: ''
       });
     }
@@ -135,37 +151,100 @@ const FrameworkManagement: React.FC = () => {
 
   const handleSubmit = async () => {
     try {
-      if (!formData.name.trim() || !formData.commanderId) {
-        setError('יש למלא שם מסגרת ומפקד');
+      if (!formData.name.trim()) {
+        setError('יש למלא שם מסגרת');
         return;
       }
 
       if (editingFramework) {
         const updateData: any = {
           name: formData.name,
-          commanderId: formData.commanderId,
           description: formData.description
         };
+        
+        // הוספת מפקד רק אם נבחר
+        if (formData.commanderId && formData.commanderId.trim()) {
+          updateData.commanderId = formData.commanderId;
+        } else {
+          // אם לא נבחר מפקד, נמחק את השדה
+          updateData.commanderId = null;
+        }
         
         if (formData.parentFrameworkId && formData.parentFrameworkId.trim()) {
           updateData.parentFrameworkId = formData.parentFrameworkId;
         }
         
         await updateFramework(editingFramework.id, updateData);
+
+        // אם נבחרו מפקד ותפקיד – עדכון תפקיד המשתמש במערכת
+        if (formData.commanderId && formData.commanderId.trim() && formData.commanderRoleId && formData.commanderRoleId.trim()) {
+          try {
+            const selectedRole = roles.find(r => r.id === formData.commanderRoleId);
+            const commanderSoldier = soldiers.find(s => s.id === formData.commanderId);
+            if (selectedRole && commanderSoldier?.email) {
+              const users = await getAllUsers();
+              const matchedUser = users.find(u => u.email === commanderSoldier.email);
+              if (matchedUser?.uid) {
+                await assignRoleByName(matchedUser.uid, selectedRole.name, currentUser?.uid || 'system');
+              }
+              // סנכרון גם לשדה role ברשומת החייל כדי שיוצג בעמוד זה
+              await updateSoldier(commanderSoldier.id, { role: selectedRole.name });
+            }
+          } catch (e) {
+            console.warn('אזהרה: כשל בעדכון תפקיד למפקד הנבחר', e);
+          }
+        }
+
+        // עדכון טבלת העדכונים והמטמון
+        await updateTableTimestamp('users');
+        await updateTableTimestamp('soldiers');
+        localStorageService.invalidateLocalStorage('users');
+        localStorageService.invalidateLocalStorage('soldiers');
+
         setSuccess('המסגרת עודכנה בהצלחה');
       } else {
         const createData: any = {
           name: formData.name,
-          commanderId: formData.commanderId,
           description: formData.description,
           isActive: true
         };
+        
+        // הוספת מפקד רק אם נבחר
+        if (formData.commanderId && formData.commanderId.trim()) {
+          createData.commanderId = formData.commanderId;
+        }
         
         if (formData.parentFrameworkId && formData.parentFrameworkId.trim()) {
           createData.parentFrameworkId = formData.parentFrameworkId;
         }
         
         await createFramework(createData);
+
+        // אם נבחרו מפקד ותפקיד – עדכון תפקיד המשתמש במערכת
+        if (formData.commanderId && formData.commanderId.trim() && formData.commanderRoleId && formData.commanderRoleId.trim()) {
+          try {
+            const selectedRole = roles.find(r => r.id === formData.commanderRoleId);
+            const commanderSoldier = soldiers.find(s => s.id === formData.commanderId);
+            if (selectedRole && commanderSoldier?.email) {
+              const users = await getAllUsers();
+              const matchedUser = users.find(u => u.email === commanderSoldier.email);
+              if (matchedUser?.uid) {
+                await assignRoleByName(matchedUser.uid, selectedRole.name, currentUser?.uid || 'system');
+              }
+              // סנכרון גם לשדה role ברשומת החייל כדי שיוצג בעמוד זה
+              await updateSoldier(commanderSoldier.id, { role: selectedRole.name });
+            }
+          } catch (e) {
+            console.warn('אזהרה: כשל בעדכון תפקיד למפקד הנבחר', e);
+          }
+        }
+
+        // עדכון טבלת העדכונים והמטמון
+        await updateTableTimestamp('users');
+        await updateTableTimestamp('soldiers');
+        localStorageService.invalidateLocalStorage('users');
+        localStorageService.invalidateLocalStorage('soldiers');
+
         setSuccess('המסגרת נוצרה בהצלחה');
       }
 
@@ -379,9 +458,18 @@ const FrameworkManagement: React.FC = () => {
           </AccordionSummary>
           <AccordionDetails sx={{ p: isSmallMobile ? 1 : 2 }}>
             <Box sx={{ mb: 2 }}>
-              <Typography variant="body2" color="text.secondary">
-                <strong>מפקד:</strong> {commander ? commander.name : 'לא מוגדר'}
-              </Typography>
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: isSmallMobile ? 'column' : 'row',
+                justifyContent: 'space-between', 
+                alignItems: isSmallMobile ? 'flex-start' : 'center', 
+                gap: isSmallMobile ? 1 : 0,
+                mb: 1 
+              }}>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>מפקד:</strong> {commander ? commander.name : 'לא מוגדר'}
+                </Typography>
+              </Box>
               {tree.framework.description && (
                 <Typography variant="body2" color="text.secondary">
                   <strong>תיאור:</strong> {tree.framework.description}
@@ -401,18 +489,6 @@ const FrameworkManagement: React.FC = () => {
                 <Typography variant="subtitle2">
                   חיילים במסגרת:
                 </Typography>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<GroupIcon />}
-                  onClick={() => handleManageSoldiers(tree.framework)}
-                  sx={{ 
-                    fontSize: isSmallMobile ? '0.75rem' : '0.875rem',
-                    px: isSmallMobile ? 1 : 2
-                  }}
-                >
-                  ניהול חיילים
-                </Button>
               </Box>
               {frameworkSoldiers.length > 0 ? (
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
@@ -425,8 +501,10 @@ const FrameworkManagement: React.FC = () => {
                       variant="outlined"
                       sx={{ 
                         fontSize: isSmallMobile ? '0.7rem' : '0.75rem',
-                        maxWidth: isSmallMobile ? '100%' : 'auto'
+                        maxWidth: isSmallMobile ? '100%' : 'auto',
+                        cursor: 'pointer'
                       }}
+                      onClick={(e) => { e.stopPropagation(); navigate(`/soldiers/${soldier.id}`); }}
                     />
                   ))}
                 </Box>
@@ -552,14 +630,65 @@ const FrameworkManagement: React.FC = () => {
                 value={formData.commanderId}
                 onChange={(e) => setFormData({ ...formData, commanderId: e.target.value })}
                 label="מפקד המסגרת"
-                required
               >
-                {soldiers.map(soldier => (
-                  <MenuItem key={soldier.id} value={soldier.id}>
-                    {soldier.name} ({soldier.personalNumber})
+                <MenuItem value="">
+                  ללא מפקד
+                </MenuItem>
+                {(() => {
+                  // קבלת חיילים ישירים במסגרת (לא כולל מסגרות בנות)
+                  const directSoldiers = soldiers.filter(s => s.frameworkId === editingFramework?.id);
+                  
+                  if (directSoldiers.length === 0) {
+                    return (
+                      <MenuItem disabled>
+                        אין חיילים ישירים במסגרת זו
+                      </MenuItem>
+                    );
+                  }
+                  
+                  return directSoldiers.map(soldier => (
+                    <MenuItem key={soldier.id} value={soldier.id}>
+                      {soldier.name} ({soldier.personalNumber})
+                    </MenuItem>
+                  ));
+                })()}
+              </Select>
+              {(() => {
+                const directSoldiers = soldiers.filter(s => s.frameworkId === editingFramework?.id);
+                if (directSoldiers.length === 0) {
+                  return (
+                    <Typography variant="caption" color="warning" sx={{ mt: 1, display: 'block' }}>
+                      ℹ️ אין חיילים ישירים במסגרת זו. ניתן ליצור מסגרת ללא מפקד ולהוסיף חיילים מאוחר יותר.
+                    </Typography>
+                  );
+                }
+                return null;
+              })()}
+            </FormControl>
+
+            {/* בחירת תפקיד למפקד */}
+            <FormControl fullWidth sx={{ mt: 2 }}>
+              <InputLabel>הגדר תפקיד למפקד</InputLabel>
+              <Select
+                value={formData.commanderRoleId || ''}
+                onChange={(e) => setFormData({ ...formData, commanderRoleId: String(e.target.value) })}
+                label="הגדר תפקיד למפקד"
+                disabled={!formData.commanderId}
+              >
+                <MenuItem value="">
+                  ללא שינוי תפקיד
+                </MenuItem>
+                {roles.map(role => (
+                  <MenuItem key={role.id} value={role.id}>
+                    {role.name} - {role.description}
                   </MenuItem>
                 ))}
               </Select>
+              {!formData.commanderId && (
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  בחר קודם מפקד כדי לאפשר עדכון תפקידו במערכת.
+                </Typography>
+              )}
             </FormControl>
             
             <TextField
@@ -682,10 +811,10 @@ const FrameworkManagement: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseSoldiersDialog}>סגור</Button>
-        </DialogActions>
-      </Dialog>
-    </Container>
-  );
-};
+                  </DialogActions>
+        </Dialog>
+      </Container>
+    );
+  };
 
 export default FrameworkManagement;

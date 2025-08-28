@@ -46,6 +46,7 @@ const SoldierForm: React.FC<SoldierFormProps> = ({
       onSuccess={handleSuccess}
       mode={mode}
       title="חייל"
+      disableRole
     />
   );
 };

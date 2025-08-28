@@ -4,17 +4,35 @@ import { Soldier } from '../models/Soldier';
 import { Vehicle } from '../models/Vehicle';
 import { Framework } from '../models/Framework';
 import { PermissionPolicy, Role } from '../models/UserRole';
+import { updateTableTimestamp, localStorageService } from './cacheService';
 
 // פונקציה לייבא חיילים
-export const importSoldiers = async (data: any[], userId: string): Promise<{ success: number; errors: string[] }> => {
-  const results = { success: 0, errors: [] as string[] };
+export const importSoldiers = async (data: any[], userId: string): Promise<{ 
+  success: number; 
+  updated: number;
+  errors: string[]; 
+  successRows: any[];
+  updatedRows: any[];
+  errorRows: any[];
+}> => {
+  const results = { 
+    success: 0, 
+    updated: 0,
+    errors: [] as string[], 
+    successRows: [] as any[],
+    updatedRows: [] as any[],
+    errorRows: [] as any[]
+  };
   
   for (let i = 0; i < data.length; i++) {
     const row = data[i];
+    console.log(`📊 עיבוד שורה ${i + 1}:`, row);
     try {
       // בדיקת נתונים חובה
       if (!row.name || !row.personalNumber) {
+        console.log(`❌ שורה ${i + 1}: חסרים שם או מספר אישי`, { name: row.name, personalNumber: row.personalNumber });
         results.errors.push(`שורה ${i + 1}: חסרים שם או מספר אישי`);
+        results.errorRows.push({ ...row, error: 'חסרים שם או מספר אישי' });
         continue;
       }
 
@@ -80,6 +98,8 @@ export const importSoldiers = async (data: any[], userId: string): Promise<{ suc
         }
 
         await updateDoc(soldierDoc.ref, updateData);
+        results.updated++;
+        results.updatedRows.push({ ...row, docId: soldierDoc.id });
       } else {
         // יצירת חייל חדש
         const soldierData: any = {
@@ -120,21 +140,42 @@ export const importSoldiers = async (data: any[], userId: string): Promise<{ suc
         if (row.additionalInfo) soldierData.additionalInfo = row.additionalInfo;
         if (row.presenceOther) soldierData.presenceOther = row.presenceOther;
 
-        await addDoc(collection(db, 'soldiers'), soldierData);
+        const docRef = await addDoc(collection(db, 'soldiers'), soldierData);
+        results.success++;
+        results.successRows.push({ ...row, docId: docRef.id });
       }
-
-      results.success++;
     } catch (error) {
-      results.errors.push(`שורה ${i + 1}: ${error instanceof Error ? error.message : 'שגיאה לא ידועה'}`);
+      const errorMessage = `שורה ${i + 1}: ${error instanceof Error ? error.message : 'שגיאה לא ידועה'}`;
+      results.errors.push(errorMessage);
+      results.errorRows.push({ ...row, error: errorMessage });
     }
   }
+
+  // עדכון טבלת העדכונים וניקוי מטמון מקומי
+  console.log('🔄 [IMPORT] מעדכן טבלת עדכונים וניקוי מטמון מקומי עבור soldiers');
+  await updateTableTimestamp('soldiers');
+  localStorageService.invalidateLocalStorage('soldiers');
 
   return results;
 };
 
 // פונקציה לייבא רכבים
-export const importVehicles = async (data: any[], userId: string): Promise<{ success: number; errors: string[] }> => {
-  const results = { success: 0, errors: [] as string[] };
+export const importVehicles = async (data: any[], userId: string): Promise<{ 
+  success: number; 
+  updated: number;
+  errors: string[]; 
+  successRows: any[];
+  updatedRows: any[];
+  errorRows: any[];
+}> => {
+  const results = { 
+    success: 0, 
+    updated: 0,
+    errors: [] as string[], 
+    successRows: [] as any[],
+    updatedRows: [] as any[],
+    errorRows: [] as any[]
+  };
   
   for (let i = 0; i < data.length; i++) {
     const row = data[i];
@@ -142,6 +183,7 @@ export const importVehicles = async (data: any[], userId: string): Promise<{ suc
       // בדיקת נתונים חובה
       if (!row.vehicleNumber) {
         results.errors.push(`שורה ${i + 1}: חסר מספר רכב`);
+        results.errorRows.push({ ...row, error: 'חסר מספר רכב' });
         continue;
       }
 
@@ -169,6 +211,8 @@ export const importVehicles = async (data: any[], userId: string): Promise<{ suc
         if (row.notes) updateData.notes = row.notes;
 
         await updateDoc(vehicleDoc.ref, updateData);
+        results.updated++;
+        results.updatedRows.push({ ...row, docId: vehicleDoc.id });
       } else {
         // יצירת רכב חדש
         const vehicleData: any = {
@@ -187,21 +231,42 @@ export const importVehicles = async (data: any[], userId: string): Promise<{ suc
         if (row.lastMaintenance) vehicleData.lastMaintenance = row.lastMaintenance;
         if (row.notes) vehicleData.notes = row.notes;
 
-        await addDoc(collection(db, 'vehicles'), vehicleData);
+        const docRef = await addDoc(collection(db, 'vehicles'), vehicleData);
+        results.success++;
+        results.successRows.push({ ...row, docId: docRef.id });
       }
-
-      results.success++;
     } catch (error) {
-      results.errors.push(`שורה ${i + 1}: ${error instanceof Error ? error.message : 'שגיאה לא ידועה'}`);
+      const errorMessage = `שורה ${i + 1}: ${error instanceof Error ? error.message : 'שגיאה לא ידועה'}`;
+      results.errors.push(errorMessage);
+      results.errorRows.push({ ...row, error: errorMessage });
     }
   }
+
+  // עדכון טבלת העדכונים וניקוי מטמון מקומי
+  console.log('🔄 [IMPORT] מעדכן טבלת עדכונים וניקוי מטמון מקומי עבור vehicles');
+  await updateTableTimestamp('vehicles');
+  localStorageService.invalidateLocalStorage('vehicles');
 
   return results;
 };
 
 // פונקציה לייבא מסגרות
-export const importFrameworks = async (data: any[], userId: string): Promise<{ success: number; errors: string[] }> => {
-  const results = { success: 0, errors: [] as string[] };
+export const importFrameworks = async (data: any[], userId: string): Promise<{ 
+  success: number; 
+  updated: number;
+  errors: string[]; 
+  successRows: any[];
+  updatedRows: any[];
+  errorRows: any[];
+}> => {
+  const results = { 
+    success: 0, 
+    updated: 0,
+    errors: [] as string[], 
+    successRows: [] as any[],
+    updatedRows: [] as any[],
+    errorRows: [] as any[]
+  };
   
   for (let i = 0; i < data.length; i++) {
     const row = data[i];
@@ -209,6 +274,7 @@ export const importFrameworks = async (data: any[], userId: string): Promise<{ s
       // בדיקת נתונים חובה
       if (!row.name) {
         results.errors.push(`שורה ${i + 1}: חסר שם מסגרת`);
+        results.errorRows.push({ ...row, error: 'חסר שם מסגרת' });
         continue;
       }
 
@@ -233,6 +299,8 @@ export const importFrameworks = async (data: any[], userId: string): Promise<{ s
         if (row.status) updateData.status = row.status;
 
         await updateDoc(frameworkDoc.ref, updateData);
+        results.updated++;
+        results.updatedRows.push({ ...row, docId: frameworkDoc.id });
       } else {
         // יצירת מסגרת חדשה
         const frameworkData: any = {
@@ -248,14 +316,21 @@ export const importFrameworks = async (data: any[], userId: string): Promise<{ s
         if (row.commander) frameworkData.commander = row.commander;
         if (row.description) frameworkData.description = row.description;
 
-        await addDoc(collection(db, 'frameworks'), frameworkData);
+        const docRef = await addDoc(collection(db, 'frameworks'), frameworkData);
+        results.success++;
+        results.successRows.push({ ...row, docId: docRef.id });
       }
-
-      results.success++;
     } catch (error) {
-      results.errors.push(`שורה ${i + 1}: ${error instanceof Error ? error.message : 'שגיאה לא ידועה'}`);
+      const errorMessage = `שורה ${i + 1}: ${error instanceof Error ? error.message : 'שגיאה לא ידועה'}`;
+      results.errors.push(errorMessage);
+      results.errorRows.push({ ...row, error: errorMessage });
     }
   }
+
+  // עדכון טבלת העדכונים וניקוי מטמון מקומי
+  console.log('🔄 [IMPORT] מעדכן טבלת עדכונים וניקוי מטמון מקומי עבור frameworks');
+  await updateTableTimestamp('frameworks');
+  localStorageService.invalidateLocalStorage('frameworks');
 
   return results;
 };
@@ -329,12 +404,31 @@ export const importPolicies = async (data: any[], userId: string): Promise<{ suc
     }
   }
 
+  // עדכון טבלת העדכונים וניקוי מטמון מקומי
+  console.log('🔄 [IMPORT] מעדכן טבלת עדכונים וניקוי מטמון מקומי עבור policies');
+  await updateTableTimestamp('permissionPolicies');
+  localStorageService.invalidateLocalStorage('permissionPolicies');
+
   return results;
 };
 
 // פונקציה לייבא תפקידים
-export const importRoles = async (data: any[], userId: string): Promise<{ success: number; errors: string[] }> => {
-  const results = { success: 0, errors: [] as string[] };
+export const importRoles = async (data: any[], userId: string): Promise<{ 
+  success: number; 
+  updated: number;
+  errors: string[]; 
+  successRows: any[];
+  updatedRows: any[];
+  errorRows: any[];
+}> => {
+  const results = { 
+    success: 0, 
+    updated: 0,
+    errors: [] as string[], 
+    successRows: [] as any[],
+    updatedRows: [] as any[],
+    errorRows: [] as any[]
+  };
   
   for (let i = 0; i < data.length; i++) {
     const row = data[i];
@@ -342,6 +436,7 @@ export const importRoles = async (data: any[], userId: string): Promise<{ succes
       // בדיקת נתונים חובה
       if (!row.name) {
         results.errors.push(`שורה ${i + 1}: חסר שם תפקיד`);
+        results.errorRows.push({ ...row, error: 'חסר שם תפקיד' });
         continue;
       }
 
@@ -373,6 +468,8 @@ export const importRoles = async (data: any[], userId: string): Promise<{ succes
         }
 
         await updateDoc(roleDoc.ref, updateData);
+        results.updated++;
+        results.updatedRows.push({ ...row, docId: roleDoc.id });
       } else {
         // יצירת תפקיד חדש
         const roleData: any = {
@@ -385,14 +482,130 @@ export const importRoles = async (data: any[], userId: string): Promise<{ succes
           createdBy: userId
         };
 
-        await addDoc(collection(db, 'roles'), roleData);
+        const docRef = await addDoc(collection(db, 'roles'), roleData);
+        results.success++;
+        results.successRows.push({ ...row, docId: docRef.id });
       }
-
-      results.success++;
     } catch (error) {
-      results.errors.push(`שורה ${i + 1}: ${error instanceof Error ? error.message : 'שגיאה לא ידועה'}`);
+      const errorMessage = `שורה ${i + 1}: ${error instanceof Error ? error.message : 'שגיאה לא ידועה'}`;
+      results.errors.push(errorMessage);
+      results.errorRows.push({ ...row, error: errorMessage });
     }
   }
+
+  // עדכון טבלת העדכונים וניקוי מטמון מקומי
+  console.log('🔄 [IMPORT] מעדכן טבלת עדכונים וניקוי מטמון מקומי עבור roles');
+  await updateTableTimestamp('roles');
+  localStorageService.invalidateLocalStorage('roles');
+
+  return results;
+};
+
+// פונקציה לייבא תוצאות מבחן בראור
+export const importBraurTestResults = async (data: any[], userId: string): Promise<{ 
+  success: number; 
+  updated: number;
+  errors: string[]; 
+  successRows: any[];
+  updatedRows: any[];
+  errorRows: any[];
+}> => {
+  const results = { 
+    success: 0, 
+    updated: 0,
+    errors: [] as string[], 
+    successRows: [] as any[],
+    updatedRows: [] as any[],
+    errorRows: [] as any[]
+  };
+  
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i];
+    try {
+      // בדיקת נתונים חובה
+      if (!row.personalNumber) {
+        results.errors.push(`שורה ${i + 1}: חסר מספר אישי`);
+        results.errorRows.push({ ...row, error: 'חסר מספר אישי' });
+        continue;
+      }
+
+      // חיפוש החייל לפי מספר אישי
+      const soldierQuery = query(
+        collection(db, 'soldiers'),
+        where('personalNumber', '==', row.personalNumber)
+      );
+      const soldierDocs = await getDocs(soldierQuery);
+      
+      if (soldierDocs.empty) {
+        results.errors.push(`שורה ${i + 1}: לא נמצא חייל עם מספר אישי ${row.personalNumber}`);
+        results.errorRows.push({ ...row, error: `לא נמצא חייל עם מספר אישי ${row.personalNumber}` });
+        continue;
+      }
+
+      const soldierDoc = soldierDocs.docs[0];
+      const soldierData = soldierDoc.data();
+      
+      // הכנת נתוני מבחן בראור
+      const braurTestData: any = {
+        updatedAt: new Date()
+      };
+
+      // עיבוד תוצאת כח
+      if (row.strengthResult) {
+        const strengthResult = row.strengthResult.toString().toLowerCase().trim();
+        if (strengthResult === 'עבר' || strengthResult === 'passed' || strengthResult === 'true' || strengthResult === '1') {
+          braurTestData['braurTest.strength'] = 'passed';
+        } else if (strengthResult === 'לא עבר' || strengthResult === 'failed' || strengthResult === 'false' || strengthResult === '0') {
+          braurTestData['braurTest.strength'] = 'failed';
+        } else {
+          results.errors.push(`שורה ${i + 1}: ערך לא תקין לתוצאת כח: ${row.strengthResult}`);
+          results.errorRows.push({ ...row, error: `ערך לא תקין לתוצאת כח: ${row.strengthResult}` });
+          continue;
+        }
+      }
+
+      // עיבוד תוצאת ריצה
+      if (row.runningResult) {
+        const runningResult = row.runningResult.toString().trim();
+        
+        // בדיקה אם הפורמט תקין (דקות:שניות)
+        const timeRegex = /^(\d{1,2}):(\d{2})$/;
+        const match = runningResult.match(timeRegex);
+        
+        if (match) {
+          const minutes = parseInt(match[1]);
+          const seconds = parseInt(match[2]);
+          
+          if (seconds >= 60) {
+            results.errors.push(`שורה ${i + 1}: ערך לא תקין לתוצאת ריצה: ${runningResult} (שניות חייבות להיות פחות מ-60)`);
+            results.errorRows.push({ ...row, error: `ערך לא תקין לתוצאת ריצה: ${runningResult} (שניות חייבות להיות פחות מ-60)` });
+            continue;
+          }
+          
+          braurTestData['braurTest.running'] = runningResult;
+        } else {
+          results.errors.push(`שורה ${i + 1}: פורמט לא תקין לתוצאת ריצה: ${runningResult} (נדרש פורמט דקות:שניות, לדוגמה: 14:30)`);
+          results.errorRows.push({ ...row, error: `פורמט לא תקין לתוצאת ריצה: ${runningResult} (נדרש פורמט דקות:שניות, לדוגמה: 14:30)` });
+          continue;
+        }
+      }
+
+      // עדכון החייל עם נתוני מבחן בראור
+      await updateDoc(soldierDoc.ref, braurTestData);
+      
+      results.updated++;
+      results.updatedRows.push({ ...row, docId: soldierDoc.id, soldierName: soldierData.name });
+    } catch (error) {
+      const errorMessage = `שורה ${i + 1}: ${error instanceof Error ? error.message : 'שגיאה לא ידועה'}`;
+      results.errors.push(errorMessage);
+      results.errorRows.push({ ...row, error: errorMessage });
+    }
+  }
+
+  // עדכון טבלת העדכונים וניקוי מטמון מקומי
+  console.log('🔄 [IMPORT] מעדכן טבלת עדכונים וניקוי מטמון מקומי עבור soldiers (מבחני בראור)');
+  await updateTableTimestamp('soldiers');
+  localStorageService.invalidateLocalStorage('soldiers');
 
   return results;
 };

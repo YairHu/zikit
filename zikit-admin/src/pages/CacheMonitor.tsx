@@ -27,6 +27,8 @@ import {
 } from '@mui/icons-material';
 import { localStorageService, checkTableUpdatesStatus } from '../services/cacheService';
 import { formatToIsraelString } from '../utils/dateUtils';
+import { canUserAccessCacheMonitor, canUserManageCache } from '../services/permissionService';
+import { useUser } from '../contexts/UserContext';
 
 interface CacheInfo {
   tableCount: number;
@@ -44,9 +46,12 @@ interface TableUpdatesStatus {
 }
 
 const CacheMonitor: React.FC = () => {
+  const { user } = useUser();
   const [cacheInfo, setCacheInfo] = useState<CacheInfo | null>(null);
   const [tableUpdatesStatus, setTableUpdatesStatus] = useState<TableUpdatesStatus | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [hasAccess, setHasAccess] = useState<boolean>(false);
+  const [hasManagePermission, setHasManagePermission] = useState<boolean>(false);
 
   const loadLocalStorageInfo = async () => {
     const info = localStorageService.getLocalStorageInfo();
@@ -59,8 +64,21 @@ const CacheMonitor: React.FC = () => {
   };
 
   useEffect(() => {
-    loadLocalStorageInfo();
-  }, []);
+    const checkPermissions = async () => {
+      if (user?.uid) {
+        const access = await canUserAccessCacheMonitor(user.uid);
+        const manage = await canUserManageCache(user.uid);
+        setHasAccess(access);
+        setHasManagePermission(manage);
+        
+        if (access) {
+          await loadLocalStorageInfo();
+        }
+      }
+    };
+    
+    checkPermissions();
+  }, [user]);
 
   const handleRefresh = async () => {
     await loadLocalStorageInfo();
@@ -102,6 +120,26 @@ const CacheMonitor: React.FC = () => {
     }
   };
 
+  if (!user) {
+    return (
+      <Box p={3}>
+        <Alert severity="error">
+          יש להתחבר למערכת כדי לגשת למסך זה
+        </Alert>
+      </Box>
+    );
+  }
+
+  if (!hasAccess) {
+    return (
+      <Box p={3}>
+        <Alert severity="error">
+          אין לך הרשאה לגשת למסך ניטור מטמון מקומי
+        </Alert>
+      </Box>
+    );
+  }
+
   if (!cacheInfo) {
     return (
       <Box p={3}>
@@ -127,16 +165,20 @@ const CacheMonitor: React.FC = () => {
                <RefreshIcon />
              </IconButton>
            </Tooltip>
-           <Tooltip title="נקה מטמון מקומי ישן">
-             <IconButton onClick={handleCleanupOld} color="warning">
-               <CleaningIcon />
-             </IconButton>
-           </Tooltip>
-           <Tooltip title="נקה כל המטמון המקומי">
-             <IconButton onClick={handleClearAll} color="error">
-               <ClearIcon />
-             </IconButton>
-           </Tooltip>
+           {hasManagePermission && (
+             <>
+               <Tooltip title="נקה מטמון מקומי ישן">
+                 <IconButton onClick={handleCleanupOld} color="warning">
+                   <CleaningIcon />
+                 </IconButton>
+               </Tooltip>
+               <Tooltip title="נקה כל המטמון המקומי">
+                 <IconButton onClick={handleClearAll} color="error">
+                   <ClearIcon />
+                 </IconButton>
+               </Tooltip>
+             </>
+           )}
          </Box>
       </Box>
 
@@ -245,15 +287,17 @@ const CacheMonitor: React.FC = () => {
                           </Typography>
                         </TableCell>
                         <TableCell>
-                          <Tooltip title="נקה מטמון לטבלה זו">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleClearTable(entry.key)}
-                              color="error"
-                            >
-                              <ClearIcon />
-                            </IconButton>
-                          </Tooltip>
+                          {hasManagePermission && (
+                            <Tooltip title="נקה מטמון לטבלה זו">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleClearTable(entry.key)}
+                                color="error"
+                              >
+                                <ClearIcon />
+                              </IconButton>
+                            </Tooltip>
+                          )}
                         </TableCell>
                       </TableRow>
                     );

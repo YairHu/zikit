@@ -24,6 +24,7 @@ interface BasePersonFormProps {
   onSuccess?: (person: BasePerson) => void;
   mode: 'add' | 'edit';
   title?: string;
+  disableRole?: boolean;
 }
 
 const emptyPerson: Omit<BasePerson, 'id'> = {
@@ -68,7 +69,8 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
   person, 
   onSuccess, 
   mode,
-  title = 'אדם'
+  title = 'אדם',
+  disableRole = false
 }) => {
   const [formData, setFormData] = useState<Omit<BasePerson, 'id'>>(emptyPerson);
   const [loading, setLoading] = useState(false);
@@ -136,20 +138,7 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
           }
         };
       });
-    } else if (name === 'vacationDaysUsed') {
-      const used = parseInt(value) || 0;
-      setFormData(prev => {
-        const total = prev.vacationDays?.total || 18;
-        const status = total > 9 ? 'critical' : total > 6 ? 'warning' : 'good';
-        return {
-          ...prev,
-          vacationDays: {
-            total,
-            used,
-            status
-          }
-        };
-      });
+
     } else if (name === 'absenceUntil') {
       // טיפול בשדה תאריך - הוספת שעה אוטומטית עם טיפול נכון באזורי זמן
       if (value) {
@@ -244,6 +233,8 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
               name="role"
               value={formData.role}
               onChange={handleChange}
+              helperText={disableRole ? 'שדה זה אינו ניתן לעריכה' : ''}
+              disabled={disableRole}
             />
             <TextField
               fullWidth
@@ -378,15 +369,7 @@ const BasePersonForm: React.FC<BasePersonFormProps> = ({
               onChange={handleChange}
               inputProps={{ min: 0, max: 18 }}
             />
-            <TextField
-              fullWidth
-              label="מספר ימי חופש שכבר נוצלו"
-              name="vacationDaysUsed"
-              type="number"
-              value={formData.vacationDays?.used || ''}
-              onChange={handleChange}
-              inputProps={{ min: 0, max: 18 }}
-            />
+
             
 
           </Box>

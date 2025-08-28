@@ -404,6 +404,36 @@ export const canUserEditSoldierDetails = async (userId: string): Promise<boolean
   }
 };
 
+// פונקציה לבדיקת הרשאת גישה למסך ניטור מטמון
+export const canUserAccessCacheMonitor = async (userId: string): Promise<boolean> => {
+  try {
+    return await canUserAccessPath(userId, SystemPath.CACHE_MONITOR, PermissionLevel.VIEW);
+  } catch (error) {
+    console.error('שגיאה בבדיקת הרשאת גישה למסך ניטור מטמון:', error);
+    return false;
+  }
+};
+
+// פונקציה לבדיקת הרשאת ניהול מטמון (ניקוי, רענון)
+export const canUserManageCache = async (userId: string): Promise<boolean> => {
+  try {
+    return await canUserAccessPath(userId, SystemPath.CACHE_MONITOR, PermissionLevel.EDIT);
+  } catch (error) {
+    console.error('שגיאה בבדיקת הרשאת ניהול מטמון:', error);
+    return false;
+  }
+};
+
+// פונקציה לבדיקת הרשאת מחיקת משתמשים
+export const canUserDeleteUsers = async (userId: string): Promise<boolean> => {
+  try {
+    return await canUserAccessPath(userId, SystemPath.USERS, PermissionLevel.DELETE);
+  } catch (error) {
+    console.error('שגיאה בבדיקת הרשאת מחיקת משתמשים:', error);
+    return false;
+  }
+};
+
 // ===== ניהול מטמון הרשאות משתמש =====
 
 // ניקוי מטמון הרשאות משתמש

@@ -13,6 +13,7 @@ import { db } from '../firebase';
 import { User } from '../models/User';
 import { UserRole } from '../models/UserRole';
 import { localStorageService, updateTableTimestamp } from './cacheService';
+import { canUserDeleteUsers } from './permissionService';
 
 const USERS_COLLECTION = 'users';
 
@@ -78,8 +79,37 @@ export const deleteUser = async (uid: string): Promise<void> => {
   localStorageService.invalidateLocalStorage('users');
 };
 
+// פונקציה להסרת חייל מ-collection soldiers
+export const deleteSoldier = async (uid: string): Promise<void> => {
+  try {
+    // ניסיון מחיקה ישירה לפי UID
+    const soldierRef = doc(db, 'soldiers', uid);
+    const soldierDoc = await getDoc(soldierRef);
+    
+    if (soldierDoc.exists()) {
+      await deleteDoc(soldierRef);
+      console.log(`חייל ${uid} נמחק מ-collection soldiers`);
+    } else {
+      console.log(`חייל ${uid} לא נמצא ב-collection soldiers`);
+    }
+  } catch (error) {
+    console.log(`שגיאה במחיקת חייל ${uid}:`, error);
+  }
+  
+  // עדכון טבלת העדכונים וניקוי מטמון מקומי
+  console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי חיילים');
+  await updateTableTimestamp('soldiers');
+  localStorageService.invalidateLocalStorage('soldiers');
+};
+
 // פונקציה להסרת משתמש מהמערכת (רק לאדמין ומ"פ)
 export const removeUserFromSystem = async (uid: string, removerUid: string): Promise<void> => {
+  // בדיקת הרשאות - וידוא שלמשתמש יש הרשאת מחיקה
+  const hasDeletePermission = await canUserDeleteUsers(removerUid);
+  if (!hasDeletePermission) {
+    throw new Error('אין לך הרשאה להסיר משתמשים מהמערכת');
+  }
+
   // בדיקה שהמשתמש לא מנסה להסיר את עצמו
   if (uid === removerUid) {
     throw new Error('לא ניתן להסיר את עצמך מהמערכת');
@@ -94,42 +124,84 @@ export const removeUserFromSystem = async (uid: string, removerUid: string): Pro
 
   // הסרת המשתמש מכל המקומות במערכת
   try {
-    // 1. הסרת המשתמש מ-collection users
-    await deleteUser(uid);
+    let deletedFromAuth = false;
+    let deletedFromUsers = false;
+    let deletedFromSoldiers = false;
 
-    // 2. הסרת רשומת חייל מקושרת (אם יש)
-    if (userToRemove?.soldierDocId) {
-      const soldierRef = doc(db, 'soldiers', userToRemove.soldierDocId);
-      await deleteDoc(soldierRef);
+    // 1. ניסיון הסרת המשתמש מ-collection users
+    try {
+      await deleteUser(uid);
+      deletedFromUsers = true;
+      console.log(`משתמש ${uid} נמחק מ-collection users`);
+    } catch (error) {
+      console.log(`משתמש ${uid} לא נמצא ב-collection users או שגיאה במחיקה:`, error);
     }
 
-    // 3. הסרת חייל מ-collection soldiers לפי email (אם לא נמצא דרך soldierDocId)
-    if (userToRemove?.email) {
-      const soldiersQuery = query(
-        collection(db, 'soldiers'),
-        where('email', '==', userToRemove.email)
-      );
-      const soldiersSnapshot = await getDocs(soldiersQuery);
-      
-      for (const soldierDoc of soldiersSnapshot.docs) {
-        await deleteDoc(soldierDoc.ref);
+    // 1.5. תמיד ננסה למחוק מ-soldiers (גם אם יש רשומה ב-users)
+    try {
+      await deleteSoldier(uid);
+      deletedFromSoldiers = true;
+    } catch (error) {
+      console.log(`שגיאה במחיקת חייל ${uid}:`, error);
+    }
+
+    // 2. ניסיון מחיקה מ-Firebase Auth (רק אם יש רשומה ב-users)
+    if (userToRemove) {
+      try {
+        await deleteDoc(doc(db, 'users', uid));
+        deletedFromAuth = true;
+        console.log(`משתמש ${uid} נמחק מ-Firebase Auth`);
+      } catch (error) {
+        console.log(`משתמש ${uid} לא נמצא ב-Firebase Auth או שגיאה במחיקה:`, error);
       }
     }
 
-    // 4. הסרת המשתמש מרשימת הכפופים של מפקדים אחרים
-    const commandersQuery = query(
-      collection(db, 'users'),
-      where('subordinatesUids', 'array-contains', uid)
-    );
-    const commandersSnapshot = await getDocs(commandersQuery);
-    
-    for (const commanderDoc of commandersSnapshot.docs) {
-      const commanderData = commanderDoc.data();
-      const updatedSubordinates = commanderData.subordinatesUids?.filter((id: string) => id !== uid) || [];
-      await updateDoc(commanderDoc.ref, { subordinatesUids: updatedSubordinates });
+    // 3. הסרת חייל מ-collection soldiers לפי email (אם לא נמחק עדיין)
+    if (userToRemove?.email && !deletedFromSoldiers) {
+      try {
+        const soldiersQuery = query(
+          collection(db, 'soldiers'),
+          where('email', '==', userToRemove.email)
+        );
+        const soldiersSnapshot = await getDocs(soldiersQuery);
+        
+        for (const soldierDoc of soldiersSnapshot.docs) {
+          await deleteDoc(soldierDoc.ref);
+          deletedFromSoldiers = true;
+          console.log(`חייל ${soldierDoc.id} נמחק מ-collection soldiers לפי email`);
+        }
+      } catch (error) {
+        console.log(`שגיאה במחיקת חייל לפי email ${userToRemove.email}:`, error);
+      }
+    }
+
+    // 6. הסרת המשתמש מרשימת הכפופים של מפקדים אחרים
+    try {
+      const commandersQuery = query(
+        collection(db, 'users'),
+        where('subordinatesUids', 'array-contains', uid)
+      );
+      const commandersSnapshot = await getDocs(commandersQuery);
+      
+      for (const commanderDoc of commandersSnapshot.docs) {
+        const commanderData = commanderDoc.data();
+        const updatedSubordinates = commanderData.subordinatesUids?.filter((id: string) => id !== uid) || [];
+        await updateDoc(commanderDoc.ref, { subordinatesUids: updatedSubordinates });
+        console.log(`משתמש ${uid} הוסר מרשימת הכפופים של ${commanderDoc.id}`);
+      }
+    } catch (error) {
+      console.log(`שגיאה בהסרת משתמש מרשימת הכפופים:`, error);
     }
 
     console.log(`משתמש ${uid} הוסר בהצלחה מכל המקומות במערכת`);
+    console.log(`סיכום מחיקה: Auth=${deletedFromAuth}, Users=${deletedFromUsers}, Soldiers=${deletedFromSoldiers}`);
+    
+    // עדכון טבלת העדכונים וניקוי מטמון מקומי
+    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי');
+    await updateTableTimestamp('users');
+    await updateTableTimestamp('soldiers');
+    localStorageService.invalidateLocalStorage('users');
+    localStorageService.invalidateLocalStorage('soldiers');
   } catch (error) {
     console.error('שגיאה בהסרת משתמש:', error);
     throw new Error('שגיאה בהסרת משתמש מהמערכת');
@@ -140,11 +212,21 @@ export const removeUserFromSystem = async (uid: string, removerUid: string): Pro
 export const assignRole = async (uid: string, role: UserRole, assignerUid: string): Promise<void> => {
   // עדכון התפקיד ב-Firestore בלבד
   await updateUser(uid, { role });
+  // עדכון טבלת העדכונים וניקוי מטמון
+  await updateTableTimestamp('users');
+  await updateTableTimestamp('soldiers');
+  localStorageService.invalidateLocalStorage('users');
+  localStorageService.invalidateLocalStorage('soldiers');
 };
 
 export const assignRoleByName = async (uid: string, roleName: string, assignerUid: string): Promise<void> => {
   // עדכון התפקיד ב-Firestore בלבד
   await updateUser(uid, { role: roleName });
+  // עדכון טבלת העדכונים וניקוי מטמון
+  await updateTableTimestamp('users');
+  await updateTableTimestamp('soldiers');
+  localStorageService.invalidateLocalStorage('users');
+  localStorageService.invalidateLocalStorage('soldiers');
 };
 
 export const assignToTeam = async (uid: string, teamId: string, plagaId: string, assignerUid?: string): Promise<void> => {

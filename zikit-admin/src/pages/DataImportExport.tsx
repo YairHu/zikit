@@ -50,7 +50,8 @@ import { getAllSoldiers } from '../services/soldierService';
 import { getAllVehicles } from '../services/vehicleService';
 import { 
   importSoldiers, 
-  importVehicles
+  importVehicles,
+  importBraurTestResults
 } from '../services/importService';
 
 interface DataTable {
@@ -60,7 +61,14 @@ interface DataTable {
   icon: React.ReactNode;
   getData: () => Promise<any[]>;
   exportData: (data: any[]) => void;
-  importData: (data: any[]) => Promise<{ success: number; errors: string[] }>;
+  importData: (data: any[]) => Promise<{ 
+    success: number; 
+    updated: number;
+    errors: string[]; 
+    successRows: any[];
+    updatedRows: any[];
+    errorRows: any[];
+  }>;
   getTemplate: () => any[];
 }
 
@@ -74,6 +82,14 @@ const DataImportExport: React.FC = () => {
   const [importProgress, setImportProgress] = useState(0);
   const [showPreview, setShowPreview] = useState(false);
   const [previewData, setPreviewData] = useState<any[]>([]);
+  const [importResults, setImportResults] = useState<{
+    success: number;
+    updated: number;
+    errors: string[];
+    successRows: any[];
+    updatedRows: any[];
+    errorRows: any[];
+  } | null>(null);
 
   // הגדרת הטבלאות הזמינות
   const dataTables: DataTable[] = [
@@ -86,10 +102,27 @@ const DataImportExport: React.FC = () => {
       exportData: (data) => exportToCSV(data, 'soldiers'),
       importData: async (data) => {
         if (!user?.uid) throw new Error('משתמש לא מחובר');
-        const result = await importSoldiers(data, user.uid);
-        if (result.errors.length > 0) {
-          throw new Error(`שגיאות בייבוא: ${result.errors.join(', ')}`);
-        }
+        
+        // מיפוי כותרות עבריות לאנגליות
+        console.log('📊 נתונים מקוריים:', data[0]); // לוג של השורה הראשונה
+        const mappedData = data.map(row => ({
+          name: row['שם מלא'] || row.name,
+          personalNumber: row['מספר אישי'] || row.personalNumber,
+          rank: row['דרגה'] || row.rank,
+          role: row['תפקיד'] || row.role,
+          profile: row['פרופיל רפואי'] || row.profile,
+          qualifications: row['כשירויות'] || row.qualifications,
+          drivingLicenses: row['היתרים לנהיגה'] || row.drivingLicenses,
+          family: row['משפחה'] || row.family,
+          email: row['email'] || row.email,
+          phone: row['טלפון'] || row.phone,
+          birthDate: row['תאריך לידה'] || row.birthDate,
+          address: row['כתובת'] || row.address,
+          additionalInfo: row['מידע נוסף'] || row.additionalInfo
+        }));
+        console.log('📊 נתונים ממופים:', mappedData[0]); // לוג של השורה הראשונה אחרי מיפוי
+        
+        const result = await importSoldiers(mappedData, user.uid);
         return result;
       },
       getTemplate: () => [
@@ -101,8 +134,6 @@ const DataImportExport: React.FC = () => {
           profile: 'פרופיל רפואי',
           qualifications: 'כשירויות (מופרד בפסיקים)',
           drivingLicenses: 'היתרים לנהיגה (מופרד בפסיקים)',
-          presence: 'נוכחות',
-          presenceOther: 'פירוט נוכחות אחר',
           family: 'משפחה',
           email: 'אימייל',
           phone: 'טלפון',
@@ -122,9 +153,6 @@ const DataImportExport: React.FC = () => {
       importData: async (data) => {
         if (!user?.uid) throw new Error('משתמש לא מחובר');
         const result = await importVehicles(data, user.uid);
-        if (result.errors.length > 0) {
-          throw new Error(`שגיאות בייבוא: ${result.errors.join(', ')}`);
-        }
         return result;
       },
       getTemplate: () => [
@@ -135,6 +163,30 @@ const DataImportExport: React.FC = () => {
           nextMaintenance: 'תחזוקה הבאה (תאריך)',
           seats: 'מספר מקומות',
           requiredLicense: 'היתר נדרש לנהיגה'
+        }
+      ]
+    },
+    {
+      id: 'braur-test',
+      name: 'מבחני בראור',
+      description: 'תוצאות מבחני בראור לחיילים',
+      icon: <TableIcon />,
+      getData: async () => {
+        // נחזיר רשימה ריקה כי אין טבלה נפרדת למבחני בראור
+        return [];
+      },
+      exportData: (data) => exportToCSV(data, 'braur-test'),
+      importData: async (data) => {
+        if (!user?.uid) throw new Error('משתמש לא מחובר');
+        const result = await importBraurTestResults(data, user.uid);
+        return result;
+      },
+      getTemplate: () => [
+        {
+          personalNumber: 'מספר אישי',
+          name: 'שם',
+          strengthResult: 'תוצאה כח',
+          runningResult: 'תוצאה ריצה'
         }
       ]
     }
@@ -463,7 +515,7 @@ const DataImportExport: React.FC = () => {
     });
   };
 
-  // פונקציה עזר לפרסור שורת CSV עם תמיכה בגרשיים
+  // פונקציה עזר לפרסור שורת CSV עם תמיכה בגרשיים וטאבים
   const parseCSVLine = (line: string): string[] => {
     const result: string[] = [];
     let current = '';
@@ -489,8 +541,8 @@ const DataImportExport: React.FC = () => {
           // התחלת גרשיים
           inQuotes = true;
         }
-      } else if (char === ',' && !inQuotes) {
-        // פסיק מחוץ לגרשיים - סוף שדה
+      } else if ((char === ',' || char === '\t') && !inQuotes) {
+        // פסיק או טאב מחוץ לגרשיים - סוף שדה
         result.push(current.trim());
         current = '';
       } else {
@@ -599,6 +651,7 @@ const DataImportExport: React.FC = () => {
 
     setLoading(true);
     setImportProgress(0);
+    setImportResults(null);
     
     try {
       const table = dataTables.find(t => t.id === selectedTable);
@@ -610,17 +663,17 @@ const DataImportExport: React.FC = () => {
       
       const result = await table.importData(uploadedData);
       
-      // הצגת תוצאות
-      let successMessage = `הייבוא הושלם!\n✅ ${result.success} שורות יובאו בהצלחה`;
+      // עיבוד התוצאות לפורמט מפורט
+      const detailedResults = {
+        success: result.success || 0,
+        updated: result.updated || 0,
+        errors: result.errors || [],
+        successRows: result.successRows || [],
+        updatedRows: result.updatedRows || [],
+        errorRows: result.errorRows || []
+      };
       
-      if (result.errors && result.errors.length > 0) {
-        successMessage += `\n⚠️ ${result.errors.length} שגיאות זוהו`;
-        console.error('שגיאות בייבוא:', result.errors);
-        console.log('פרטי שגיאות:', result.errors.join('\n'));
-      }
-      
-      alert(successMessage);
-      
+      setImportResults(detailedResults);
       setActiveStep(2);
       setImportProgress(100);
     } catch (error) {
@@ -650,6 +703,8 @@ const DataImportExport: React.FC = () => {
         <Typography variant="body2">
           <strong>הוראות:</strong> בחר טבלה, הורד תבנית ריקה, מלא אותה בנתונים והעלה חזרה למערכת.
           או ייצא נתונים קיימים לעריכה חיצונית.
+          <br />
+          <strong>מבחני בראור:</strong> עבור טבלת מבחני בראור, הזן מספר אישי ותוצאות. הנתונים יתווספו לחיילים הקיימים.
         </Typography>
       </Alert>
 
@@ -867,17 +922,114 @@ const DataImportExport: React.FC = () => {
                 <Step>
                   <StepLabel>הייבוא הושלם</StepLabel>
                   <StepContent>
-                    <Alert severity="success" sx={{ mb: 2 }}>
-                      <Typography variant="body2">
-                        הנתונים יובאו בהצלחה למערכת!
-                      </Typography>
-                    </Alert>
+                    {importResults && (
+                      <Box sx={{ mb: 3 }}>
+                        {/* סיכום כללי */}
+                        <Alert severity="success" sx={{ mb: 2 }}>
+                          <Typography variant="body2">
+                            הייבוא הושלם! 
+                            {importResults.success > 0 && ` ✅ ${importResults.success} שורות נוספו בהצלחה`}
+                            {importResults.updated > 0 && ` 🔄 ${importResults.updated} שורות התעדכנו`}
+                            {importResults.errors.length > 0 && ` ⚠️ ${importResults.errors.length} שגיאות זוהו`}
+                          </Typography>
+                        </Alert>
+
+                        {/* פירוט השורות שנוספו */}
+                        {importResults.successRows.length > 0 && (
+                          <Card sx={{ mb: 2 }}>
+                            <CardContent>
+                              <Typography variant="h6" sx={{ mb: 1, color: 'success.main' }}>
+                                ✅ שורות שנוספו בהצלחה ({importResults.successRows.length})
+                              </Typography>
+                              <TableContainer component={Paper} sx={{ maxHeight: 200 }}>
+                                <Table size="small">
+                                  <TableHead>
+                                    <TableRow>
+                                      <TableCell>#</TableCell>
+                                      <TableCell>שם</TableCell>
+                                      <TableCell>מספר אישי</TableCell>
+                                      <TableCell>אימייל</TableCell>
+                                    </TableRow>
+                                  </TableHead>
+                                  <TableBody>
+                                    {importResults.successRows.map((row, index) => (
+                                      <TableRow key={index}>
+                                        <TableCell>{index + 1}</TableCell>
+                                        <TableCell>{row.name || row.displayName || 'לא מוגדר'}</TableCell>
+                                        <TableCell>{row.personalNumber || 'לא מוגדר'}</TableCell>
+                                        <TableCell>{row.email || 'לא מוגדר'}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </TableContainer>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* פירוט השורות שהתעדכנו */}
+                        {importResults.updatedRows.length > 0 && (
+                          <Card sx={{ mb: 2 }}>
+                            <CardContent>
+                              <Typography variant="h6" sx={{ mb: 1, color: 'info.main' }}>
+                                🔄 שורות שהתעדכנו ({importResults.updatedRows.length})
+                              </Typography>
+                              <TableContainer component={Paper} sx={{ maxHeight: 200 }}>
+                                <Table size="small">
+                                  <TableHead>
+                                    <TableRow>
+                                      <TableCell>#</TableCell>
+                                      <TableCell>שם</TableCell>
+                                      <TableCell>מספר אישי</TableCell>
+                                      <TableCell>אימייל</TableCell>
+                                    </TableRow>
+                                  </TableHead>
+                                  <TableBody>
+                                    {importResults.updatedRows.map((row, index) => (
+                                      <TableRow key={index}>
+                                        <TableCell>{index + 1}</TableCell>
+                                        <TableCell>{row.name || row.displayName || 'לא מוגדר'}</TableCell>
+                                        <TableCell>{row.personalNumber || 'לא מוגדר'}</TableCell>
+                                        <TableCell>{row.email || 'לא מוגדר'}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </TableContainer>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* פירוט השגיאות */}
+                        {importResults.errors.length > 0 && (
+                          <Card sx={{ mb: 2 }}>
+                            <CardContent>
+                              <Typography variant="h6" sx={{ mb: 1, color: 'error.main' }}>
+                                ⚠️ שגיאות בייבוא ({importResults.errors.length})
+                              </Typography>
+                              <List dense>
+                                {importResults.errors.map((error, index) => (
+                                  <ListItem key={index}>
+                                    <ListItemIcon>
+                                      <ErrorIcon color="error" />
+                                    </ListItemIcon>
+                                    <ListItemText primary={error} />
+                                  </ListItem>
+                                ))}
+                              </List>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </Box>
+                    )}
+
                     <Button
                       variant="outlined"
                       onClick={() => {
                         setActiveStep(0);
                         setUploadedData([]);
                         setValidationErrors([]);
+                        setImportResults(null);
                       }}
                     >
                       ייבא קובץ נוסף

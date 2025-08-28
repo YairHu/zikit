@@ -34,7 +34,8 @@ export enum SystemPath {
   FRAMEWORKS = 'frameworks',       // מסגרות
   USERS = 'users',                 // משתמשים
   VEHICLES = 'vehicles',           // רכבים
-  HAMAL = 'hamal'                  // מסך חמ"ל
+  HAMAL = 'hamal',                 // מסך חמ"ל
+  CACHE_MONITOR = 'cache_monitor'  // ניטור מטמון מקומי
 }
 
 // מדיניות הרשאה
@@ -125,6 +126,8 @@ export const getSystemPathDisplayName = (path: SystemPath): string => {
       return 'רכבים';
     case SystemPath.HAMAL:
       return 'מסך חמ"ל';
+    case SystemPath.CACHE_MONITOR:
+      return 'ניטור מטמון מקומי';
     default:
       return path;
   }
