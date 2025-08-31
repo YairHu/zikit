@@ -26,7 +26,7 @@ import FrameworkDetails from './pages/FrameworkDetails';
 import DataImportExport from './pages/DataImportExport';
 import CacheMonitor from './pages/CacheMonitor';
 import { signOutUser } from './services/authService';
-import { Drawer, List, ListItem, ListItemIcon, ListItemText, IconButton, AppBar, Toolbar, Typography, Box, Divider, Avatar, Collapse, Menu, MenuItem, Select, FormControl, InputLabel } from '@mui/material';
+import { Drawer, List, ListItem, ListItemIcon, ListItemText, IconButton, AppBar, Toolbar, Typography, Box, Divider, Avatar, Collapse, Menu, MenuItem, Select, FormControl, InputLabel, Tooltip } from '@mui/material';
 import AccessDenied from './components/AccessDenied';
 import { getAllSoldiers } from './services/soldierService';
 import MenuIcon from '@mui/icons-material/Menu';
@@ -50,6 +50,8 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import StorageIcon from '@mui/icons-material/Storage';
 import ContactSupportIcon from '@mui/icons-material/ContactSupport';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 
 const drawerWidth = 260;
 
@@ -288,6 +290,30 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" fontWeight={700} sx={{ flexGrow: 1, textAlign: 'right', mr: 2 }}>זיקית</Typography>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Tooltip title="רענן מטמון">
+              <IconButton 
+                color="inherit" 
+                onClick={async () => {
+                  try {
+                    const { localStorageService } = await import('./services/cacheService');
+                    localStorageService.clearAllLocalStorage();
+                    alert('המטמון נוקה בהצלחה!');
+                  } catch (error) {
+                    console.error('שגיאה בניקוי המטמון:', error);
+                    alert('שגיאה בניקוי המטמון');
+                  }
+                }}
+                sx={{ 
+                  '&:hover': { 
+                    backgroundColor: 'rgba(0, 0, 0, 0.04)' 
+                  } 
+                }}
+              >
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Toolbar>
       </AppBar>
       <SideDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} onLogout={handleLogout} user={user} />

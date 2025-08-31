@@ -60,7 +60,7 @@ const ReportDialog: React.FC<ReportDialogProps> = ({
   onUpdateReportPresence,
   onUpdateReportOtherText
 }) => {
-  const handlePrintReport = () => {
+  const handlePrintReport = async () => {
     const reportText = reportData.map(soldier => {
       let status;
       if (soldier.editedPresence === 'אחר' && soldier.otherText) {
@@ -73,7 +73,16 @@ const ReportDialog: React.FC<ReportDialogProps> = ({
       return `${soldier.name} - ${soldier.role} - ${soldier.personalNumber} - ${soldier.frameworkName} - ${status}`;
     }).join('\n');
     
-    alert(`דוח 1 - סטטוס נוכחות חיילים במסגרת ${frameworkName}:\n\n${reportText}`);
+    const fullReport = `דוח 1 - סטטוס נוכחות חיילים במסגרת ${frameworkName}:\n\n${reportText}`;
+    
+    try {
+      await navigator.clipboard.writeText(fullReport);
+      alert('הדוח הועתק ללוח בהצלחה!');
+    } catch (err) {
+      // אם לא ניתן להעתיק ללוח, הצג את הדוח בחלון
+      alert(fullReport);
+    }
+    
     onClose();
   };
 
@@ -95,31 +104,26 @@ const ReportDialog: React.FC<ReportDialogProps> = ({
       </DialogTitle>
       <DialogContent sx={{ padding: { xs: 1, sm: 2 } }}>
         <TableContainer sx={{ overflowX: 'auto' }}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, padding: { xs: '8px 4px', sm: '16px' } }}>שם</TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, padding: { xs: '8px 4px', sm: '16px' } }}>תפקיד</TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, padding: { xs: '8px 4px', sm: '16px' } }}>מספר אישי</TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, padding: { xs: '8px 4px', sm: '16px' } }}>מסגרת</TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, padding: { xs: '8px 4px', sm: '16px' } }}>סטטוס נוכחות</TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, padding: { xs: '8px 4px', sm: '16px' } }}>עריכת דוח</TableCell>
-              </TableRow>
-            </TableHead>
+                      <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, padding: { xs: '8px 4px', sm: '16px' } }}>שם</TableCell>
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, padding: { xs: '8px 4px', sm: '16px' } }}>סטטוס נוכחות</TableCell>
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, padding: { xs: '8px 4px', sm: '16px' } }}>עריכת דוח</TableCell>
+                </TableRow>
+              </TableHead>
             <TableBody>
               {reportData.map((soldier) => (
                 <TableRow key={soldier.id}>
                   <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, padding: { xs: '8px 4px', sm: '16px' } }}>
-                    {soldier.name}
-                  </TableCell>
-                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, padding: { xs: '8px 4px', sm: '16px' } }}>
-                    {soldier.role}
-                  </TableCell>
-                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, padding: { xs: '8px 4px', sm: '16px' } }}>
-                    {soldier.personalNumber}
-                  </TableCell>
-                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, padding: { xs: '8px 4px', sm: '16px' } }}>
-                    {soldier.frameworkName}
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                      <Typography variant="body2" fontWeight="medium">
+                        {soldier.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {soldier.role} • {soldier.personalNumber} • {soldier.frameworkName}
+                      </Typography>
+                    </Box>
                   </TableCell>
                   <TableCell sx={{ padding: { xs: '8px 4px', sm: '16px' } }}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
@@ -188,7 +192,7 @@ const ReportDialog: React.FC<ReportDialogProps> = ({
           ביטול
         </Button>
         <Button onClick={handlePrintReport} variant="contained" startIcon={<PrintIcon />} size="small">
-          הפק דוח
+          העתק דוח ללוח
         </Button>
       </DialogActions>
     </Dialog>

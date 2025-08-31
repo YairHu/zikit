@@ -2017,7 +2017,7 @@ const Activities: React.FC = () => {
             <Box sx={{ mt: 2 }}>
               <Autocomplete
                 options={soldiers}
-                getOptionLabel={(option) => `${option.name} (${option.personalNumber})`}
+                getOptionLabel={(option) => `${option.name} (${frameworks.find(f => f.id === option.frameworkId)?.name || 'מסגרת לא ידועה'})`}
                 value={soldiers.find(s => s.id === formData.commanderId) || null}
                 onChange={(_, newValue) => handleCommanderSelect(newValue)}
                 renderInput={(params) => (
@@ -2032,7 +2032,7 @@ const Activities: React.FC = () => {
             <Box sx={{ mt: 2 }}>
               <Autocomplete
                 options={soldiers}
-                getOptionLabel={(option) => `${option.name} (${option.personalNumber})`}
+                getOptionLabel={(option) => `${option.name} (${frameworks.find(f => f.id === option.frameworkId)?.name || 'מסגרת לא ידועה'})`}
                 value={soldiers.find(s => s.id === formData.taskLeaderId) || null}
                 onChange={(_, newValue) => handleTaskLeaderSelect(newValue)}
                 renderInput={(params) => (
@@ -2328,7 +2328,7 @@ const Activities: React.FC = () => {
                     if (option.isUnavailable) {
                       return getUnavailableSoldierLabel(option);
                     }
-                    return `${option.name} (${option.personalNumber})`;
+                    return `${option.name} (${frameworks.find(f => f.id === option.frameworkId)?.name || 'מסגרת לא ידועה'})`;
                   }}
                   onChange={(_, newValue) => {
                     if (newValue && !newValue.isUnavailable) {
@@ -2351,7 +2351,7 @@ const Activities: React.FC = () => {
                     }}>
                       {option.isUnavailable 
                         ? getUnavailableSoldierLabel(option)
-                        : `${option.name} (${option.personalNumber})`
+                        : `${option.name} (${frameworks.find(f => f.id === option.frameworkId)?.name || 'מסגרת לא ידועה'})`
                       }
                     </li>
                   )}
@@ -2426,7 +2426,7 @@ const Activities: React.FC = () => {
                           color: 'text.secondary',
                           fontSize: { xs: '0.8rem', sm: '0.875rem' }
                         }}>
-                          {participant.personalNumber} - {participant.role}
+                          {frameworks.find(f => f.id === soldiers.find(s => s.id === participant.soldierId)?.frameworkId)?.name || 'מסגרת לא ידועה'} - {participant.role}
                         </Typography>
                         
                         {/* שדות עריכה */}
