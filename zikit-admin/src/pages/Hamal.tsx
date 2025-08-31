@@ -76,18 +76,12 @@ const Hamal: React.FC = () => {
   const [showSoldiers, setShowSoldiers] = useState(true);
   const [showPresence, setShowPresence] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
-  const [expandedFrameworks, setExpandedFrameworks] = useState<Set<string>>(new Set());
   const [permissions, setPermissions] = useState({
     canView: false,
     canViewFrameworks: false,
     canViewSoldiers: false
   });
-  // תמיד מצב מורחב: הרחב כל המסגרות
-  useEffect(() => {
-    if (data?.frameworks) {
-      setExpandedFrameworks(new Set(data.frameworks.map(f => f.id)));
-    }
-  }, [data?.frameworks]);
+
 
   // טעינת נתוני המבנה הארגוני
   const loadOrganizationalData = useCallback(async () => {
@@ -329,61 +323,7 @@ const Hamal: React.FC = () => {
     return items.sort((a, b) => a.start.getTime() - b.start.getTime());
   }, [data]);
 
-  // בניית היררכיית מסגרות
-  const buildHierarchy = useCallback(() => {
-    if (!data) return [] as any[];
-    const map = new Map<string, any>();
-    data.frameworks.forEach(f => map.set(f.id, { ...f, children: [] as any[] }));
-    const roots: any[] = [];
-    data.frameworks.forEach(f => {
-      const node = map.get(f.id)!;
-      if (f.parentFrameworkId) {
-        const parent = map.get(f.parentFrameworkId);
-        if (parent) parent.children.push(node);
-        else roots.push(node);
-      } else {
-        roots.push(node);
-      }
-    });
-    return roots;
-  }, [data]);
 
-  // תצוגה היא רקורסיבית, לא ברמות קבועות
-
-  const getFrameworkLevel = (frameworkName: string): 'COMPANY' | 'PLATOON' | 'TEAM' | 'SQUAD' | 'OTHER' => {
-    const name = (frameworkName || '').toLowerCase();
-    if (name.includes('פלוג') || name.includes('מפקד')) return 'COMPANY';
-    if (name.includes('מחלק') || name.includes('פלג')) return 'PLATOON';
-    if (name.includes('צוות')) return 'TEAM';
-    if (name.includes('כיתה')) return 'SQUAD';
-    return 'OTHER';
-  };
-
-  const getFrameworkColor = (level: string): string => {
-    switch (level) {
-      case 'COMPANY': return 'linear-gradient(135deg, #ef4444, #dc2626)';
-      case 'PLATOON': return 'linear-gradient(135deg, #3b82f6, #2563eb)';
-      case 'TEAM': return 'linear-gradient(135deg, #10b981, #059669)';
-      case 'SQUAD': return 'linear-gradient(135deg, #f59e0b, #d97706)';
-      default: return 'linear-gradient(135deg, #9ca3af, #6b7280)';
-    }
-  };
-
-  const getFrameworkSoldiers = (frameworkId: string) => {
-    return (data?.soldiers || []).filter(s => s.frameworkId === frameworkId);
-  };
-
-  const getCommanderName = (commanderId?: string) => {
-    if (!commanderId) return 'לא מוגדר';
-    const commander = (data?.soldiers || []).find(s => s.id === commanderId);
-    return commander ? commander.name : 'לא מוגדר';
-  };
-
-  const toggleFramework = (frameworkId: string) => {
-    const next = new Set(expandedFrameworks);
-    if (next.has(frameworkId)) next.delete(frameworkId); else next.add(frameworkId);
-    setExpandedFrameworks(next);
-  };
 
   // Auto-refresh every 60 seconds
   useEffect(() => {
@@ -462,7 +402,6 @@ const Hamal: React.FC = () => {
   }
 
   const stats = getStatistics();
-  const roots = buildHierarchy() as any[];
 
   return (
     <Box sx={{ 

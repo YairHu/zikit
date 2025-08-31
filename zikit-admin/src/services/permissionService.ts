@@ -1,17 +1,4 @@
-import { 
-  collection, 
-  doc, 
-  getDocs, 
-  getDoc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  where, 
-  orderBy,
-  Timestamp 
-} from 'firebase/firestore';
-import { db } from '../firebase';
+import { dataLayer } from './dataAccessLayer';
 import { 
   PermissionPolicy, 
   Role, 
@@ -20,47 +7,102 @@ import {
   PermissionLevel,
   UserRole 
 } from '../models/UserRole';
-import { localStorageService, updateTableTimestamp } from './cacheService';
+import { getCurrentIsraelTime } from '../utils/dateUtils';
+
+// ===== Enhanced Caching for Permissions =====
+
+// In-memory cache for frequently accessed data
+const permissionCache = {
+  policies: null as PermissionPolicy[] | null,
+  roles: null as Role[] | null,
+  userPermissions: new Map<string, any>(),
+  lastFetch: {
+    policies: 0,
+    roles: 0
+  }
+};
+
+// Cache TTL in milliseconds - longer for permissions (4 hours)
+const PERMISSION_CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
+const USER_PERMISSION_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+// Helper function to check if cache is valid
+const isCacheValid = (lastFetch: number, ttl: number = PERMISSION_CACHE_TTL): boolean => {
+  return Date.now() - lastFetch < ttl;
+};
+
+// Helper function to clear specific cache
+const clearPermissionCache = (type?: 'policies' | 'roles' | 'userPermissions' | 'all') => {
+  if (!type || type === 'all') {
+    permissionCache.policies = null;
+    permissionCache.roles = null;
+    permissionCache.userPermissions.clear();
+    permissionCache.lastFetch.policies = 0;
+    permissionCache.lastFetch.roles = 0;
+  } else if (type === 'policies') {
+    permissionCache.policies = null;
+    permissionCache.lastFetch.policies = 0;
+    // Clear derived user permissions
+    permissionCache.userPermissions.clear();
+  } else if (type === 'roles') {
+    permissionCache.roles = null;
+    permissionCache.lastFetch.roles = 0;
+    // Clear derived user permissions
+    permissionCache.userPermissions.clear();
+  } else if (type === 'userPermissions') {
+    permissionCache.userPermissions.clear();
+  }
+  
+  console.log(`🧹 [PERMISSION_CACHE] Cleared cache: ${type || 'all'}`);
+};
 
 // ===== ניהול מדיניות הרשאות =====
 
 export const getAllPolicies = async (): Promise<PermissionPolicy[]> => {
-  return localStorageService.getFromLocalStorage('permissionPolicies', async () => {
-    try {
-      const policiesRef = collection(db, 'permissionPolicies');
-      const q = query(policiesRef, orderBy('createdAt', 'desc'));
-      const snapshot = await getDocs(q);
+  // Check in-memory cache first
+  if (permissionCache.policies && isCacheValid(permissionCache.lastFetch.policies)) {
+    console.log('🚀 [PERMISSION_CACHE] Using cached policies from memory');
+    return permissionCache.policies;
+  }
+  
+  try {
+    console.log('📡 [PERMISSION_CACHE] Fetching policies from server');
+    const allPolicies = await dataLayer.getAll('permissionPolicies') as unknown as any[];
+    
+    const policies = allPolicies.map(d => {
+      const data: any = d;
+      const paths: SystemPath[] = Array.isArray(data.paths)
+        ? data.paths
+        : (data.path ? [data.path as SystemPath] : []);
       
-      const policies = snapshot.docs.map(d => {
-        const data: any = d.data();
-        const paths: SystemPath[] = Array.isArray(data.paths)
-          ? data.paths
-          : (data.path ? [data.path as SystemPath] : []);
-        
-        // המרה של pathPermissions אם קיים
-        const pathPermissions: Partial<Record<SystemPath, PermissionLevel[]>> = {};
-        if (data.pathPermissions) {
-          Object.keys(data.pathPermissions).forEach(path => {
-            pathPermissions[path as SystemPath] = data.pathPermissions[path] || [];
-          });
-        }
-        
-        return {
-          id: d.id,
-          ...data,
-          paths,
-          pathPermissions: Object.keys(pathPermissions).length > 0 ? pathPermissions as Record<SystemPath, PermissionLevel[]> : undefined,
-          createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt || new Date()),
-          updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt || new Date())
-        } as PermissionPolicy;
-      });
+      // המרה של pathPermissions אם קיים
+      const pathPermissions: Partial<Record<SystemPath, PermissionLevel[]>> = {};
+      if (data.pathPermissions) {
+        Object.keys(data.pathPermissions).forEach(path => {
+          pathPermissions[path as SystemPath] = data.pathPermissions[path] || [];
+        });
+      }
       
-      return policies;
-    } catch (error) {
-      console.error('❌ [DB] שגיאה בטעינת מדיניות הרשאות:', error);
-      throw error;
-    }
-  });
+      return {
+        id: d.id,
+        ...data,
+        paths,
+        pathPermissions: Object.keys(pathPermissions).length > 0 ? pathPermissions as Record<SystemPath, PermissionLevel[]> : undefined,
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt || new Date()),
+        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : (data.updatedAt || new Date())
+      } as PermissionPolicy;
+    });
+    
+    // Cache in memory
+    permissionCache.policies = policies;
+    permissionCache.lastFetch.policies = Date.now();
+    
+    console.log(`✅ [PERMISSION_CACHE] Cached ${policies.length} policies in memory`);
+    return policies;
+  } catch (error) {
+    console.error('❌ [PERMISSION_CACHE] שגיאה בטעינת מדיניות הרשאות:', error);
+    throw error;
+  }
 };
 
 export const getPolicyById = async (policyId: string): Promise<PermissionPolicy | null> => {
@@ -79,30 +121,27 @@ export const createPolicy = async (
   createdBy: string
 ): Promise<string> => {
   try {
-    const policiesRef = collection(db, 'permissionPolicies');
     const newPolicy = {
       ...policy,
       // המרה של pathPermissions לשמירה
       pathPermissions: policy.pathPermissions ? Object.fromEntries(
         Object.entries(policy.pathPermissions).filter(([_, permissions]) => permissions.length > 0)
       ) : undefined,
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
+      createdAt: getCurrentIsraelTime(),
+      updatedAt: getCurrentIsraelTime(),
       createdBy
     };
     
-    const docRef = await addDoc(policiesRef, newPolicy);
+    const policyId = await dataLayer.create('permissionPolicies', newPolicy as any);
     
-    // עדכון טבלת העדכונים וניקוי מטמון מקומי
-    await updateTableTimestamp('permissionPolicies');
-    localStorageService.invalidateLocalStorage('permissionPolicies');
+    // Smart cache invalidation - clear policies and user permissions
+    clearPermissionCache('policies');
     
-    // ניקוי מטמון הרשאות משתמש - כי מדיניות חדשה יכולה להשפיע על הרשאות
-    clearUserPermissionsCache();
+    console.log('✅ [PERMISSION_CACHE] Created new policy and cleared relevant cache');
     
-    return docRef.id;
+    return policyId;
   } catch (error) {
-    console.error('❌ [DB] שגיאה ביצירת מדיניות:', error);
+    console.error('❌ [PERMISSION_CACHE] שגיאה ביצירת מדיניות:', error);
     throw error;
   }
 };
@@ -113,44 +152,37 @@ export const updatePolicy = async (
   updatedBy: string
 ): Promise<void> => {
   try {
-    const policyRef = doc(db, 'permissionPolicies', policyId);
-    
     // המרה של pathPermissions לשמירה
     const updateData = {
       ...updates,
       pathPermissions: updates.pathPermissions ? Object.fromEntries(
         Object.entries(updates.pathPermissions).filter(([_, permissions]) => permissions.length > 0)
       ) : undefined,
-      updatedAt: Timestamp.now()
+      updatedAt: getCurrentIsraelTime()
     };
     
-    await updateDoc(policyRef, updateData);
+    await dataLayer.update('permissionPolicies', policyId, updateData as any);
     
-    // עדכון טבלת העדכונים וניקוי מטמון מקומי
-    await updateTableTimestamp('permissionPolicies');
-    localStorageService.invalidateLocalStorage('permissionPolicies');
+    // Smart cache invalidation - clear policies and user permissions
+    clearPermissionCache('policies');
     
-    // ניקוי מטמון הרשאות משתמש - כי מדיניות עודכנה
-    clearUserPermissionsCache();
+    console.log('✅ [PERMISSION_CACHE] Updated policy and cleared relevant cache');
   } catch (error) {
-    console.error('שגיאה בעדכון מדיניות:', error);
+    console.error('❌ [PERMISSION_CACHE] שגיאה בעדכון מדיניות:', error);
     throw error;
   }
 };
 
 export const deletePolicy = async (policyId: string): Promise<void> => {
   try {
-    const policyRef = doc(db, 'permissionPolicies', policyId);
-    await deleteDoc(policyRef);
+    await dataLayer.delete('permissionPolicies', policyId);
     
-    // עדכון טבלת העדכונים וניקוי מטמון מקומי
-    await updateTableTimestamp('permissionPolicies');
-    localStorageService.invalidateLocalStorage('permissionPolicies');
+    // Smart cache invalidation - clear policies and user permissions
+    clearPermissionCache('policies');
     
-    // ניקוי מטמון הרשאות משתמש - כי מדיניות נמחקה
-    clearUserPermissionsCache();
+    console.log('✅ [PERMISSION_CACHE] Deleted policy and cleared relevant cache');
   } catch (error) {
-    console.error('שגיאה במחיקת מדיניות:', error);
+    console.error('❌ [PERMISSION_CACHE] שגיאה במחיקת מדיניות:', error);
     throw error;
   }
 };
@@ -158,25 +190,33 @@ export const deletePolicy = async (policyId: string): Promise<void> => {
 // ===== ניהול תפקידים =====
 
 export const getAllRoles = async (): Promise<Role[]> => {
-  return localStorageService.getFromLocalStorage('roles', async () => {
-    try {
-      const rolesRef = collection(db, 'roles');
-      const q = query(rolesRef, orderBy('createdAt', 'desc'));
-      const snapshot = await getDocs(q);
-      
-      const roles = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate() || new Date(),
-        updatedAt: doc.data().updatedAt?.toDate() || new Date()
-      })) as Role[];
-      
-      return roles;
-    } catch (error) {
-      console.error('❌ [DB] שגיאה בטעינת תפקידים:', error);
-      throw error;
-    }
-  });
+  // Check in-memory cache first
+  if (permissionCache.roles && isCacheValid(permissionCache.lastFetch.roles)) {
+    console.log('🚀 [PERMISSION_CACHE] Using cached roles from memory');
+    return permissionCache.roles;
+  }
+  
+  try {
+    console.log('📡 [PERMISSION_CACHE] Fetching roles from server');
+    const allRoles = await dataLayer.getAll('roles') as unknown as any[];
+    
+    const roles = allRoles.map(role => ({
+      id: role.id,
+      ...role,
+      createdAt: role.createdAt?.toDate ? role.createdAt.toDate() : (role.createdAt || new Date()),
+      updatedAt: role.updatedAt?.toDate ? role.updatedAt.toDate() : (role.updatedAt || new Date())
+    })) as Role[];
+    
+    // Cache in memory
+    permissionCache.roles = roles;
+    permissionCache.lastFetch.roles = Date.now();
+    
+    console.log(`✅ [PERMISSION_CACHE] Cached ${roles.length} roles in memory`);
+    return roles;
+  } catch (error) {
+    console.error('❌ [PERMISSION_CACHE] שגיאה בטעינת תפקידים:', error);
+    throw error;
+  }
 };
 
 export const getRoleById = async (roleId: string): Promise<Role | null> => {
@@ -195,26 +235,23 @@ export const createRole = async (
   createdBy: string
 ): Promise<string> => {
   try {
-    const rolesRef = collection(db, 'roles');
     const newRole = {
       ...role,
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
+      createdAt: getCurrentIsraelTime(),
+      updatedAt: getCurrentIsraelTime(),
       createdBy
     };
     
-    const docRef = await addDoc(rolesRef, newRole);
+    const roleId = await dataLayer.create('roles', newRole as any);
     
-    // עדכון טבלת העדכונים וניקוי מטמון מקומי
-    await updateTableTimestamp('roles');
-    localStorageService.invalidateLocalStorage('roles');
+    // Smart cache invalidation - clear roles and user permissions
+    clearPermissionCache('roles');
     
-    // ניקוי מטמון הרשאות משתמש - כי תפקיד חדש יכול להשפיע על הרשאות
-    clearUserPermissionsCache();
+    console.log('✅ [PERMISSION_CACHE] Created new role and cleared relevant cache');
     
-    return docRef.id;
+    return roleId;
   } catch (error) {
-    console.error('שגיאה ביצירת תפקיד:', error);
+    console.error('❌ [PERMISSION_CACHE] שגיאה ביצירת תפקיד:', error);
     throw error;
   }
 };
@@ -225,37 +262,33 @@ export const updateRole = async (
   updatedBy: string
 ): Promise<void> => {
   try {
-    const roleRef = doc(db, 'roles', roleId);
-    await updateDoc(roleRef, {
+    const updateData = {
       ...updates,
-      updatedAt: Timestamp.now()
-    });
+      updatedAt: getCurrentIsraelTime()
+    };
     
-    // עדכון טבלת העדכונים וניקוי מטמון מקומי
-    await updateTableTimestamp('roles');
-    localStorageService.invalidateLocalStorage('roles');
+    await dataLayer.update('roles', roleId, updateData as any);
     
-    // ניקוי מטמון הרשאות משתמש - כי תפקיד עודכן
-    clearUserPermissionsCache();
+    // Smart cache invalidation - clear roles and user permissions
+    clearPermissionCache('roles');
+    
+    console.log('✅ [PERMISSION_CACHE] Updated role and cleared relevant cache');
   } catch (error) {
-    console.error('שגיאה בעדכון תפקיד:', error);
+    console.error('❌ [PERMISSION_CACHE] שגיאה בעדכון תפקיד:', error);
     throw error;
   }
 };
 
 export const deleteRole = async (roleId: string): Promise<void> => {
   try {
-    const roleRef = doc(db, 'roles', roleId);
-    await deleteDoc(roleRef);
+    await dataLayer.delete('roles', roleId);
     
-    // עדכון טבלת העדכונים וניקוי מטמון מקומי
-    await updateTableTimestamp('roles');
-    localStorageService.invalidateLocalStorage('roles');
+    // Smart cache invalidation - clear roles and user permissions
+    clearPermissionCache('roles');
     
-    // ניקוי מטמון הרשאות משתמש - כי תפקיד נמחק
-    clearUserPermissionsCache();
+    console.log('✅ [PERMISSION_CACHE] Deleted role and cleared relevant cache');
   } catch (error) {
-    console.error('שגיאה במחיקת תפקיד:', error);
+    console.error('❌ [PERMISSION_CACHE] שגיאה במחיקת תפקיד:', error);
     throw error;
   }
 };
@@ -266,16 +299,25 @@ export const getUserPermissions = async (userId: string): Promise<{
   policies: PermissionPolicy[];
   role: Role | null;
 }> => {
+  // Check user permissions cache with shorter TTL
+  const cacheKey = `user_permissions_${userId}`;
+  const cachedPermissions = permissionCache.userPermissions.get(cacheKey);
+  
+  if (cachedPermissions && isCacheValid(cachedPermissions.timestamp, USER_PERMISSION_CACHE_TTL)) {
+    console.log('🚀 [PERMISSION_CACHE] Using cached user permissions from memory');
+    return cachedPermissions.data;
+  }
+  
   try {
-    // קבלת תפקיד המשתמש
-    const userRef = doc(db, 'users', userId);
-    const userDoc = await getDoc(userRef);
+    console.log('📡 [PERMISSION_CACHE] Fetching user permissions from server');
     
-    if (!userDoc.exists()) {
+    // קבלת תפקיד המשתמש
+    const userData = await dataLayer.getById('users', userId) as unknown as any;
+    
+    if (!userData) {
       return { policies: [], role: null };
     }
     
-    const userData = userDoc.data();
     let role: Role | null = null;
     
     // בדיקה אם יש roleId (המערכת החדשה)
@@ -301,9 +343,19 @@ export const getUserPermissions = async (userId: string): Promise<{
       }
     }
     
-    return { policies, role };
+    const result = { policies, role };
+    
+    // Cache the result
+    permissionCache.userPermissions.set(cacheKey, {
+      data: result,
+      timestamp: Date.now()
+    });
+    
+    console.log(`✅ [PERMISSION_CACHE] Cached user permissions for ${userId}`);
+    
+    return result;
   } catch (error) {
-    console.error('שגיאה בקבלת הרשאות משתמש:', error);
+    console.error('❌ [PERMISSION_CACHE] שגיאה בקבלת הרשאות משתמש:', error);
     throw error;
   }
 };
@@ -434,30 +486,87 @@ export const canUserDeleteUsers = async (userId: string): Promise<boolean> => {
   }
 };
 
-// ===== ניהול מטמון הרשאות משתמש =====
+// ===== ניהול מטמון הרשאות משופר =====
 
-// ניקוי מטמון הרשאות משתמש
+// ניקוי מטמון הרשאות משתמש (מתואם עם המנגנון החדש)
 export const clearUserPermissionsCache = (userId?: string): void => {
   if (userId) {
-    localStorageService.invalidateLocalStorage(`user_all_permissions_${userId}`);
-  } else {
-    // ניקוי כל המפתחות של הרשאות משתמש
+    permissionCache.userPermissions.delete(`user_permissions_${userId}`);
+    // גם ניקוי localStorage לאחור תאימות
     const keys = Object.keys(localStorage);
     keys.forEach(key => {
-      if (key.startsWith('user_all_permissions_')) {
+      if (key.includes(userId)) {
+        localStorage.removeItem(key);
+      }
+    });
+  } else {
+    // ניקוי כל המטמון
+    clearPermissionCache('userPermissions');
+    // גם ניקוי localStorage לאחור תאימות
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith('user_all_permissions_') || key.startsWith('user_permissions_')) {
         localStorage.removeItem(key);
       }
     });
   }
+  console.log(`🧹 [PERMISSION_CACHE] Cleared user permissions cache: ${userId || 'all'}`);
 };
 
 // פונקציה לרענון הרשאות משתמש (לשימוש ידני)
 export const refreshUserPermissions = async (userId: string): Promise<void> => {
+  console.log(`🔄 [PERMISSION_CACHE] Manually refreshing permissions for user: ${userId}`);
+  
   // ניקוי מטמון קיים
   clearUserPermissionsCache(userId);
   
   // טעינה מחדש מהשרת
-  await getUserAllPermissions(userId);
+  await getUserPermissions(userId);
+  
+  console.log(`✅ [PERMISSION_CACHE] Refreshed permissions for user: ${userId}`);
+};
+
+// פונקציה לרענון כל המטמון (לשימוש ידני)
+export const refreshAllPermissionsCache = async (): Promise<void> => {
+  console.log('🔄 [PERMISSION_CACHE] Manually refreshing all permissions cache');
+  
+  // ניקוי כל המטמון
+  clearPermissionCache('all');
+  
+  // טעינה מחדש מהשרת
+  await Promise.all([
+    getAllPolicies(),
+    getAllRoles()
+  ]);
+  
+  console.log('✅ [PERMISSION_CACHE] Refreshed all permissions cache');
+};
+
+// פונקציה להצגת מידע על מצב המטמון
+export const getPermissionCacheInfo = () => {
+  const now = Date.now();
+  return {
+    policies: {
+      cached: !!permissionCache.policies,
+      age: permissionCache.lastFetch.policies ? now - permissionCache.lastFetch.policies : 0,
+      valid: isCacheValid(permissionCache.lastFetch.policies),
+      count: permissionCache.policies?.length || 0
+    },
+    roles: {
+      cached: !!permissionCache.roles,
+      age: permissionCache.lastFetch.roles ? now - permissionCache.lastFetch.roles : 0,
+      valid: isCacheValid(permissionCache.lastFetch.roles),
+      count: permissionCache.roles?.length || 0
+    },
+    userPermissions: {
+      count: permissionCache.userPermissions.size,
+      users: Array.from(permissionCache.userPermissions.keys()).map(key => key.replace('user_permissions_', ''))
+    },
+    settings: {
+      permissionCacheTTL: PERMISSION_CACHE_TTL,
+      userPermissionCacheTTL: USER_PERMISSION_CACHE_TTL
+    }
+  };
 };
 
 // ===== יצירת תפקידים ומדיניות ברירת מחדל =====

@@ -1,8 +1,7 @@
-import { db } from '../firebase';
-import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, query, where, deleteField } from 'firebase/firestore';
+import { deleteField } from 'firebase/firestore';
 import { Soldier } from '../models/Soldier';
 import { getAuth } from 'firebase/auth';
-import { localStorageService, updateTableTimestamp } from './cacheService';
+import { dataLayer } from './dataAccessLayer';
 import { getAllFrameworks } from './frameworkService';
 import { 
   PresenceStatus, 
@@ -22,40 +21,19 @@ import {
   getStatusLabel
 } from '../utils/presenceStatus';
 
-const soldiersCollection = collection(db, 'soldiers');
+const COLLECTION_NAME = 'soldiers';
 
 export const getAllSoldiers = async (): Promise<Soldier[]> => {
-  return localStorageService.getFromLocalStorage('soldiers', async () => {
-    try {
-      console.log('📡 [DB] טוען כל החיילים מהשרת');
-      const snapshot = await getDocs(soldiersCollection);
-      const allSoldiers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Soldier));
-      console.log(`✅ [DB] נטענו ${allSoldiers.length} חיילים מהשרת`);
-      return allSoldiers;
-    } catch (error) {
-      console.error('❌ [DB] שגיאה בטעינת חיילים:', error);
-      return [];
-    }
-  });
+  return dataLayer.getAll(COLLECTION_NAME) as Promise<Soldier[]>;
 };
 
 export const getSoldierById = async (id: string): Promise<Soldier | null> => {
-  const soldierDoc = await getDoc(doc(soldiersCollection, id));
-  return soldierDoc.exists() ? ({ id: soldierDoc.id, ...soldierDoc.data() } as Soldier) : null;
+  return dataLayer.getById(COLLECTION_NAME, id) as Promise<Soldier | null>;
 };
 
 export const addSoldier = async (soldier: Omit<Soldier, 'id'>): Promise<string> => {
   console.log('➕ [DB] מוסיף חייל חדש:', soldier.name || soldier.email);
-  const docRef = await addDoc(soldiersCollection, soldier);
-  
-  // עדכון טבלת העדכונים וניקוי מטמון מקומי
-  console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי חיילים');
-  await updateTableTimestamp('soldiers');
-  localStorageService.invalidateLocalStorage('soldiers');
-  localStorageService.invalidateLocalStorage('soldiers_with_frameworks');
-  
-  console.log(`✅ [DB] חייל נוסף בהצלחה עם ID: ${docRef.id}`);
-  return docRef.id;
+  return dataLayer.create(COLLECTION_NAME, soldier as any);
 };
 
 export const updateSoldier = async (id: string, soldier: Partial<Soldier> & { [key: string]: any }) => {
@@ -82,13 +60,7 @@ export const updateSoldier = async (id: string, soldier: Partial<Soldier> & { [k
       updatedAt: new Date().toISOString()
     };
     
-    await updateDoc(doc(soldiersCollection, id), updateData);
-    
-    // עדכון טבלת העדכונים וניקוי מטמון מקומי
-    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי חיילים');
-    await updateTableTimestamp('soldiers');
-    localStorageService.invalidateLocalStorage('soldiers');
-    localStorageService.invalidateLocalStorage('soldiers_with_frameworks');
+    await dataLayer.update(COLLECTION_NAME, id, updateData);
     
     console.log(`✅ [DB] חייל ${id} עודכן בהצלחה`);
   } catch (error) {
@@ -99,14 +71,7 @@ export const updateSoldier = async (id: string, soldier: Partial<Soldier> & { [k
 
 export const deleteSoldier = async (id: string) => {
   console.log(`🗑️ [DB] מוחק חייל ${id}`);
-  await deleteDoc(doc(soldiersCollection, id));
-  
-  // עדכון טבלת העדכונים וניקוי מטמון מקומי
-  console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי חיילים');
-  await updateTableTimestamp('soldiers');
-  localStorageService.invalidateLocalStorage('soldiers');
-  localStorageService.invalidateLocalStorage('soldiers_with_frameworks');
-  
+  await dataLayer.delete(COLLECTION_NAME, id);
   console.log(`✅ [DB] חייל ${id} נמחק בהצלחה`);
 };
 
@@ -120,8 +85,7 @@ export const updateSoldierFramework = async (soldierId: string, frameworkId: str
 };
 
 export const getAllSoldiersWithFrameworkNames = async (): Promise<(Soldier & { frameworkName?: string })[]> => {
-  return localStorageService.getFromLocalStorage('soldiers_with_frameworks', async () => {
-    try {
+  try {
       console.log('📡 [DB] טוען חיילים עם שמות מסגרות מהשרת');
       
       // קבלת כל החיילים והמסגרות במקביל
@@ -144,11 +108,10 @@ export const getAllSoldiersWithFrameworkNames = async (): Promise<(Soldier & { f
       
       console.log(`✅ [DB] נטענו ${soldiersWithFrameworkNames.length} חיילים עם שמות מסגרות מהשרת`);
       return soldiersWithFrameworkNames;
-    } catch (error) {
-      console.error('❌ [DB] שגיאה בטעינת חיילים עם שמות מסגרות:', error);
-      return [];
-    }
-  });
+  } catch (error) {
+    console.error('❌ [DB] שגיאה בטעינת חיילים עם שמות מסגרות:', error);
+    return [];
+  }
 }; 
 
 // שימוש בהיררכיית הסטטוסים מהמחלקה המרכזית
@@ -452,7 +415,7 @@ export const updateAbsenceStatusesAutomatically = async (): Promise<void> => {
             updateData.absenceUntil = deleteField();
             updateData.previousStatus = deleteField();
             
-            await updateDoc(doc(soldiersCollection, soldier.id), updateData);
+            await dataLayer.update(COLLECTION_NAME, soldier.id, updateData);
             updatedCount++;
           } else {
             // ההיעדרות פעילה - אין צורך לעדכן

@@ -5,10 +5,11 @@ import {
   signOut,
   onAuthStateChanged
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, query, collection, where, getDocs, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase';
+import { auth } from '../firebase';
+import { dataLayer } from './dataAccessLayer';
 import { User } from '../models/User';
 import { UserRole } from '../models/UserRole';
+import { getCurrentIsraelTime } from '../utils/dateUtils';
 import { canUserEditSoldierPresence, canUserEditSoldierDetails } from './permissionService';
 
 // משתמשים עם הרשאות מיוחדות (ידוע מראש)
@@ -69,12 +70,11 @@ export const signOutUser = async (): Promise<void> => {
 
 // פונקציה לאתחול משתמש (יצירה או עדכון)
 export const initializeUser = async (firebaseUser: FirebaseUser): Promise<User> => {
-  const userRef = doc(db, 'users', firebaseUser.uid);
-  const userDoc = await getDoc(userRef);
+  const existingUser = await dataLayer.getById('users', firebaseUser.uid) as unknown as User | null;
   
   let userData: User;
   
-  if (!userDoc.exists()) {
+  if (!existingUser) {
     // משתמש חדש - צור רשומה
     userData = await createNewUser(firebaseUser);
     
@@ -82,13 +82,12 @@ export const initializeUser = async (firebaseUser: FirebaseUser): Promise<User> 
     await checkForPendingSoldierData(firebaseUser.email || '');
   } else {
     // משתמש קיים - עדכן lastLogin
-    userData = userDoc.data() as User;
     const updatedData = {
-      ...userData,
-      lastLogin: new Date(),
-      updatedAt: new Date()
+      ...existingUser,
+      lastLogin: getCurrentIsraelTime(),
+      updatedAt: getCurrentIsraelTime()
     };
-    await setDoc(userRef, updatedData, { merge: true });
+    await dataLayer.update('users', firebaseUser.uid, updatedData as any);
     userData = updatedData;
   }
   
@@ -98,51 +97,44 @@ export const initializeUser = async (firebaseUser: FirebaseUser): Promise<User> 
 // פונקציה לבדיקת נתוני חייל ממתינים
 const checkForPendingSoldierData = async (email: string) => {
   try {
-    const soldiersQuery = query(
-      collection(db, 'soldiers'),
-      where('email', '==', email),
-      where('status', '==', 'pending_user_link')
+    const allSoldiers = await dataLayer.getAll('soldiers') as unknown as any[];
+    const pendingSoldiers = allSoldiers.filter(soldier => 
+      soldier.email === email && soldier.status === 'pending_user_link'
     );
     
-    const soldiersSnapshot = await getDocs(soldiersQuery);
-    
-    if (!soldiersSnapshot.empty) {
-      const soldierDoc = soldiersSnapshot.docs[0];
-      const soldierData = soldierDoc.data();
+    if (pendingSoldiers.length > 0) {
+      const soldierData = pendingSoldiers[0];
       
       // קבלת המשתמש הנוכחי
-      const usersQuery = query(
-        collection(db, 'users'),
-        where('email', '==', email)
-      );
-      const usersSnapshot = await getDocs(usersQuery);
+      const allUsers = await dataLayer.getAll('users') as unknown as any[];
+      const matchingUsers = allUsers.filter(user => user.email === email);
       
-      if (!usersSnapshot.empty) {
-        const userDoc = usersSnapshot.docs[0];
+      if (matchingUsers.length > 0) {
+        const userData = matchingUsers[0];
         
         // עדכון רשומת החייל עם UID של המשתמש
-        await updateDoc(doc(db, 'soldiers', soldierDoc.id), {
-          userUid: userDoc.id,
+        await dataLayer.update('soldiers', soldierData.id, {
+          userUid: userData.id,
           status: 'pending_assignment',
-          updatedAt: new Date()
-        });
+          updatedAt: getCurrentIsraelTime()
+        } as any);
 
         // עדכון רשומת המשתמש עם קישור לחייל
         const updateData: any = {
-          soldierDocId: soldierDoc.id,
+          soldierDocId: soldierData.id,
           personalNumber: soldierData.personalNumber,
-          updatedAt: new Date()
+          updatedAt: getCurrentIsraelTime()
         };
         
         // עדכן את השם אם הוא ריק או אם יש שם חדש מהטופס
-        if (!userDoc.data().displayName || userDoc.data().displayName === '') {
+        if (!userData.displayName || userData.displayName === '') {
           updateData.displayName = soldierData.fullName;
-          console.log(`Updating displayName for user ${userDoc.id}: ${soldierData.fullName}`);
+          console.log(`Updating displayName for user ${userData.id}: ${soldierData.fullName}`);
         } else {
-          console.log(`User ${userDoc.id} already has displayName: ${userDoc.data().displayName}`);
+          console.log(`User ${userData.id} already has displayName: ${userData.displayName}`);
         }
         
-        await updateDoc(doc(db, 'users', userDoc.id), updateData);
+        await dataLayer.update('users', userData.id, updateData);
       }
 
       console.log(`Linked pending soldier data for user: ${email}`);
@@ -156,7 +148,7 @@ const checkForPendingSoldierData = async (email: string) => {
 const createNewUser = async (firebaseUser: FirebaseUser): Promise<User> => {
   const isAdmin = ADMIN_EMAILS.includes(firebaseUser.email || '');
   
-  const userData: User = {
+  const userData = {
     uid: firebaseUser.uid,
     displayName: '', // השם ייקלט בטופס Google Forms
     email: firebaseUser.email || '',
@@ -168,32 +160,26 @@ const createNewUser = async (firebaseUser: FirebaseUser): Promise<User> => {
     canRemoveUsers: isAdmin, // הוספת הרשאה להסרת משתמשים
     
     // מטאדטה
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    lastLogin: new Date(),
+    createdAt: getCurrentIsraelTime(),
+    updatedAt: getCurrentIsraelTime(),
+    lastLogin: getCurrentIsraelTime(),
     isActive: true
   };
   
   // שמור במסד הנתונים
-  const userRef = doc(db, 'users', firebaseUser.uid);
-  await setDoc(userRef, userData);
+  await dataLayer.create('users', userData as any);
   
   // הערה: Custom Claims יועדכנו בעת הצורך דרך Cloud Functions
   console.log(`משתמש חדש נוצר: ${userData.displayName} (${userData.role})`);
   
-  return userData;
+  return userData as User;
 };
 
 // פונקציה לקבלת המשתמש הנוכחי מה-DB
 export const getCurrentUser = async (uid: string): Promise<User | null> => {
   try {
-    const userRef = doc(db, 'users', uid);
-    const userDoc = await getDoc(userRef);
-    
-    if (userDoc.exists()) {
-      return { uid, ...userDoc.data() } as User;
-    }
-    return null;
+    const user = await dataLayer.getById('users', uid) as unknown as any;
+    return user ? { ...user, uid } : null;
   } catch (error) {
     console.error('שגיאה בקבלת פרטי משתמש:', error);
     return null;

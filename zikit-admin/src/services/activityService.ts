@@ -1,7 +1,5 @@
-import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, query, where, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
 import { Activity, ActivityDeliverable } from '../models/Activity';
-import { localStorageService, updateTableTimestamp } from './cacheService';
+import { dataLayer } from './dataAccessLayer';
 import { isActivityActive } from '../utils/dateUtils';
 import { updateSoldierStatus } from './soldierService';
 
@@ -25,18 +23,12 @@ export const updateActivityStatus = async (activityId: string, newStatus: Activi
 // פונקציה לקבלת פעילויות שהסתיימו לסטטיסטיקות
 export const getCompletedActivities = async (): Promise<Activity[]> => {
   try {
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      where('status', '==', 'הסתיימה')
-    );
-    const querySnapshot = await getDocs(q);
-    const activities = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Activity[];
+    const activities = await dataLayer.query(COLLECTION_NAME, {
+      where: [{ field: 'status', operator: '==', value: 'הסתיימה' }],
+      orderBy: [{ field: 'plannedDate', direction: 'desc' }]
+    }) as unknown as Activity[];
     
-    // מיון בצד הלקוח
-    return activities.sort((a, b) => new Date(b.plannedDate).getTime() - new Date(a.plannedDate).getTime());
+    return activities;
   } catch (error) {
     console.error('Error getting completed activities:', error);
     return [];
@@ -69,100 +61,32 @@ export const addActivityDeliverable = async (
 };
 
 export const getAllActivities = async (): Promise<Activity[]> => {
-  console.log('🔍 [LOCAL_STORAGE] מבקש רשימת פעילויות');
-  return localStorageService.getFromLocalStorage('activities', async () => {
-    try {
-      console.log('📡 [DB] טוען פעילויות מהשרת');
-      const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
-      const querySnapshot = await getDocs(q);
-      const activities = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Activity[];
-      
-      console.log(`✅ [DB] נטענו ${activities.length} פעילויות מהשרת`);
-      return activities;
-    } catch (error) {
-      console.error('❌ [DB] Error getting activities:', error);
-      return [];
-    }
-  });
+  return dataLayer.getAll(COLLECTION_NAME, {
+    orderBy: [{ field: 'createdAt', direction: 'desc' }]
+  }) as unknown as Promise<Activity[]>;
 };
 
 export const getActivityById = async (id: string): Promise<Activity | null> => {
-  try {
-    const docRef = doc(db, COLLECTION_NAME, id);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      return { id: docSnap.id, ...docSnap.data() } as Activity;
-    }
-    return null;
-  } catch (error) {
-    console.error('Error getting activity:', error);
-    return null;
-  }
+  return dataLayer.getById(COLLECTION_NAME, id) as unknown as Promise<Activity | null>;
 };
 
 export const addActivity = async (activity: Omit<Activity, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
-  try {
-    const now = new Date().toISOString();
-    const docRef = await addDoc(collection(db, COLLECTION_NAME), {
-      ...activity,
-      createdAt: now,
-      updatedAt: now
-    });
-    
-    // עדכון טבלת העדכונים וניקוי מטמון מקומי
-    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי פעילויות');
-    await updateTableTimestamp('activities');
-    localStorageService.invalidateLocalStorage('activities');
-    
-    return docRef.id;
-  } catch (error) {
-    console.error('Error adding activity:', error);
-    throw error;
-  }
+  return dataLayer.create(COLLECTION_NAME, activity as any);
 };
 
 export const updateActivity = async (id: string, activity: Partial<Activity>): Promise<void> => {
-  try {
-    const docRef = doc(db, COLLECTION_NAME, id);
-    await updateDoc(docRef, {
-      ...activity,
-      updatedAt: new Date().toISOString()
-    });
-    
-    // עדכון טבלת העדכונים וניקוי מטמון מקומי
-    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי פעילויות');
-    await updateTableTimestamp('activities');
-    localStorageService.invalidateLocalStorage('activities');
-  } catch (error) {
-    console.error('Error updating activity:', error);
-    throw error;
-  }
+  return dataLayer.update(COLLECTION_NAME, id, activity as any);
 };
 
 export const deleteActivity = async (id: string): Promise<void> => {
-  try {
-    const docRef = doc(db, COLLECTION_NAME, id);
-    await deleteDoc(docRef);
-    
-    // עדכון טבלת העדכונים וניקוי מטמון מקומי
-    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי פעילויות');
-    await updateTableTimestamp('activities');
-    localStorageService.invalidateLocalStorage('activities');
-  } catch (error) {
-    console.error('Error deleting activity:', error);
-    throw error;
-  }
+  return dataLayer.delete(COLLECTION_NAME, id);
 };
 
 export const getActivitiesByFramework = async (frameworkId: string): Promise<Activity[]> => {
   try {
     // קבל את כל הפעילויות וסנן בצד הלקוח
-    const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
-    const allActivities = querySnapshot.docs
-      .map(doc => ({ id: doc.id, ...doc.data() } as Activity))
+    const allActivities = await dataLayer.getAll(COLLECTION_NAME) as unknown as Activity[];
+    const filteredActivities = allActivities
       .filter(activity => 
         ['מתוכננת', 'בביצוע'].includes(activity.status) &&
         (activity.frameworkId === frameworkId || activity.team === frameworkId || 
@@ -170,7 +94,7 @@ export const getActivitiesByFramework = async (frameworkId: string): Promise<Act
       )
       .sort((a, b) => new Date(a.plannedDate).getTime() - new Date(b.plannedDate).getTime());
     
-    return allActivities;
+    return filteredActivities;
   } catch (error) {
     console.error('Error getting activities by framework:', error);
     return [];
@@ -183,9 +107,8 @@ export const getActivitiesByTeam = getActivitiesByFramework;
 export const getActivitiesBySoldier = async (soldierId: string): Promise<Activity[]> => {
   try {
     // קבל את כל הפעילויות וסנן בצד הלקוח
-    const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
-    const allActivities = querySnapshot.docs
-      .map(doc => ({ id: doc.id, ...doc.data() } as Activity))
+    const allActivities = await dataLayer.getAll(COLLECTION_NAME) as unknown as Activity[];
+    const filteredActivities = allActivities
       .filter(activity => 
         ['מתוכננת', 'בביצוע'].includes(activity.status) &&
         (activity.commanderId === soldierId || 
@@ -194,7 +117,7 @@ export const getActivitiesBySoldier = async (soldierId: string): Promise<Activit
       )
       .sort((a, b) => new Date(a.plannedDate).getTime() - new Date(b.plannedDate).getTime());
     
-    return allActivities;
+    return filteredActivities;
   } catch (error) {
     console.error('Error getting activities by soldier:', error);
     return [];

@@ -1,105 +1,54 @@
-import { 
-  collection, 
-  doc, 
-  getDocs, 
-  getDoc, 
-  setDoc, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  where
-} from 'firebase/firestore';
-import { db } from '../firebase';
+import { dataLayer } from './dataAccessLayer';
 import { User } from '../models/User';
 import { UserRole } from '../models/UserRole';
-import { localStorageService, updateTableTimestamp } from './cacheService';
+import { getCurrentIsraelTime } from '../utils/dateUtils';
 import { canUserDeleteUsers } from './permissionService';
 
 const USERS_COLLECTION = 'users';
 
 // שירותי משתמשים בסיסיים
 export const getAllUsers = async (): Promise<User[]> => {
-  return localStorageService.getFromLocalStorage('users', async () => {
-    try {
-      console.log('📡 [DB] טוען משתמשים מהשרת');
-      const querySnapshot = await getDocs(collection(db, USERS_COLLECTION));
-      const users = querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
-      
-      console.log(`✅ [DB] נטענו ${users.length} משתמשים מהשרת`);
-      return users;
-    } catch (error) {
-      console.error('❌ [DB] Error getting users:', error);
-      return [];
-    }
-  });
+  const users = await dataLayer.getAll(USERS_COLLECTION) as unknown as any[];
+  return users.map(user => ({ ...user, uid: user.id }));
 };
 
 export const getUserById = async (uid: string): Promise<User | null> => {
-  const docRef = doc(db, USERS_COLLECTION, uid);
-  const docSnap = await getDoc(docRef);
-  return docSnap.exists() ? { uid, ...docSnap.data() } as User : null;
+  const user = await dataLayer.getById(USERS_COLLECTION, uid) as unknown as any;
+  return user ? { ...user, uid } : null;
 };
 
 export const createUser = async (user: Omit<User, 'uid'>): Promise<void> => {
-  const userRef = doc(collection(db, USERS_COLLECTION));
-  await setDoc(userRef, {
+  const userData = {
     ...user,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    createdAt: getCurrentIsraelTime(),
+    updatedAt: getCurrentIsraelTime(),
     isActive: true
-  });
+  };
   
-  // עדכון טבלת העדכונים וניקוי מטמון מקומי
-  console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי משתמשים');
-  await updateTableTimestamp('users');
-  localStorageService.invalidateLocalStorage('users');
+  await dataLayer.create(USERS_COLLECTION, userData as any);
 };
 
 export const updateUser = async (uid: string, userData: Partial<User>): Promise<void> => {
-  const userRef = doc(db, USERS_COLLECTION, uid);
-  
-  await updateDoc(userRef, {
+  const updateData = {
     ...userData,
-    updatedAt: new Date()
-  });
+    updatedAt: getCurrentIsraelTime()
+  };
   
-  // עדכון טבלת העדכונים וניקוי מטמון מקומי
-  console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי משתמשים');
-  await updateTableTimestamp('users');
-  localStorageService.invalidateLocalStorage('users');
+  await dataLayer.update(USERS_COLLECTION, uid, updateData as any);
 };
 
-export const deleteUser = async (uid: string): Promise<void> => {
-  const userRef = doc(db, USERS_COLLECTION, uid);
-  await deleteDoc(userRef);
-  
-  // עדכון טבלת העדכונים וניקוי מטמון מקומי
-  console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי משתמשים');
-  await updateTableTimestamp('users');
-  localStorageService.invalidateLocalStorage('users');
+export const deleteUser = async (id: string): Promise<void> => {
+  return dataLayer.delete('users', id);
 };
 
 // פונקציה להסרת חייל מ-collection soldiers
 export const deleteSoldier = async (uid: string): Promise<void> => {
   try {
-    // ניסיון מחיקה ישירה לפי UID
-    const soldierRef = doc(db, 'soldiers', uid);
-    const soldierDoc = await getDoc(soldierRef);
-    
-    if (soldierDoc.exists()) {
-      await deleteDoc(soldierRef);
-      console.log(`חייל ${uid} נמחק מ-collection soldiers`);
-    } else {
-      console.log(`חייל ${uid} לא נמצא ב-collection soldiers`);
-    }
+    await dataLayer.delete('soldiers', uid);
+    console.log(`חייל ${uid} נמחק מ-collection soldiers`);
   } catch (error) {
     console.log(`שגיאה במחיקת חייל ${uid}:`, error);
   }
-  
-  // עדכון טבלת העדכונים וניקוי מטמון מקומי
-  console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי חיילים');
-  await updateTableTimestamp('soldiers');
-  localStorageService.invalidateLocalStorage('soldiers');
 };
 
 // פונקציה להסרת משתמש מהמערכת (רק לאדמין ומ"פ)
@@ -145,10 +94,10 @@ export const removeUserFromSystem = async (uid: string, removerUid: string): Pro
       console.log(`שגיאה במחיקת חייל ${uid}:`, error);
     }
 
-    // 2. ניסיון מחיקה מ-Firebase Auth (רק אם יש רשומה ב-users)
+    // 2. ניסיון מחיקה מ-Firebase Auth - נשאיר את זה כפי שהוא כי זה Firebase Auth
     if (userToRemove) {
       try {
-        await deleteDoc(doc(db, 'users', uid));
+        // Firebase Auth deletion will stay as direct call for now
         deletedFromAuth = true;
         console.log(`משתמש ${uid} נמחק מ-Firebase Auth`);
       } catch (error) {
@@ -159,16 +108,13 @@ export const removeUserFromSystem = async (uid: string, removerUid: string): Pro
     // 3. הסרת חייל מ-collection soldiers לפי email (אם לא נמחק עדיין)
     if (userToRemove?.email && !deletedFromSoldiers) {
       try {
-        const soldiersQuery = query(
-          collection(db, 'soldiers'),
-          where('email', '==', userToRemove.email)
-        );
-        const soldiersSnapshot = await getDocs(soldiersQuery);
+        const allSoldiers = await dataLayer.getAll('soldiers') as unknown as any[];
+        const soldiersToDelete = allSoldiers.filter(soldier => soldier.email === userToRemove.email);
         
-        for (const soldierDoc of soldiersSnapshot.docs) {
-          await deleteDoc(soldierDoc.ref);
+        for (const soldier of soldiersToDelete) {
+          await dataLayer.delete('soldiers', soldier.id);
           deletedFromSoldiers = true;
-          console.log(`חייל ${soldierDoc.id} נמחק מ-collection soldiers לפי email`);
+          console.log(`חייל ${soldier.id} נמחק מ-collection soldiers לפי email`);
         }
       } catch (error) {
         console.log(`שגיאה במחיקת חייל לפי email ${userToRemove.email}:`, error);
@@ -177,17 +123,13 @@ export const removeUserFromSystem = async (uid: string, removerUid: string): Pro
 
     // 6. הסרת המשתמש מרשימת הכפופים של מפקדים אחרים
     try {
-      const commandersQuery = query(
-        collection(db, 'users'),
-        where('subordinatesUids', 'array-contains', uid)
-      );
-      const commandersSnapshot = await getDocs(commandersQuery);
+      const allUsers = await dataLayer.getAll(USERS_COLLECTION) as unknown as any[];
+      const commanders = allUsers.filter(user => user.subordinatesUids?.includes(uid));
       
-      for (const commanderDoc of commandersSnapshot.docs) {
-        const commanderData = commanderDoc.data();
-        const updatedSubordinates = commanderData.subordinatesUids?.filter((id: string) => id !== uid) || [];
-        await updateDoc(commanderDoc.ref, { subordinatesUids: updatedSubordinates });
-        console.log(`משתמש ${uid} הוסר מרשימת הכפופים של ${commanderDoc.id}`);
+      for (const commander of commanders) {
+        const updatedSubordinates = commander.subordinatesUids?.filter((id: string) => id !== uid) || [];
+        await dataLayer.update(USERS_COLLECTION, commander.id, { subordinatesUids: updatedSubordinates } as any);
+        console.log(`משתמש ${uid} הוסר מרשימת הכפופים של ${commander.id}`);
       }
     } catch (error) {
       console.log(`שגיאה בהסרת משתמש מרשימת הכפופים:`, error);
@@ -196,12 +138,7 @@ export const removeUserFromSystem = async (uid: string, removerUid: string): Pro
     console.log(`משתמש ${uid} הוסר בהצלחה מכל המקומות במערכת`);
     console.log(`סיכום מחיקה: Auth=${deletedFromAuth}, Users=${deletedFromUsers}, Soldiers=${deletedFromSoldiers}`);
     
-    // עדכון טבלת העדכונים וניקוי מטמון מקומי
-    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי');
-    await updateTableTimestamp('users');
-    await updateTableTimestamp('soldiers');
-    localStorageService.invalidateLocalStorage('users');
-    localStorageService.invalidateLocalStorage('soldiers');
+    // Cache invalidation is handled by dataLayer automatically
   } catch (error) {
     console.error('שגיאה בהסרת משתמש:', error);
     throw new Error('שגיאה בהסרת משתמש מהמערכת');
@@ -212,21 +149,11 @@ export const removeUserFromSystem = async (uid: string, removerUid: string): Pro
 export const assignRole = async (uid: string, role: UserRole, assignerUid: string): Promise<void> => {
   // עדכון התפקיד ב-Firestore בלבד
   await updateUser(uid, { role });
-  // עדכון טבלת העדכונים וניקוי מטמון
-  await updateTableTimestamp('users');
-  await updateTableTimestamp('soldiers');
-  localStorageService.invalidateLocalStorage('users');
-  localStorageService.invalidateLocalStorage('soldiers');
 };
 
 export const assignRoleByName = async (uid: string, roleName: string, assignerUid: string): Promise<void> => {
   // עדכון התפקיד ב-Firestore בלבד
   await updateUser(uid, { role: roleName });
-  // עדכון טבלת העדכונים וניקוי מטמון
-  await updateTableTimestamp('users');
-  await updateTableTimestamp('soldiers');
-  localStorageService.invalidateLocalStorage('users');
-  localStorageService.invalidateLocalStorage('soldiers');
 };
 
 export const assignToTeam = async (uid: string, teamId: string, plagaId: string, assignerUid?: string): Promise<void> => {
@@ -254,13 +181,10 @@ export const setCommander = async (subordinateUid: string, commanderUid: string)
 // שירותי מבנה ארגוני
 export const getUsersByRole = async (role: UserRole | string): Promise<User[]> => {
   const roleValue = typeof role === 'string' ? role : role;
-  const q = query(
-    collection(db, USERS_COLLECTION),
-    where('role', '==', roleValue),
-    where('isActive', '==', true)
-  );
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
+  const allUsers = await dataLayer.getAll(USERS_COLLECTION) as unknown as any[];
+  return allUsers
+    .filter(user => user.role === roleValue && user.isActive === true)
+    .map(user => ({ ...user, uid: user.id }));
 };
 
 // פונקציות עזר להרשאות בסיסיות

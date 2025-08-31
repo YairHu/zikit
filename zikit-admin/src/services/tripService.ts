@@ -1,48 +1,30 @@
-import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, where, orderBy, Timestamp } from 'firebase/firestore';
-import { db } from '../firebase';
 import { Trip } from '../models/Trip';
 import { Vehicle } from '../models/Vehicle';
 import { Soldier } from '../models/Soldier';
 import { Activity } from '../models/Activity';
-import { formatToIsraelString } from '../utils/dateUtils';
+import { formatToIsraelString, getCurrentIsraelTime } from '../utils/dateUtils';
 
 import { updateSoldier, getAllSoldiers, updateSoldierStatus } from './soldierService';
 import { updateActivity } from './activityService';
-import { localStorageService, updateTableTimestamp } from './cacheService';
+import { dataLayer } from './dataAccessLayer';
 
 const TRIPS_COLLECTION = 'trips';
 
 export const getAllTrips = async (): Promise<Trip[]> => {
-  console.log('🔍 [LOCAL_STORAGE] מבקש רשימת נסיעות');
-  return localStorageService.getFromLocalStorage('trips', async () => {
-    try {
-      console.log('📡 [DB] טוען נסיעות מהשרת');
-      const q = query(collection(db, TRIPS_COLLECTION), orderBy('createdAt', 'desc'));
-      const querySnapshot = await getDocs(q);
-      const trips = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Trip[];
-      
-      console.log(`✅ [DB] נטענו ${trips.length} נסיעות מהשרת`);
-      return trips;
-    } catch (error) {
-      console.error('❌ [DB] שגיאה בטעינת נסיעות:', error);
-      throw error;
-    }
-  });
+  return dataLayer.getAll(TRIPS_COLLECTION, {
+    orderBy: [{ field: 'createdAt', direction: 'desc' }]
+  }) as unknown as Promise<Trip[]>;
 };
 
 export const getTripsByActivity = async (activityId: string): Promise<Trip[]> => {
   try {
     // קבל את כל הנסיעות וסנן בצד הלקוח
-    const querySnapshot = await getDocs(collection(db, TRIPS_COLLECTION));
-    const allTrips = querySnapshot.docs
-      .map(doc => ({ id: doc.id, ...doc.data() } as Trip))
+    const allTrips = await dataLayer.getAll(TRIPS_COLLECTION) as unknown as Trip[];
+    const filteredTrips = allTrips
       .filter(trip => trip.linkedActivityId === activityId)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     
-    return allTrips;
+    return filteredTrips;
   } catch (error) {
     console.error('שגיאה בטעינת נסיעות לפעילות:', error);
     throw error;
@@ -52,13 +34,12 @@ export const getTripsByActivity = async (activityId: string): Promise<Trip[]> =>
 export const getTripsByTeam = async (teamName: string): Promise<Trip[]> => {
   try {
     // קבל את כל הנסיעות וסנן בצד הלקוח
-    const querySnapshot = await getDocs(collection(db, TRIPS_COLLECTION));
-    const allTrips = querySnapshot.docs
-      .map(doc => ({ id: doc.id, ...doc.data() } as Trip))
+    const allTrips = await dataLayer.getAll(TRIPS_COLLECTION) as unknown as Trip[];
+    const filteredTrips = allTrips
       .filter(trip => trip.team === teamName)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     
-    return allTrips;
+    return filteredTrips;
   } catch (error) {
     console.error('שגיאה בטעינת נסיעות לצוות:', error);
     return [];
@@ -68,13 +49,12 @@ export const getTripsByTeam = async (teamName: string): Promise<Trip[]> => {
 export const getTripsBySoldier = async (soldierId: string): Promise<Trip[]> => {
   try {
     // קבל את כל הנסיעות וסנן בצד הלקוח
-    const querySnapshot = await getDocs(collection(db, TRIPS_COLLECTION));
-    const allTrips = querySnapshot.docs
-      .map(doc => ({ id: doc.id, ...doc.data() } as Trip))
+    const allTrips = await dataLayer.getAll(TRIPS_COLLECTION) as unknown as Trip[];
+    const filteredTrips = allTrips
       .filter(trip => trip.driverId === soldierId || trip.commanderId === soldierId)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     
-    return allTrips;
+    return filteredTrips;
   } catch (error) {
     console.error('שגיאה בטעינת נסיעות לחייל:', error);
     return [];
@@ -83,7 +63,7 @@ export const getTripsBySoldier = async (soldierId: string): Promise<Trip[]> => {
 
 export const addTrip = async (trip: Omit<Trip, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
   try {
-    const now = Timestamp.now().toDate().toISOString();
+    const now = getCurrentIsraelTime().toISOString();
     
     // סינון ערכים undefined כדי למנוע שגיאות Firebase
     const cleanedTrip = Object.fromEntries(
@@ -96,20 +76,15 @@ export const addTrip = async (trip: Omit<Trip, 'id' | 'createdAt' | 'updatedAt'>
       updatedAt: now
     };
     
-    const docRef = await addDoc(collection(db, TRIPS_COLLECTION), tripData);
-    
-    // עדכון טבלת העדכונים וניקוי מטמון מקומי
-    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי נסיעות');
-    await updateTableTimestamp('trips');
-    localStorageService.invalidateLocalStorage('trips');
+    const tripId = await dataLayer.create(TRIPS_COLLECTION, tripData as any);
     
     // עדכון סטטוס נהג אם יש נהג
     if ((tripData as any).driverId) {
-      const newTrip = { id: docRef.id, ...tripData } as Trip;
+      const newTrip = { id: tripId, ...tripData } as Trip;
       await updateDriverStatusByTrip(newTrip);
     }
     
-    return docRef.id;
+    return tripId;
   } catch (error) {
     console.error('שגיאה בהוספת נסיעה:', error);
     throw error;
@@ -123,16 +98,10 @@ export const updateTrip = async (id: string, trip: Partial<Trip>): Promise<void>
       Object.entries(trip).filter(([_, value]) => value !== undefined)
     );
     
-    const tripRef = doc(db, TRIPS_COLLECTION, id);
-    await updateDoc(tripRef, {
+    await dataLayer.update(TRIPS_COLLECTION, id, {
       ...cleanedTrip,
-      updatedAt: Timestamp.now().toDate().toISOString()
-    });
-    
-    // עדכון טבלת העדכונים וניקוי מטמון מקומי
-    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי נסיעות');
-    await updateTableTimestamp('trips');
-    localStorageService.invalidateLocalStorage('trips');
+      updatedAt: new Date().toISOString()
+    } as any);
     
     // אם משתנה הנהג, נעדכן את עמוד האישי של הנהגים
     if (trip.driverId) {
@@ -271,13 +240,7 @@ export const deleteTrip = async (id: string): Promise<void> => {
     const allTrips = await getAllTrips();
     const tripToDelete = allTrips.find(t => t.id === id);
     
-    const tripRef = doc(db, TRIPS_COLLECTION, id);
-    await deleteDoc(tripRef);
-    
-    // עדכון טבלת העדכונים וניקוי מטמון מקומי
-    console.log('🔄 [LOCAL_STORAGE] מעדכן טבלת עדכונים ומנקה מטמון מקומי נסיעות');
-    await updateTableTimestamp('trips');
-    localStorageService.invalidateLocalStorage('trips');
+    await dataLayer.delete(TRIPS_COLLECTION, id);
     
     // עדכון סטטוס נהג אם הנסיעה נמחקה
     if (tripToDelete && tripToDelete.driverId) {
@@ -300,14 +263,10 @@ export const checkAvailability = async (
   excludeTripId?: string
 ): Promise<{ isAvailable: boolean; conflicts: Trip[] }> => {
   try {
-    const q = query(
-      collection(db, TRIPS_COLLECTION),
-      where('status', 'in', ['מתוכננת', 'בביצוע'])
-    );
-    const querySnapshot = await getDocs(q);
+    const allTrips = await dataLayer.getAll(TRIPS_COLLECTION) as unknown as Trip[];
     
-    const conflicts = querySnapshot.docs
-      .map(doc => ({ id: doc.id, ...doc.data() } as Trip))
+    const conflicts = allTrips
+      .filter(trip => ['מתוכננת', 'בביצוע'].includes(trip.status))
       .filter(trip => {
         if (excludeTripId && trip.id === excludeTripId) return false;
         
@@ -354,13 +313,8 @@ export const checkAdvancedAvailability = async (
 }> => {
   try {
     // קבלת כל הנסיעות - כולל הסתיימו לבדיקת מנוחה
-    const q = query(
-      collection(db, TRIPS_COLLECTION),
-      where('status', 'in', ['מתוכננת', 'בביצוע', 'הסתיימה'])
-    );
-    const querySnapshot = await getDocs(q);
-    
-    const allTrips = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Trip));
+    const allTrips = await dataLayer.getAll(TRIPS_COLLECTION) as unknown as Trip[];
+    const relevantTrips = allTrips.filter(trip => ['מתוכננת', 'בביצוע', 'הסתיימה'].includes(trip.status));
     
     // קבלת מידע על הנהג והרכב
     const { getAllSoldiers } = await import('./soldierService');
@@ -381,7 +335,7 @@ export const checkAdvancedAvailability = async (
     let message = '';
     
     // בדיקת התנגשויות נסיעות - רק נסיעות פעילות
-    const activeTrips = allTrips.filter(trip => trip.status === 'מתוכננת' || trip.status === 'בביצוע');
+    const activeTrips = relevantTrips.filter(trip => trip.status === 'מתוכננת' || trip.status === 'בביצוע');
     for (const trip of activeTrips) {
       if (excludeTripId && trip.id === excludeTripId) continue;
       
@@ -416,14 +370,14 @@ export const checkAdvancedAvailability = async (
     // בדיקת מנוחת נהג - כולל כל סוגי הנסיעות (רק אם יש נהג)
     if (driverId && driver) {
       // בדיקה אם יש נסיעות שהסתיימו לאחרונה
-      const recentCompletedTrips = allTrips.filter(trip => 
+      const recentCompletedTrips = relevantTrips.filter(trip => 
         trip.driverId === driverId && 
         trip.status === 'הסתיימה' &&
         new Date(trip.returnTime) < newStart
       );
       
       // בדיקה אם יש נסיעות מתוכננות או בביצוע שמסתיימות לפני הנסיעה החדשה
-      const upcomingTrips = allTrips.filter(trip => 
+      const upcomingTrips = relevantTrips.filter(trip => 
         trip.driverId === driverId && 
         (trip.status === 'מתוכננת' || trip.status === 'בביצוע') &&
         new Date(trip.returnTime) < newStart &&

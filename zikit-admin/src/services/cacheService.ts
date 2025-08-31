@@ -47,6 +47,7 @@ class LocalStorageService {
   private tableUpdatesListener: (() => void) | null = null; // Added for listener management
   private isInitializingListeners: boolean = false; // דגל למניעת יצירת listeners מרובים
   private static listenersInitialized: boolean = false; // דגל גלובלי למניעת יצירת listeners מרובים
+  private performanceMetrics: Map<string, { hits: number; misses: number; lastAccess: Date }> = new Map();
 
   constructor() {
     this.loadFromStorage();
@@ -201,11 +202,17 @@ class LocalStorageService {
     const storageKey = this.getStorageKey(tableName, userId);
     const entry = this.storage.get(storageKey);
 
+    // עדכון מטריקות ביצועים
+    this.updatePerformanceMetrics(storageKey, entry ? 'hit' : 'miss');
+
     // אם יש מטמון מקומי תקף, החזר אותו
     if (entry && this.isStorageValid(entry)) {
+      console.log(`🎯 [CACHE] פגיעה במטמון: ${storageKey}`);
       return entry.data;
     }
 
+    console.log(`📡 [CACHE] החמצה במטמון, טוען מהשרת: ${storageKey}`);
+    
     // אם אין מטמון מקומי או שהוא לא תקף, טען מהשרת
     const data = await fetchFunction();
     
@@ -284,13 +291,74 @@ class LocalStorageService {
       const age = (now.getTime() - entry.lastUpdated.getTime()) / 1000;
       if (age > this.config.maxAge) {
         this.storage.delete(key);
+        this.performanceMetrics.delete(key);
         cleanedCount++;
       }
     });
     
     if (cleanedCount > 0) {
       this.saveToStorage();
+      console.log(`🧹 [CACHE] ניקוי אוטומטי: ${cleanedCount} פריטים נמחקו`);
     }
+  }
+
+  // עדכון מטריקות ביצועים
+  private updatePerformanceMetrics(key: string, type: 'hit' | 'miss'): void {
+    const metrics = this.performanceMetrics.get(key) || { hits: 0, misses: 0, lastAccess: new Date() };
+    
+    if (type === 'hit') {
+      metrics.hits++;
+    } else {
+      metrics.misses++;
+    }
+    
+    metrics.lastAccess = new Date();
+    this.performanceMetrics.set(key, metrics);
+  }
+
+  // קבלת מטריקות ביצועים
+  getPerformanceMetrics(): { 
+    totalRequests: number; 
+    hitRate: number; 
+    missRate: number; 
+    byTable: Array<{ table: string; hits: number; misses: number; hitRate: number; lastAccess: Date }> 
+  } {
+    let totalHits = 0;
+    let totalMisses = 0;
+    const byTable: Array<{ table: string; hits: number; misses: number; hitRate: number; lastAccess: Date }> = [];
+    
+    this.performanceMetrics.forEach((metrics, key) => {
+      totalHits += metrics.hits;
+      totalMisses += metrics.misses;
+      
+      const total = metrics.hits + metrics.misses;
+      const hitRate = total > 0 ? (metrics.hits / total) * 100 : 0;
+      
+      byTable.push({
+        table: key,
+        hits: metrics.hits,
+        misses: metrics.misses,
+        hitRate: Number(hitRate.toFixed(2)),
+        lastAccess: metrics.lastAccess
+      });
+    });
+    
+    const totalRequests = totalHits + totalMisses;
+    const hitRate = totalRequests > 0 ? (totalHits / totalRequests) * 100 : 0;
+    const missRate = totalRequests > 0 ? (totalMisses / totalRequests) * 100 : 0;
+    
+    return {
+      totalRequests,
+      hitRate: Number(hitRate.toFixed(2)),
+      missRate: Number(missRate.toFixed(2)),
+      byTable: byTable.sort((a, b) => b.lastAccess.getTime() - a.lastAccess.getTime())
+    };
+  }
+
+  // אפס מטריקות ביצועים
+  resetPerformanceMetrics(): void {
+    this.performanceMetrics.clear();
+    console.log('🧹 [CACHE] מטריקות ביצועים אופסו');
   }
 
   // סגירת כל ה-listeners

@@ -40,20 +40,19 @@ import {
   Group as GroupIcon
 } from '@mui/icons-material';
 import { Framework, FrameworkTree } from '../models/Framework';
-import { 
-  getAllFrameworks, 
-  createFramework, 
-  updateFramework, 
-  deleteFramework,
-  getFrameworkTree,
-  getFrameworkWithDetails
-} from '../services/frameworkService';
-import { getAllSoldiers, updateSoldier } from '../services/soldierService';
 import { Soldier } from '../models/Soldier';
-import { getAllRoles } from '../services/permissionService';
 import { Role } from '../models/UserRole';
 import { useUser } from '../contexts/UserContext';
-import { assignRoleByName, getAllUsers } from '../services/userService';
+import { dataLayer } from '../services/dataAccessLayer';
+import { 
+  getFrameworkTree
+} from '../services/frameworkService';
+import { 
+  assignRoleByName,
+  getAllUsers 
+} from '../services/userService';
+import { updateSoldier } from '../services/soldierService';
+import { getAllRoles } from '../services/permissionService';
 import { localStorageService, updateTableTimestamp } from '../services/cacheService';
 import { useNavigate } from 'react-router-dom';
 
@@ -98,14 +97,14 @@ const FrameworkManagement: React.FC = () => {
     try {
       setLoading(true);
       const [frameworksData, soldiersData, treeData, rolesData] = await Promise.all([
-        getAllFrameworks(),
-        getAllSoldiers(),
+        dataLayer.getAll('frameworks'),
+        dataLayer.getAll('soldiers'),
         getFrameworkTree(),
         getAllRoles()
       ]);
       
-      setFrameworks(frameworksData);
-      setSoldiers(soldiersData);
+      setFrameworks(frameworksData as Framework[]);
+      setSoldiers(soldiersData as Soldier[]);
       setFrameworkTree(treeData);
       setRoles(rolesData);
     } catch (error) {
@@ -174,7 +173,7 @@ const FrameworkManagement: React.FC = () => {
           updateData.parentFrameworkId = formData.parentFrameworkId;
         }
         
-        await updateFramework(editingFramework.id, updateData);
+        await dataLayer.update('frameworks', editingFramework.id, updateData);
 
         // אם נבחרו מפקד ותפקיד – עדכון תפקיד המשתמש במערכת
         if (formData.commanderId && formData.commanderId.trim() && formData.commanderRoleId && formData.commanderRoleId.trim()) {
@@ -218,7 +217,7 @@ const FrameworkManagement: React.FC = () => {
           createData.parentFrameworkId = formData.parentFrameworkId;
         }
         
-        await createFramework(createData);
+        await dataLayer.create('frameworks', createData);
 
         // אם נבחרו מפקד ותפקיד – עדכון תפקיד המשתמש במערכת
         if (formData.commanderId && formData.commanderId.trim() && formData.commanderRoleId && formData.commanderRoleId.trim()) {
@@ -259,13 +258,16 @@ const FrameworkManagement: React.FC = () => {
   const handleDelete = async (framework: Framework) => {
     if (window.confirm(`האם אתה בטוח שברצונך למחוק את המסגרת "${framework.name}"?`)) {
       try {
-        const success = await deleteFramework(framework.id);
-        if (success) {
-          setSuccess('המסגרת נמחקה בהצלחה');
-          loadData();
-        } else {
+        // בדיקה האם יש מסגרות בנות
+        const childFrameworks = frameworks.filter(f => f.parentFrameworkId === framework.id);
+        if (childFrameworks.length > 0) {
           setError('לא ניתן למחוק מסגרת עם מסגרות בנות');
+          return;
         }
+        
+        await dataLayer.delete('frameworks', framework.id);
+        setSuccess('המסגרת נמחקה בהצלחה');
+        loadData();
       } catch (error) {
         console.error('שגיאה במחיקת המסגרת:', error);
         setError('שגיאה במחיקת המסגרת');
