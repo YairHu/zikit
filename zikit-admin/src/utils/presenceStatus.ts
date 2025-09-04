@@ -23,8 +23,8 @@ export const STATUS_HIERARCHY: Record<PresenceStatus, number> = {
   'במנוחה': 2,
   'בתורנות': 3,
   'בהפניה': 4,
-  'בפעילות': 5,
-  'בנסיעה': 6,
+  'בנסיעה': 5,
+  'בפעילות': 6,
   'חופש': 7,
   'גימלים': 8,
   'אחר': 9,
@@ -192,6 +192,13 @@ export const isRegularStatus = (status: PresenceStatus): boolean => {
  * קבלת סטטוס ברירת מחדל
  */
 export const getDefaultStatus = (): PresenceStatus => {
+  return 'בבסיס';
+};
+
+/**
+ * קבלת סטטוס ברירת מחדל לחייל ללא סטטוס מוגדר
+ */
+export const getDefaultPresenceStatus = (): PresenceStatus => {
   return 'בבסיס';
 };
 

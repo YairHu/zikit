@@ -71,7 +71,7 @@ const Hamal: React.FC = () => {
   const [data, setData] = useState<OrganizationalStructure | null>(null);
   const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(0.5);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showSoldiers, setShowSoldiers] = useState(true);
   const [showPresence, setShowPresence] = useState(true);
@@ -346,8 +346,8 @@ const Hamal: React.FC = () => {
 
   // Zoom handling
   const handleZoomIn = () => setZoom(z => Math.min(2, +(z + 0.1).toFixed(2)));
-  const handleZoomOut = () => setZoom(z => Math.max(0.5, +(z - 0.1).toFixed(2)));
-  const handleZoomReset = () => setZoom(1);
+  const handleZoomOut = () => setZoom(z => Math.max(0.1, +(z - 0.1).toFixed(2)));
+  const handleZoomReset = () => setZoom(0.5);
 
   const formatTime = (date: Date) => {
     return formatToIsraelString(date, { 
@@ -433,36 +433,82 @@ const Hamal: React.FC = () => {
             </Box>
           </Box>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
             <FormControlLabel
               control={
                 <Switch
                   checked={autoRefresh}
                   onChange={(e) => setAutoRefresh(e.target.checked)}
+                  size="small"
                 />
               }
               label="רענון אוטומטי"
+              sx={{ 
+                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                '& .MuiFormControlLabel-label': {
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                }
+              }}
             />
             <Tooltip title="רענן נתונים">
-              <IconButton onClick={loadOrganizationalData} size={"medium"}>
+              <IconButton onClick={loadOrganizationalData} size="small">
                 <RefreshIcon />
               </IconButton>
             </Tooltip>
-            {/* Zoom controls */}
-            <Tooltip title="הקטן">
-              <IconButton onClick={handleZoomOut} disabled={zoom <= 0.5}>
-                <ZoomOutIcon />
-              </IconButton>
-            </Tooltip>
-            <Typography variant="body2" sx={{ minWidth: 60, textAlign: 'center' }}>
-              {Math.round(zoom * 100)}%
-            </Typography>
-            <Tooltip title="הגדל">
-              <IconButton onClick={handleZoomIn} disabled={zoom >= 2}>
-                <ZoomInIcon />
-              </IconButton>
-            </Tooltip>
-            <Button size="small" onClick={handleZoomReset}>100%</Button>
+            
+            {/* Zoom controls - מסודרים בשורה אחת עם מרווחים קטנים */}
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 0.5,
+              border: '1px solid #ddd',
+              borderRadius: 1,
+              px: 0.5,
+              py: 0.25
+            }}>
+              <Tooltip title="הקטן">
+                <IconButton 
+                  onClick={handleZoomOut} 
+                  disabled={zoom <= 0.1}
+                  size="small"
+                  sx={{ minWidth: 32, height: 32 }}
+                >
+                  <ZoomOutIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  minWidth: 40, 
+                  textAlign: 'center',
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                }}
+              >
+                {Math.round(zoom * 100)}%
+              </Typography>
+              <Tooltip title="הגדל">
+                <IconButton 
+                  onClick={handleZoomIn} 
+                  disabled={zoom >= 2}
+                  size="small"
+                  sx={{ minWidth: 32, height: 32 }}
+                >
+                  <ZoomInIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+            
+            <Button 
+              size="small" 
+              onClick={handleZoomReset}
+              variant="outlined"
+              sx={{ 
+                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                minWidth: { xs: 50, sm: 60 }
+              }}
+            >
+              50%
+            </Button>
           </Box>
         </Box>
 
@@ -472,7 +518,19 @@ const Hamal: React.FC = () => {
             <Tabs 
               value={activeTab} 
               onChange={(_, newValue) => setActiveTab(newValue)}
-              sx={{ mb: 2 }}
+              variant="scrollable"
+              scrollButtons="auto"
+              allowScrollButtonsMobile
+              sx={{ 
+                mb: 2,
+                '& .MuiTab-root': {
+                  fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                  minWidth: { xs: '120px', sm: '160px' }
+                },
+                '& .MuiTabs-scrollButtons': {
+                  '&.Mui-disabled': { opacity: 0.3 },
+                },
+              }}
             >
               <Tab icon={<TreeIcon />} label="תצוגה גראפית" />
               <Tab icon={<CalendarViewWeekIcon />} label="דאשבורד פעילויות" />
@@ -481,16 +539,38 @@ const Hamal: React.FC = () => {
             </Tabs>
             
             {activeTab === 0 && (
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between', 
+                flexWrap: 'wrap', 
+                gap: 1,
+                '& .MuiFormControlLabel-root': {
+                  margin: 0,
+                  marginRight: 0
+                }
+              }}>
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 1,
+                  flexWrap: 'wrap'
+                }}>
                   <FormControlLabel
                     control={
                       <Switch
                         checked={showSoldiers}
                         onChange={(e) => setShowSoldiers(e.target.checked)}
+                        size="small"
                       />
                     }
                     label="הצג חיילים"
+                    sx={{ 
+                      fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                      '& .MuiFormControlLabel-label': {
+                        fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                      }
+                    }}
                   />
                   <FormControlLabel
                     control={
@@ -498,9 +578,16 @@ const Hamal: React.FC = () => {
                         checked={showPresence}
                         onChange={(e) => setShowPresence(e.target.checked)}
                         disabled={!showSoldiers}
+                        size="small"
                       />
                     }
                     label="צבע לפי נוכחות"
+                    sx={{ 
+                      fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                      '& .MuiFormControlLabel-label': {
+                        fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                      }
+                    }}
                   />
                 </Box>
               </Box>
@@ -537,17 +624,13 @@ const Hamal: React.FC = () => {
         {/* Content based on active tab */}
         {activeTab === 0 ? (
           /* Card-based Hierarchical View */
-          <Box>
-
-            {/* תרשים רקורסיבי כקומפוננטה נפרדת */}
-            <FrameworksTree
-              frameworks={data?.frameworks || []}
-              soldiers={data?.soldiers || []}
-              zoom={zoom}
-              showSoldiers={showSoldiers}
-              showPresence={showPresence}
-                />
-              </Box>
+          <FrameworksTree
+            frameworks={data?.frameworks || []}
+            soldiers={data?.soldiers || []}
+            zoom={zoom}
+            showSoldiers={showSoldiers}
+            showPresence={showPresence}
+          />
         ) : activeTab === 1 ? (
           /* Weekly Activities Dashboard */
           <Box>
@@ -570,14 +653,53 @@ const Hamal: React.FC = () => {
             />
           </Box>
         ) : activeTab === 2 ? (
-          /* Trips Timeline */
-          <TripsTimeline
-            trips={data?.trips || []}
-            vehicles={[]}
-            drivers={data?.soldiers || []}
-            activities={data?.activities || []}
-            frameworks={data?.frameworks || []}
-          />
+          /* Trips Dashboard and Timeline */
+          <Box>
+            {/* דאשבורד נסיעות */}
+            <Card sx={{ mb: 3 }}>
+              <CardContent>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  דאשבורד נסיעות
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                  <Chip 
+                    label={`נסיעות בביצוע: ${data?.trips.filter(t => t.status === 'בביצוע').length || 0}`} 
+                    color="warning" 
+                    sx={{ fontWeight: 600 }}
+                  />
+                  <Chip 
+                    label={`נסיעות מתוכננות: ${data?.trips.filter(t => t.status === 'מתוכננת').length || 0}`} 
+                    color="info" 
+                    sx={{ fontWeight: 600 }}
+                  />
+                  <Chip 
+                    label={`נהגים זמינים: ${data?.soldiers.filter(s => s.presence === 'בבסיס' && s.qualifications?.includes('נהג')).length || 0}`} 
+                    color="success" 
+                    sx={{ fontWeight: 600 }}
+                  />
+                  <Chip 
+                    label={`נהגים בנסיעה: ${data?.soldiers.filter(s => s.presence === 'בנסיעה').length || 0}`} 
+                    color="warning" 
+                    sx={{ fontWeight: 600 }}
+                  />
+                  <Chip 
+                    label={`נהגים במנוחה: ${data?.soldiers.filter(s => s.presence === 'במנוחה').length || 0}`} 
+                    color="secondary" 
+                    sx={{ fontWeight: 600 }}
+                  />
+                </Box>
+              </CardContent>
+            </Card>
+            
+            {/* ציר זמן נסיעות */}
+            <TripsTimeline
+              trips={data?.trips || []}
+              vehicles={[]}
+              drivers={data?.soldiers || []}
+              activities={data?.activities || []}
+              frameworks={data?.frameworks || []}
+            />
+          </Box>
         ) : (
           /* Soldiers Timeline */
           <SoldiersTimeline

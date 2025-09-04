@@ -184,26 +184,34 @@ const TripsDashboard: React.FC<TripsDashboardProps> = ({
               נהגים זמינים
             </Typography>
             <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-              <Chip size="small" label={`${stats.driversOnTrip} בנסיעה`} sx={{ 
-                fontSize: { xs: '0.6rem', sm: '0.75rem' },
-                backgroundColor: getStatusColor('בנסיעה' as PresenceStatus),
-                color: '#fff'
-              }} />
-              <Chip size="small" label={`${stats.driversResting} במנוחה`} sx={{ 
-                fontSize: { xs: '0.6rem', sm: '0.75rem' },
-                backgroundColor: getStatusColor('במנוחה' as PresenceStatus),
-                color: '#fff'
-              }} />
-              <Chip size="small" label={`${stats.driversOnSickLeave} בגימלים`} sx={{ 
-                fontSize: { xs: '0.6rem', sm: '0.75rem' },
-                backgroundColor: getStatusColor('גימלים' as PresenceStatus),
-                color: '#fff'
-              }} />
-              <Chip size="small" label={`${stats.driversOnVacation} בחופש`} sx={{ 
-                fontSize: { xs: '0.6rem', sm: '0.75rem' },
-                backgroundColor: getStatusColor('חופש' as PresenceStatus),
-                color: '#fff'
-              }} />
+              {stats.driversOnTrip > 0 && (
+                <Chip size="small" label={`${stats.driversOnTrip} בנסיעה`} sx={{ 
+                  fontSize: { xs: '0.6rem', sm: '0.75rem' },
+                  backgroundColor: getStatusColor('בנסיעה' as PresenceStatus),
+                  color: '#fff'
+                }} />
+              )}
+              {stats.driversResting > 0 && (
+                <Chip size="small" label={`${stats.driversResting} במנוחה`} sx={{ 
+                  fontSize: { xs: '0.6rem', sm: '0.75rem' },
+                  backgroundColor: getStatusColor('במנוחה' as PresenceStatus),
+                  color: '#fff'
+                }} />
+              )}
+              {stats.driversOnSickLeave > 0 && (
+                <Chip size="small" label={`${stats.driversOnSickLeave} בגימלים`} sx={{ 
+                  fontSize: { xs: '0.6rem', sm: '0.75rem' },
+                  backgroundColor: getStatusColor('גימלים' as PresenceStatus),
+                  color: '#fff'
+                }} />
+              )}
+              {stats.driversOnVacation > 0 && (
+                <Chip size="small" label={`${stats.driversOnVacation} בחופש`} sx={{ 
+                  fontSize: { xs: '0.6rem', sm: '0.75rem' },
+                  backgroundColor: getStatusColor('חופש' as PresenceStatus),
+                  color: '#fff'
+                }} />
+              )}
               {stats.driversOther > 0 && (
                 <Chip size="small" label={`${stats.driversOther} אחר`} sx={{ 
                   fontSize: { xs: '0.6rem', sm: '0.75rem' },

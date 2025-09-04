@@ -1197,65 +1197,50 @@ const Activities: React.FC = () => {
         activitySummary
       });
       
-      // עדכון נוכחות המשתתפים
-      for (const participant of activity.participants) {
-        const isTaskLeader = activity.taskLeaderId === participant.soldierId;
-        
-        if (!isTaskLeader) {
-          // בדיקה אם המשתתף הוא נהג
-          const soldier = soldiers.find(s => s.id === participant.soldierId);
-          const isDriver = soldier?.qualifications?.includes('נהג');
-          
-          if (isDriver) {
-            // נהג עובר למנוחה - חישוב זמן סיום מנוחה
-            // מציאת הנסיעה המקושרת לנהג
-            const driverTrip = linkedTrips.find(trip => trip.driverId === participant.soldierId);
-            if (driverTrip) {
-              const endTime = tripEndTimes[driverTrip.id];
-              if (endTime) {
-                // העברת זמן סיום הנסיעה לפונקציה
+                // עדכון נוכחות המשתתפים
+          for (const participant of activity.participants) {
+            const isTaskLeader = activity.taskLeaderId === participant.soldierId;
+            
+            if (!isTaskLeader) {
+              // בדיקה אם המשתתף הוא נהג בנסיעות המקושרות לפעילות זו
+              const isDriverInLinkedTrips = linkedTrips.some(trip => trip.driverId === participant.soldierId);
+              
+              if (isDriverInLinkedTrips) {
+                // נהג בנסיעות מקושרות עובר למנוחה
+                const driverTrip = linkedTrips.find(trip => trip.driverId === participant.soldierId);
+                if (driverTrip) {
+                  const endTime = tripEndTimes[driverTrip.id];
+                  if (endTime) {
+                    // העברת זמן סיום הנסיעה לפונקציה
+                    await updateSoldierStatus(participant.soldierId, 'בבסיס', { 
+                      activityId: activity.id,
+                      isEnding: true,
+                      tripEndTime: endTime
+                    });
+                  } else {
+                    // אם אין זמן סיום נסיעה - מנוחה של 7 שעות מעכשיו
+                    const now = new Date();
+                    const restEndDate = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+                    
+                    // עדכון ישיר של החייל עם זמן מנוחה
+                    const soldier = soldiers.find(s => s.id === participant.soldierId);
+                    if (soldier) {
+                      await updateSoldier(soldier.id, {
+                        presence: 'במנוחה',
+                        restUntil: restEndDate.toISOString()
+                      });
+                    }
+                  }
+                }
+              } else {
+                // משתתף רגיל או נהג שלא בנסיעות מקושרות חוזר לבסיס
                 await updateSoldierStatus(participant.soldierId, 'בבסיס', { 
                   activityId: activity.id,
-                  isEnding: true,
-                  tripEndTime: endTime
-                });
-              } else {
-                // אם אין זמן סיום נסיעה - מנוחה של 7 שעות מעכשיו
-                const now = new Date();
-                const restEndDate = new Date(now.getTime() + (7 * 60 * 60 * 1000));
-                
-                // עדכון ישיר של החייל עם זמן מנוחה
-                const soldier = soldiers.find(s => s.id === participant.soldierId);
-                if (soldier) {
-                  await updateSoldier(soldier.id, {
-                    presence: 'במנוחה',
-                    restUntil: restEndDate.toISOString()
-                  });
-                }
-              }
-            } else {
-              // אם אין נסיעה מקושרת - מנוחה של 7 שעות מעכשיו
-              const now = new Date();
-              const restEndDate = new Date(now.getTime() + (7 * 60 * 60 * 1000));
-              
-              // עדכון ישיר של החייל עם זמן מנוחה
-              const soldier = soldiers.find(s => s.id === participant.soldierId);
-              if (soldier) {
-                await updateSoldier(soldier.id, {
-                  presence: 'במנוחה',
-                  restUntil: restEndDate.toISOString()
+                  isEnding: true
                 });
               }
             }
-          } else {
-            // משתתף רגיל חוזר לבסיס
-            await updateSoldierStatus(participant.soldierId, 'בבסיס', { 
-              activityId: activity.id,
-              isEnding: true
-            });
           }
-        }
-      }
       
       handleCloseEndActivityDialog();
       await refresh();
@@ -1313,22 +1298,24 @@ const Activities: React.FC = () => {
         flexWrap: 'wrap', 
         alignItems: 'center' 
       }}>
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={showCompletedActivities}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowCompletedActivities(e.target.checked)}
-              size="small"
-            />
-          }
-          label="הצג פעילויות שהסתיימו"
-          sx={{ 
-            fontSize: { xs: '0.8rem', sm: '0.875rem' },
-            '& .MuiFormControlLabel-label': {
-              fontSize: { xs: '0.8rem', sm: '0.875rem' }
+        {viewMode !== 'dashboard' && (
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={showCompletedActivities}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowCompletedActivities(e.target.checked)}
+                size="small"
+              />
             }
-          }}
-        />
+            label="הצג פעילויות שהסתיימו"
+            sx={{ 
+              fontSize: { xs: '0.8rem', sm: '0.875rem' },
+              '& .MuiFormControlLabel-label': {
+                fontSize: { xs: '0.8rem', sm: '0.875rem' }
+              }
+            }}
+          />
+        )}
         <Tabs 
           value={viewMode === 'dashboard' ? 0 : viewMode === 'cards' ? 1 : 2} 
           onChange={(_, newValue) => setViewMode(newValue === 0 ? 'dashboard' : newValue === 1 ? 'cards' : 'table')}
@@ -1339,7 +1326,7 @@ const Activities: React.FC = () => {
             }
           }}
         >
-                        <Tab icon={<CalendarViewWeekIcon />} label="דאשבורד פעילויות" />
+          <Tab icon={<CalendarViewWeekIcon />} label="מסגרות" />
           <Tab icon={<ViewModuleIcon />} label="כרטיסים" />
           <Tab icon={<ViewListIcon />} label="טבלה" />
         </Tabs>
@@ -2009,7 +1996,7 @@ const Activities: React.FC = () => {
                   type="number"
                   value={formData.duration}
                   onChange={handleChange}
-                  inputProps={{ min: 1, max: 24 }}
+                  inputProps={{ min: 1 }}
                   sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
                 />
               </Box>

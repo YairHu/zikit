@@ -2025,6 +2025,7 @@ const Trips: React.FC = () => {
                     <TableCell>קילומטרז</TableCell>
                     <TableCell>מקומות</TableCell>
                     <TableCell>סטטוס</TableCell>
+                    <TableCell>היתר נדרש</TableCell>
                     <TableCell>טיפול הבא</TableCell>
                     <TableCell>פעולות</TableCell>
                   </TableRow>
@@ -2043,6 +2044,7 @@ const Trips: React.FC = () => {
                           size="small"
                         />
                       </TableCell>
+                      <TableCell>{vehicle.requiredLicense || '-'}</TableCell>
                       <TableCell>
                         {vehicle.nextMaintenance ? new Date(vehicle.nextMaintenance).toLocaleDateString('he-IL') : '-'}
                       </TableCell>
@@ -2465,6 +2467,7 @@ const Trips: React.FC = () => {
                   <MenuItem value="פעילות מבצעית">פעילות מבצעית</MenuItem>
                   <MenuItem value="נסיעה מנהלתית">נסיעה מנהלתית</MenuItem>
                   <MenuItem value="פינוי">פינוי</MenuItem>
+                  <MenuItem value="טיפול">טיפול</MenuItem>
                   <MenuItem value="אחר">אחר</MenuItem>
                 </Select>
               </FormControl>

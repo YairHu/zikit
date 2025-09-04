@@ -354,6 +354,8 @@ export const getSoldierCurrentStatus = (soldier: Soldier): SoldierStatus => {
     if (now >= restUntil) {
       return getDefaultStatus();
     }
+    // המנוחה עדיין פעילה - החזר "במנוחה"
+    return 'במנוחה';
   }
   
   // בדיקה שהערך תקין - כולל סטטוסים מיוחדים

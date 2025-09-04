@@ -173,8 +173,12 @@ const WeeklyActivitiesDashboard: React.FC<WeeklyActivitiesDashboardProps> = ({
     if (showByParticipants) {
       // לפי משתתפים - כל פעילות שיש בה משתתף מהמסגרת
       return filteredActivities.filter(activity => {
-        // בדיקה אם התאריך מתאים
-        if (activity.plannedDate !== targetDateString) return false;
+        // בדיקה אם התאריך מתאים - המרה לפורמט ISO string
+        if (!activity.plannedDate) return false;
+        const activityDate = new Date(activity.plannedDate);
+        if (isNaN(activityDate.getTime())) return false;
+        const activityDateString = activityDate.toISOString().split('T')[0];
+        if (activityDateString !== targetDateString) return false;
         
         // בדיקה אם יש משתתף מהמסגרת
         const frameworkSoldiers = soldiers.filter(soldier => 
@@ -187,10 +191,14 @@ const WeeklyActivitiesDashboard: React.FC<WeeklyActivitiesDashboardProps> = ({
       });
     } else {
       // לפי שיוך - פעילויות שמשויכות למסגרת
-      return filteredActivities.filter(activity => 
-        activity.frameworkId === frameworkId && 
-        activity.plannedDate === targetDateString
-      );
+      return filteredActivities.filter(activity => {
+        // המרה לפורמט ISO string להשוואה נכונה
+        if (!activity.plannedDate) return false;
+        const activityDate = new Date(activity.plannedDate);
+        if (isNaN(activityDate.getTime())) return false;
+        const activityDateString = activityDate.toISOString().split('T')[0];
+        return activity.frameworkId === frameworkId && activityDateString === targetDateString;
+      });
     }
   }, [activities, soldiers, showByParticipants, showCompletedActivities, getCurrentWeekDates, isChildFramework]);
 
@@ -205,6 +213,7 @@ const WeeklyActivitiesDashboard: React.FC<WeeklyActivitiesDashboardProps> = ({
       // חישוב התאריך של הטקסט
       const textDate = new Date();
       textDate.setDate(textDate.getDate() + (text.dayOfWeek - textDate.getDay()) + (weekOffset * 7));
+      if (isNaN(textDate.getTime())) return false;
       const textDateString = textDate.toISOString().split('T')[0];
       
       return text.frameworkId === frameworkId && textDateString === targetDateString;
@@ -229,6 +238,7 @@ const WeeklyActivitiesDashboard: React.FC<WeeklyActivitiesDashboardProps> = ({
     // חישוב התאריך האמיתי של הטקסט
     const textDate = new Date();
     textDate.setDate(textDate.getDate() + (dayOfWeek - textDate.getDay()) + (weekOffset * 7));
+    if (isNaN(textDate.getTime())) return;
     const textDateString = textDate.toISOString().split('T')[0];
     
     if (isNew) {
@@ -248,6 +258,7 @@ const WeeklyActivitiesDashboard: React.FC<WeeklyActivitiesDashboardProps> = ({
       const updatedTexts = additionalTexts.map(t => {
         const tDate = new Date();
         tDate.setDate(tDate.getDate() + (t.dayOfWeek - tDate.getDay()) + (weekOffset * 7));
+        if (isNaN(tDate.getTime())) return t;
         const tDateString = tDate.toISOString().split('T')[0];
         
         if (t.frameworkId === frameworkId && tDateString === textDateString) {
@@ -267,6 +278,7 @@ const WeeklyActivitiesDashboard: React.FC<WeeklyActivitiesDashboardProps> = ({
   // פונקציה למחיקת טקסט נוסף
   const handleDeleteText = (frameworkId: string, dayIndex: number) => {
     // חישוב התאריך של היום הזה בשבוע הנוכחי
+    const weekDates = getCurrentWeekDates();
     const targetDate = weekDates[dayIndex];
     const targetDateString = targetDate.toISOString().split('T')[0];
     
@@ -274,6 +286,7 @@ const WeeklyActivitiesDashboard: React.FC<WeeklyActivitiesDashboardProps> = ({
       // חישוב התאריך של הטקסט
       const textDate = new Date();
       textDate.setDate(textDate.getDate() + (t.dayOfWeek - textDate.getDay()) + (weekOffset * 7));
+      if (isNaN(textDate.getTime())) return true;
       const textDateString = textDate.toISOString().split('T')[0];
       
       return !(t.frameworkId === frameworkId && textDateString === targetDateString);
@@ -415,15 +428,25 @@ const WeeklyActivitiesDashboard: React.FC<WeeklyActivitiesDashboardProps> = ({
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
             <Chip 
               label={`סה"כ פעילויות: ${activities.filter(a => {
+                if (!a.plannedDate) return false;
                 const activityDate = new Date(a.plannedDate);
-                return activityDate >= weekDates[0] && activityDate <= weekDates[6];
+                if (isNaN(activityDate.getTime())) return false;
+                const activityDateString = activityDate.toISOString().split('T')[0];
+                const weekStartString = weekDates[0].toISOString().split('T')[0];
+                const weekEndString = weekDates[6].toISOString().split('T')[0];
+                return activityDateString >= weekStartString && activityDateString <= weekEndString;
               }).length}`} 
               color="primary" 
             />
             <Chip 
               label={`פעילויות השבוע: ${activities.filter(a => {
+                if (!a.plannedDate) return false;
                 const activityDate = new Date(a.plannedDate);
-                const inWeek = activityDate >= weekDates[0] && activityDate <= weekDates[6];
+                if (isNaN(activityDate.getTime())) return false;
+                const activityDateString = activityDate.toISOString().split('T')[0];
+                const weekStartString = weekDates[0].toISOString().split('T')[0];
+                const weekEndString = weekDates[6].toISOString().split('T')[0];
+                const inWeek = activityDateString >= weekStartString && activityDateString <= weekEndString;
                 const notCompleted = showCompletedActivities || a.status !== 'הסתיימה';
                 return inWeek && notCompleted;
               }).length}`} 
@@ -437,7 +460,11 @@ const WeeklyActivitiesDashboard: React.FC<WeeklyActivitiesDashboardProps> = ({
               label={`טקסטים נוספים: ${additionalTexts.filter(text => {
                 const textDate = new Date();
                 textDate.setDate(textDate.getDate() + (text.dayOfWeek - textDate.getDay()) + (weekOffset * 7));
-                return textDate >= weekDates[0] && textDate <= weekDates[6];
+                if (isNaN(textDate.getTime())) return false;
+                const textDateString = textDate.toISOString().split('T')[0];
+                const weekStartString = weekDates[0].toISOString().split('T')[0];
+                const weekEndString = weekDates[6].toISOString().split('T')[0];
+                return textDateString >= weekStartString && textDateString <= weekEndString;
               }).length}`} 
               color="warning" 
             />

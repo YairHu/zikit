@@ -163,6 +163,52 @@ const theme = createTheme({
           fontWeight: 600,
         }
       }
+    },
+    // RTL Support for Material-UI components
+    MuiInputBase: {
+      styleOverrides: {
+        input: {
+          direction: 'rtl',
+          textAlign: 'right',
+        }
+      }
+    },
+    MuiFormLabel: {
+      styleOverrides: {
+        root: {
+          direction: 'rtl',
+          textAlign: 'right',
+          right: 0,
+          left: 'auto',
+          transformOrigin: 'right',
+        }
+      }
+    },
+    MuiSelect: {
+      styleOverrides: {
+        select: {
+          direction: 'rtl',
+          textAlign: 'right',
+        }
+      }
+    },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          direction: 'rtl',
+          '& .MuiInputBase-root': {
+            direction: 'rtl',
+          }
+        }
+      }
+    },
+    MuiAutocomplete: {
+      styleOverrides: {
+        input: {
+          direction: 'rtl',
+          textAlign: 'right',
+        }
+      }
     }
   }
 });

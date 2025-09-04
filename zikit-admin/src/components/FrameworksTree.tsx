@@ -157,7 +157,7 @@ const FrameworkNode: React.FC<{
             sx={{ 
               display: 'flex', 
               alignItems: 'center', 
-              gap: 1, 
+              justifyContent: 'space-between', 
               mb: 1.5, 
               bgcolor: 'action.hover', 
               p: 1.5, 
@@ -171,10 +171,24 @@ const FrameworkNode: React.FC<{
             tabIndex={commander ? 0 : undefined}
             aria-label={commander ? `עבור לפרטי המפקד ${commanderName}` : undefined}
           >
-            <MilitaryTechIcon fontSize="small" color="warning" />
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              מפקד: {commanderName}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <MilitaryTechIcon fontSize="small" color="warning" />
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                מפקד: {commanderName}
+              </Typography>
+            </Box>
+            {showPresence && commander && (
+              <Chip 
+                size="small" 
+                label={commander.presence || 'לא מוגדר'} 
+                sx={{ 
+                  bgcolor: getStatusColor((commander.presence || 'לא מוגדר') as PresenceStatus), 
+                  color: '#fff', 
+                  fontWeight: 600,
+                  fontSize: '0.75rem'
+                }} 
+              />
+            )}
           </Box>
 
           {/* סטטיסטיקות */}
@@ -235,9 +249,9 @@ const FrameworkNode: React.FC<{
                         {showPresence && (
                           <Chip 
                             size="small" 
-                            label={s.presence || ''} 
+                            label={s.presence || 'לא מוגדר'} 
                             sx={{ 
-                              bgcolor: getStatusColor((s.presence || 'נפקדי') as PresenceStatus), 
+                              bgcolor: getStatusColor((s.presence || 'לא מוגדר') as PresenceStatus), 
                               color: '#fff', 
                               fontWeight: 600,
                               fontSize: '0.75rem'
@@ -285,9 +299,9 @@ const FrameworkNode: React.FC<{
                         {showPresence && (
                           <Chip 
                             size="small" 
-                            label={s.presence || ''} 
+                            label={s.presence || 'לא מוגדר'} 
                             sx={{ 
-                              bgcolor: getStatusColor((s.presence || 'נפקדי') as PresenceStatus), 
+                              bgcolor: getStatusColor((s.presence || 'לא מוגדר') as PresenceStatus), 
                               color: '#fff', 
                               fontWeight: 600,
                               fontSize: '0.75rem'
@@ -503,7 +517,8 @@ const FrameworksTree: React.FC<FrameworksTreeProps> = ({
             gap: 4, 
             alignItems: 'flex-start',
             justifyContent: 'center',
-            flexWrap: 'nowrap'
+            flexWrap: 'nowrap',
+            flexDirection: 'row'
           }}
         >
           {roots.map(framework => (

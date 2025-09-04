@@ -9,7 +9,7 @@ import { getSoldierCurrentStatus, getStatusColor, getStatusText } from '../servi
 import { Link } from 'react-router-dom';
 import { getAllStatuses, requiresAbsenceDate, requiresCustomText } from '../utils/presenceStatus';
 import SoldierForm from '../components/SoldierForm';
-import HierarchicalChart from '../components/HierarchicalChart';
+
 import { useUser } from '../contexts/UserContext';
 import { UserRole, SystemPath, PermissionLevel, DataScope } from '../models/UserRole';
 import { getUserAllPermissions } from '../services/permissionService';
@@ -68,7 +68,7 @@ import {
   ExpandMore as ExpandMoreIcon,
   Group as GroupIcon,
   Star as StarIcon,
-  LocalOffer as BadgeIcon,
+
   Security as SecurityIcon,
   SupervisorAccount as SupervisorAccountIcon,
   Settings as SettingsIcon,
@@ -94,7 +94,7 @@ const Soldiers: React.FC = () => {
   const [filterQualification, setFilterQualification] = useState('');
   const [filterPresence, setFilterPresence] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState<'cards' | 'table' | 'hierarchy'>('cards');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [permissions, setPermissions] = useState({
     canView: false,
@@ -113,8 +113,7 @@ const Soldiers: React.FC = () => {
     { key: 'profile', label: 'פרופיל', visible: true },
     { key: 'presence', label: 'נוכחות', visible: true },
     { key: 'qualifications', label: 'כשירויות', visible: true },
-    { key: 'licenses', label: 'רישיונות', visible: true },
-    { key: 'drivingLicenses', label: 'היתרים', visible: false },
+    { key: 'drivingLicenses', label: 'היתרים', visible: true },
     { key: 'actions', label: 'פעולות', visible: true }
   ];
   
@@ -382,7 +381,6 @@ const Soldiers: React.FC = () => {
           >
             <Tab label="תצוגת כרטיסים" value="cards" />
             <Tab label="תצוגה טבלאית" value="table" />
-            <Tab label="תצוגה היררכית" value="hierarchy" />
           </Tabs>
           
           {viewMode === 'table' && (
@@ -399,84 +397,82 @@ const Soldiers: React.FC = () => {
         </Box>
       </Box>
 
-      {/* Search and Filters - מוסתר בתצוגה היררכית */}
-      {viewMode !== 'hierarchy' && (
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Box sx={{ 
-              display: 'grid', 
-              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, 
-              gap: 2 
-            }}>
-              <TextField
-                fullWidth
-                placeholder="חיפוש לפי שם או מספר אישי"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-              <Accordion>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <FilterIcon />
-                    <Typography>מסננים</Typography>
-                  </Box>
-                </AccordionSummary>
-                <AccordionDetails>
-                  <Box sx={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, 
-                    gap: 2 
-                  }}>
-                    <TextField
-                      fullWidth
-                      label="מסגרת"
-                      value={filterFramework}
-                      onChange={(e) => setFilterFramework(e.target.value)}
-                      size="small"
-                    />
-                    <TextField
-                      fullWidth
-                      label="תפקיד"
-                      value={filterRole}
-                      onChange={(e) => setFilterRole(e.target.value)}
-                      size="small"
-                    />
-                    <TextField
-                      fullWidth
-                      label="כשירות"
-                      value={filterQualification}
-                      onChange={(e) => setFilterQualification(e.target.value)}
-                      size="small"
-                    />
-                    <FormControl fullWidth size="small">
-                      <InputLabel>נוכחות</InputLabel>
-                      <Select
-                        value={filterPresence}
-                        onChange={(e: any) => setFilterPresence(e.target.value)}
-                        label="נוכחות"
-                      >
-                        <MenuItem value="">כל הנוכחויות</MenuItem>
-                        {getAllStatuses().map(status => (
-                          <MenuItem key={status} value={status}>
-                            {status}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Box>
-                </AccordionDetails>
-              </Accordion>
-            </Box>
-          </CardContent>
-        </Card>
-      )}
+      {/* Search and Filters */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Box sx={{ 
+            display: 'grid', 
+            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, 
+            gap: 2 
+          }}>
+            <TextField
+              fullWidth
+              placeholder="חיפוש לפי שם או מספר אישי"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <Accordion>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <FilterIcon />
+                  <Typography>מסננים</Typography>
+                </Box>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Box sx={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, 
+                  gap: 2 
+                }}>
+                  <TextField
+                    fullWidth
+                    label="מסגרת"
+                    value={filterFramework}
+                    onChange={(e) => setFilterFramework(e.target.value)}
+                    size="small"
+                  />
+                  <TextField
+                    fullWidth
+                    label="תפקיד"
+                    value={filterRole}
+                    onChange={(e) => setFilterRole(e.target.value)}
+                    size="small"
+                  />
+                  <TextField
+                    fullWidth
+                    label="כשירות"
+                    value={filterQualification}
+                    onChange={(e) => setFilterQualification(e.target.value)}
+                    size="small"
+                  />
+                  <FormControl fullWidth size="small">
+                    <InputLabel>נוכחות</InputLabel>
+                    <Select
+                      value={filterPresence}
+                      onChange={(e: any) => setFilterPresence(e.target.value)}
+                      label="נוכחות"
+                    >
+                      <MenuItem value="">כל הנוכחויות</MenuItem>
+                      {getAllStatuses().map(status => (
+                        <MenuItem key={status} value={status}>
+                          {status}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Box>
+              </AccordionDetails>
+            </Accordion>
+          </Box>
+        </CardContent>
+      </Card>
 
       {/* Content */}
       {loading ? (
@@ -618,17 +614,6 @@ const Soldiers: React.FC = () => {
                           </TableCell>
                         );
                       
-                      case 'licenses':
-                        return (
-                          <TableCell key={column.key}>
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                              {soldier.licenses?.map((license, index) => (
-                                <Chip key={index} label={license} size="small" color="success" variant="outlined" />
-                              ))}
-                            </Box>
-                          </TableCell>
-                        );
-                      
                       case 'drivingLicenses':
                         return (
                           <TableCell key={column.key}>
@@ -651,6 +636,8 @@ const Soldiers: React.FC = () => {
                             </Box>
                           </TableCell>
                         );
+                      
+
                       
                       case 'actions':
                         return (
@@ -679,13 +666,6 @@ const Soldiers: React.FC = () => {
             </TableBody>
           </Table>
         </TableContainer>
-      ) : viewMode === 'hierarchy' ? (
-        // Hierarchical Chart View - D3.js
-        <HierarchicalChart 
-          frameworks={frameworks}
-          soldiers={soldiers}
-          loading={loading}
-        />
       ) : (
         // Cards View
         <Box sx={{ 
@@ -710,26 +690,49 @@ const Soldiers: React.FC = () => {
                 }
               }}
             >
-              <CardContent sx={{ p: 3 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+              <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: { xs: 1.5, sm: 2 } }}>
                   <Box sx={{ flex: 1 }}>
-                    <Typography 
-                      variant="h6" 
-                      component={Link} 
-                      to={`/soldiers/${soldier.id}`}
-                      sx={{ 
-                        textDecoration: 'none', 
-                        color: 'primary.main',
-                        fontWeight: 600,
-                        '&:hover': { textDecoration: 'underline' }
-                      }}
-                    >
-                      {soldier.name}
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                      <Typography 
+                        variant="h6" 
+                        component={Link} 
+                        to={`/soldiers/${soldier.id}`}
+                        sx={{ 
+                          textDecoration: 'none', 
+                          color: 'primary.main',
+                          fontWeight: 600,
+                          '&:hover': { textDecoration: 'underline' }
+                        }}
+                      >
+                        {soldier.name}
+                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 0.5 }}>
+                        {permissions.canEdit && (
+                          <IconButton size="small" onClick={() => handleOpenForm(soldier)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        )}
+                        {permissions.canDelete && (
+                          <IconButton size="small" color="error" onClick={() => setDeleteId(soldier.id)}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        )}
+                      </Box>
+                    </Box>
+                    <Typography variant="body2" sx={{ 
+                      color: 'text.secondary', 
+                      mb: { xs: 0.5, sm: 1 },
+                      fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                    }}>
                       מס' אישי: {soldier.personalNumber}
                     </Typography>
-                    <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      gap: { xs: 0.5, sm: 1 }, 
+                      mb: { xs: 1.5, sm: 2 },
+                      flexWrap: 'wrap'
+                    }}>
                       <Chip 
                         icon={<GroupIcon />}
                         label={soldier.frameworkName || soldier.frameworkId || 'לא מוגדר'} 
@@ -738,6 +741,11 @@ const Soldiers: React.FC = () => {
                         variant="outlined"
                         sx={{ 
                           cursor: 'pointer',
+                          fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                          height: { xs: 24, sm: 32 },
+                          '& .MuiChip-label': {
+                            px: { xs: 0.5, sm: 1 }
+                          },
                           '&:hover': { 
                             bgcolor: 'primary.main',
                             color: 'white'
@@ -754,66 +762,98 @@ const Soldiers: React.FC = () => {
                         size="small" 
                         color="secondary" 
                         variant="outlined"
+                        sx={{
+                          fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                          height: { xs: 24, sm: 32 },
+                          '& .MuiChip-label': {
+                            px: { xs: 0.5, sm: 1 }
+                          }
+                        }}
                       />
                     </Box>
                   </Box>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                    {permissions.canEdit && (
-                      <IconButton size="small" onClick={() => handleOpenForm(soldier)}>
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                    )}
-                    {permissions.canDelete && (
-                      <IconButton size="small" color="error" onClick={() => setDeleteId(soldier.id)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    )}
-                  </Box>
                 </Box>
 
-                <Divider sx={{ my: 2 }} />
+                <Divider sx={{ my: { xs: 1.5, sm: 2 } }} />
 
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                <Box sx={{ mb: { xs: 1.5, sm: 2 } }}>
+                  <Typography variant="body2" sx={{ 
+                    fontWeight: 600, 
+                    mb: { xs: 0.5, sm: 1 },
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                  }}>
                     פרופיל רפואי:
                   </Typography>
                   <Chip 
                     label={soldier.profile}
+                    size="small"
                     sx={{ 
                       bgcolor: getProfileColor(soldier.profile),
                       color: 'white',
-                      fontWeight: 600
+                      fontWeight: 600,
+                      fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                      height: { xs: 24, sm: 32 },
+                      '& .MuiChip-label': {
+                        px: { xs: 0.5, sm: 1 }
+                      }
                     }}
                   />
                 </Box>
 
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                <Box sx={{ mb: { xs: 1.5, sm: 2 } }}>
+                  <Typography variant="body2" sx={{ 
+                    fontWeight: 600, 
+                    mb: { xs: 0.5, sm: 1 },
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                  }}>
                     נוכחות:
                   </Typography>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 0.25, sm: 0.5 } }}>
                     <Chip 
                       label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'}
+                      size="small"
                       sx={{ 
                         bgcolor: getPresenceColor(soldier.presence),
                         color: 'white',
-                        fontWeight: 600
+                        fontWeight: 600,
+                        fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                        height: { xs: 24, sm: 32 },
+                        '& .MuiChip-label': {
+                          px: { xs: 0.5, sm: 1 }
+                        }
                       }}
                     />
-                                                {requiresAbsenceDate(soldier.presence as any) && soldier.absenceUntil && (
-                              <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                                {`עד ${formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}`}
-                              </Typography>
-                            )}
+                    {requiresAbsenceDate(soldier.presence as any) && soldier.absenceUntil && (
+                      <Typography variant="caption" sx={{ 
+                        color: 'text.secondary', 
+                        fontStyle: 'italic',
+                        fontSize: { xs: '0.65rem', sm: '0.75rem' }
+                      }}>
+                        {`עד ${formatToIsraelString(soldier.absenceUntil, { year: 'numeric', month: '2-digit', day: '2-digit' })}`}
+                      </Typography>
+                    )}
                   </Box>
                 </Box>
 
                 {soldier.qualifications && soldier.qualifications.length > 0 && (
-                  <Box sx={{ mb: 2 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                  <Box sx={{ mb: { xs: 1.5, sm: 2 } }}>
+                    <Typography variant="body2" sx={{ 
+                      fontWeight: 600, 
+                      mb: { xs: 0.5, sm: 1 },
+                      fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                    }}>
                       כשירויות:
                     </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      flexDirection: 'row',
+                      flexWrap: { xs: 'nowrap', sm: 'wrap' }, 
+                      gap: { xs: 0.25, sm: 0.5 },
+                      justifyContent: 'flex-start',
+                      overflow: { xs: 'auto', sm: 'visible' },
+                      pb: { xs: 0.5, sm: 0 },
+                      minWidth: 0
+                    }}>
                       {soldier.qualifications.map((qual, index) => (
                         <Chip 
                           key={index}
@@ -822,58 +862,45 @@ const Soldiers: React.FC = () => {
                           size="small" 
                           color="success"
                           variant="outlined"
+                          sx={{
+                            fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                            height: { xs: 24, sm: 32 },
+                            '& .MuiChip-label': {
+                              px: { xs: 0.5, sm: 1 }
+                            },
+                            flexShrink: 0,
+                            minWidth: 'fit-content'
+                          }}
                         />
                       ))}
                     </Box>
                   </Box>
                 )}
 
-                {soldier.licenses && soldier.licenses.length > 0 && (
-                  <Box sx={{ mb: 2 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-                      רישיונות נהיגה:
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {soldier.licenses.map((license, index) => (
-                        <Chip 
-                          key={index}
-                          label={license} 
-                          size="small" 
-                          color="info"
-                          variant="outlined"
-                        />
-                      ))}
-                    </Box>
-                  </Box>
-                )}
 
-                {soldier.certifications && soldier.certifications.length > 0 && (
-                  <Box sx={{ mb: 2 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-                      הסמכות:
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {soldier.certifications.map((cert, index) => (
-                        <Chip 
-                          key={index}
-                          icon={<BadgeIcon />}
-                          label={cert} 
-                          size="small" 
-                          color="warning"
-                          variant="outlined"
-                        />
-                      ))}
-                    </Box>
-                  </Box>
-                )}
+
+
 
                 {/* היתרים לנהיגה */}
                 {soldier.qualifications?.includes('נהג') && (
-                  <Box>
-                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                  <Box sx={{ mb: { xs: 1.5, sm: 2 } }}>
+                    <Typography variant="body2" sx={{ 
+                      fontWeight: 600, 
+                      mb: { xs: 0.5, sm: 1 },
+                      fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                    }}>
                       היתרים לנהיגה:
                     </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      flexDirection: 'row',
+                      flexWrap: { xs: 'nowrap', sm: 'wrap' }, 
+                      gap: { xs: 0.25, sm: 0.5 },
+                      justifyContent: 'flex-start',
+                      overflow: { xs: 'auto', sm: 'visible' },
+                      pb: { xs: 0.5, sm: 0 },
+                      minWidth: 0
+                    }}>
                       {soldier.drivingLicenses && soldier.drivingLicenses.length > 0 ? (
                         soldier.drivingLicenses.map((license, index) => (
                           <Chip 
@@ -882,6 +909,15 @@ const Soldiers: React.FC = () => {
                             size="small" 
                             color="success"
                             variant="filled"
+                            sx={{
+                              fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                              height: { xs: 24, sm: 32 },
+                              '& .MuiChip-label': {
+                                px: { xs: 0.5, sm: 1 }
+                              },
+                              flexShrink: 0,
+                              minWidth: 'fit-content'
+                            }}
                           />
                         ))
                       ) : (
@@ -893,27 +929,23 @@ const Soldiers: React.FC = () => {
                   </Box>
                 )}
 
-                {/* סטטוס */}
-                {soldier.qualifications?.includes('נהג') && (
-                  <Box sx={{ mt: 2 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-                      סטטוס:
+                {/* מידע נוסף לנהגים - רק אם יש מידע נוסף מעבר לנוכחות הרגילה */}
+                {soldier.qualifications?.includes('נהג') && soldier.restUntil && (
+                  <Box sx={{ mt: { xs: 1.5, sm: 2 } }}>
+                    <Typography variant="body2" sx={{ 
+                      fontWeight: 600, 
+                      mb: { xs: 0.5, sm: 1 },
+                      fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                    }}>
+                      מידע נוסף:
                     </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      <Chip 
-                        label={getStatusText(getSoldierCurrentStatus(soldier))}
-                        sx={{ 
-                          bgcolor: getStatusColor(getSoldierCurrentStatus(soldier)),
-                          color: 'white'
-                        }}
-                        size="small"
-                      />
-                      {soldier.restUntil && (
-                        <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                          מנוחה עד: {formatToIsraelString(soldier.restUntil)}
-                        </Typography>
-                      )}
-                    </Box>
+                    <Typography variant="body2" sx={{ 
+                      color: 'text.secondary', 
+                      fontStyle: 'italic',
+                      fontSize: { xs: '0.65rem', sm: '0.75rem' }
+                    }}>
+                      מנוחה עד: {formatToIsraelString(soldier.restUntil)}
+                    </Typography>
                   </Box>
                 )}
               </CardContent>

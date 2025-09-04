@@ -1,10 +1,188 @@
+/* Global RTL Support */
+html {
+  direction: rtl;
+}
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+  font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  direction: rtl;
+}
+
+/* RTL Support for Form Elements */
+input, textarea, select {
+  direction: rtl;
+}
+
+/* RTL Support for specific input types */
+input[type="text"], 
+input[type="email"], 
+input[type="password"], 
+input[type="search"], 
+input[type="tel"], 
+input[type="url"],
+input[type="date"],
+input[type="datetime-local"],
+input[type="time"],
+textarea {
+  direction: rtl;
+}
+
+/* RTL Support for Material-UI components */
+.MuiInputBase-input {
+  direction: rtl !important;
+}
+
+.MuiFormLabel-root {
+  direction: rtl !important;
+  right: 0 !important;
+  left: auto !important;
+  transform-origin: right !important;
+}
+
+.MuiOutlinedInput-notchedOutline legend {
+  text-align: right !important;
+}
+
+/* RTL Support for placeholders */
+::placeholder {
+  direction: rtl;
+}
+
+/* RTL Support for dropdowns and selects */
+.MuiSelect-select {
+  direction: rtl !important;
+}
+
+/* RTL Support for autocomplete */
+.MuiAutocomplete-input {
+  direction: rtl !important;
+}
+
+/* RTL Support for text fields */
+.MuiTextField-root {
+  direction: rtl !important;
+}
+
+.MuiTextField-root .MuiInputBase-root {
+  direction: rtl !important;
+}
+
+/* RTL Support for form controls */
+.MuiFormControl-root {
+  direction: rtl !important;
+}
+
+/* Fix input padding and alignment for RTL */
+.MuiInputBase-input {
+  padding-right: 14px !important;
+  padding-left: 14px !important;
+  text-align: start !important;
+  margin-right: -8px !important;
+}
+
+/* Better spacing for RTL layout */
+.MuiOutlinedInput-root {
+  direction: rtl !important;
+}
+
+.MuiInputLabel-outlined {
+  right: 14px !important;
+  left: auto !important;
+}
+
+/* Fix text positioning in RTL */
+.MuiInputBase-root input {
+  text-align: start !important;
+}
+
+/* Fix placeholder positioning */
+.MuiInputBase-input::placeholder {
+  text-align: start !important;
+  direction: rtl !important;
+}
+
+/* Fix select dropdown text alignment */
+.MuiSelect-select {
+  text-align: start !important;
+}
+
+/* Additional RTL fixes */
+.MuiAutocomplete-inputRoot input {
+  text-align: start !important;
+}
+
+.MuiFormControl-root .MuiInputBase-root {
+  text-align: start !important;
+}
+
+/* Ensure date inputs are properly aligned */
+input[type="date"], 
+input[type="datetime-local"], 
+input[type="time"] {
+  text-align: start !important;
+}
+
+/* Fix any remaining text alignment issues */
+.MuiTextField-root input,
+.MuiTextField-root textarea {
+  text-align: start !important;
+}
+
+/* Responsive RTL support for small screens */
+@media (max-width: 768px) {
+  .MuiInputBase-input {
+    padding-right: 12px !important;
+    padding-left: 16px !important;
+    margin-right: -6px !important;
+  }
+  
+  .MuiFormLabel-outlined {
+    right: 8px !important;
+  }
+  
+  /* Better spacing on mobile */
+  .MuiFormControl-root {
+    margin-bottom: 16px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .MuiInputBase-input {
+    padding-right: 10px !important;
+    padding-left: 12px !important;
+    margin-right: -4px !important;
+  }
+  
+  .MuiFormLabel-outlined {
+    right: 6px !important;
+  }
+  
+  /* Ensure form elements stack properly on very small screens */
+  .MuiBox-root {
+    flex-direction: column !important;
+  }
+}
+
+/* Additional RTL positioning fixes */
+.MuiInputBase-root {
+  direction: rtl !important;
+}
+
+.MuiInputBase-root .MuiInputBase-input {
+  direction: rtl !important;
+}
+
+/* Fix for specific input types that might have different behavior */
+.MuiInputBase-input[type="date"],
+.MuiInputBase-input[type="datetime-local"],
+.MuiInputBase-input[type="time"] {
+  padding-right: 34px !important;
+  padding-left: 16px !important;
 }
 
 code {
