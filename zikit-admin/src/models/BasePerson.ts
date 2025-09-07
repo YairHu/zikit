@@ -13,6 +13,7 @@ export interface BasePerson {
   drivingLicenses?: string[]; // היתרים לנהיגה
   presence?: string;
   presenceOther?: string;
+  currentActivityName?: string; // שם הפעילות הנוכחית (הסטטוס הוא "בפעילות")
   absenceUntil?: string; // תאריך עד מתי החייל בהיעדרות (קורס/גימלים/חופש) - כולל שעה (ברירת מחדל 23:59)
   family?: string;
   militaryBackground?: string;

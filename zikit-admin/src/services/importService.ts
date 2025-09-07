@@ -26,7 +26,6 @@ export const importSoldiers = async (data: any[], userId: string): Promise<{
   
   for (let i = 0; i < data.length; i++) {
     const row = data[i];
-    console.log(`📊 עיבוד שורה ${i + 1}:`, row);
     try {
       // בדיקת נתונים חובה
       if (!row.name || !row.personalNumber) {
@@ -152,7 +151,6 @@ export const importSoldiers = async (data: any[], userId: string): Promise<{
   }
 
   // עדכון טבלת העדכונים וניקוי מטמון מקומי
-  console.log('🔄 [IMPORT] מעדכן טבלת עדכונים וניקוי מטמון מקומי עבור soldiers');
   await updateTableTimestamp('soldiers');
   localStorageService.invalidateLocalStorage('soldiers');
 
@@ -243,7 +241,6 @@ export const importVehicles = async (data: any[], userId: string): Promise<{
   }
 
   // עדכון טבלת העדכונים וניקוי מטמון מקומי
-  console.log('🔄 [IMPORT] מעדכן טבלת עדכונים וניקוי מטמון מקומי עבור vehicles');
   await updateTableTimestamp('vehicles');
   localStorageService.invalidateLocalStorage('vehicles');
 
@@ -328,7 +325,6 @@ export const importFrameworks = async (data: any[], userId: string): Promise<{
   }
 
   // עדכון טבלת העדכונים וניקוי מטמון מקומי
-  console.log('🔄 [IMPORT] מעדכן טבלת עדכונים וניקוי מטמון מקומי עבור frameworks');
   await updateTableTimestamp('frameworks');
   localStorageService.invalidateLocalStorage('frameworks');
 
@@ -405,7 +401,6 @@ export const importPolicies = async (data: any[], userId: string): Promise<{ suc
   }
 
   // עדכון טבלת העדכונים וניקוי מטמון מקומי
-  console.log('🔄 [IMPORT] מעדכן טבלת עדכונים וניקוי מטמון מקומי עבור policies');
   await updateTableTimestamp('permissionPolicies');
   localStorageService.invalidateLocalStorage('permissionPolicies');
 
@@ -494,7 +489,6 @@ export const importRoles = async (data: any[], userId: string): Promise<{
   }
 
   // עדכון טבלת העדכונים וניקוי מטמון מקומי
-  console.log('🔄 [IMPORT] מעדכן טבלת עדכונים וניקוי מטמון מקומי עבור roles');
   await updateTableTimestamp('roles');
   localStorageService.invalidateLocalStorage('roles');
 
@@ -603,7 +597,6 @@ export const importBraurTestResults = async (data: any[], userId: string): Promi
   }
 
   // עדכון טבלת העדכונים וניקוי מטמון מקומי
-  console.log('🔄 [IMPORT] מעדכן טבלת עדכונים וניקוי מטמון מקומי עבור soldiers (מבחני בראור)');
   await updateTableTimestamp('soldiers');
   localStorageService.invalidateLocalStorage('soldiers');
 

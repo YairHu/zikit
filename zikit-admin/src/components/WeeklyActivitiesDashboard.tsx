@@ -33,7 +33,8 @@ import {
   Close as CloseIcon,
   NavigateBefore as NavigateBeforeIcon,
   NavigateNext as NavigateNextIcon,
-  Today as TodayIcon
+  Today as TodayIcon,
+  Note as NoteIcon
 } from '@mui/icons-material';
 import { Activity } from '../models/Activity';
 import { Framework } from '../models/Framework';
@@ -50,6 +51,7 @@ interface WeeklyActivitiesDashboardProps {
     canEdit: boolean;
   };
   onActivityClick?: (activityId: string) => void; // פונקציה לניווט לפעילות
+  onCreateActivity?: (frameworkId: string, date: Date) => void; // פונקציה ליצירת פעילות חדשה
   showCompletedActivities?: boolean; // האם להציג פעילויות שהסתיימו
 }
 
@@ -68,6 +70,7 @@ const WeeklyActivitiesDashboard: React.FC<WeeklyActivitiesDashboardProps> = ({
   soldiers = [],
   permissions,
   onActivityClick,
+  onCreateActivity,
   showCompletedActivities = true
 }) => {
   const { user } = useUser();
@@ -520,12 +523,6 @@ const WeeklyActivitiesDashboard: React.FC<WeeklyActivitiesDashboardProps> = ({
                   <Typography variant="body2" fontWeight="bold">
                     {framework.name}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {framework.level === 'company' ? 'פלוגה' :
-                     framework.level === 'platoon' ? 'מחלקה' :
-                     framework.level === 'squad' ? 'כיתה' :
-                     framework.level === 'team' ? 'צוות' : 'מסגרת'}
-                  </Typography>
                 </TableCell>
                 {weekDays.map((_, dayIndex) => {
                   const activities = getActivitiesForFrameworkAndDay(framework.id, dayIndex);
@@ -543,9 +540,8 @@ const WeeklyActivitiesDashboard: React.FC<WeeklyActivitiesDashboardProps> = ({
                         } : {}
                       }}
                       onClick={() => {
-                        if (permissions.canEdit) {
-                          handleAddEditText(framework.id, dayIndex, additionalText?.text);
-                        }
+                        // לחיצה על התא עצמו לא עושה כלום עכשיו
+                        // הפונקציונליות הועברה לסמלילים
                       }}
                     >
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -618,14 +614,42 @@ const WeeklyActivitiesDashboard: React.FC<WeeklyActivitiesDashboardProps> = ({
                           </Box>
                         )}
                         
-                        {/* Add Button for Empty Cells */}
+                        {/* Action Buttons for Empty Cells */}
                         {activities.length === 0 && !additionalText && permissions.canEdit && (
                           <Box sx={{ 
                             display: 'flex', 
                             justifyContent: 'center',
-                            opacity: 0.5
+                            gap: 1,
+                            opacity: 0.7
                           }}>
-                            <AddIcon fontSize="small" />
+                            <Tooltip title="הוסף פעילות חדשה">
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (onCreateActivity) {
+                                    const weekDates = getCurrentWeekDates();
+                                    const targetDate = weekDates[dayIndex];
+                                    onCreateActivity(framework.id, targetDate);
+                                  }
+                                }}
+                                sx={{ p: 0.25 }}
+                              >
+                                <AddIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="הוסף הערה">
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAddEditText(framework.id, dayIndex);
+                                }}
+                                sx={{ p: 0.25 }}
+                              >
+                                <NoteIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
                           </Box>
                         )}
                       </Box>

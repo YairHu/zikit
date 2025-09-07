@@ -69,7 +69,7 @@ import { updateDutyStatusesAutomatically } from '../services/dutyService';
 import { getPresenceColor } from '../utils/colors';
 import { getSoldierCurrentStatus, getStatusColor, getStatusText } from '../services/soldierService';
 import { getAllVehicles, addVehicle, updateVehicle, deleteVehicle } from '../services/vehicleService';
-import { getAllSoldiers, updateSoldier } from '../services/soldierService';
+import { getAllSoldiers, updateSoldier, updateSoldierStatus } from '../services/soldierService';
 import { getAllActivities, updateActivity } from '../services/activityService';
 import { getAllFrameworks } from '../services/frameworkService';
 import { UserRole, SystemPath, PermissionLevel, DataScope } from '../models/UserRole';
@@ -77,7 +77,7 @@ import { canUserAccessPath, getUserPermissions } from '../services/permissionSer
 import TripsDashboard from '../components/TripsDashboard';
 import TripsTimeline from '../components/TripsTimeline';
 import { getAllSoldiersWithAvailability, getUnavailableSoldierLabel } from '../utils/soldierUtils';
-import { formatDateTimeForInput, formatToIsraelString } from '../utils/dateUtils';
+import { formatDateTimeForInput, formatToIsraelString, getCurrentIsraelTime } from '../utils/dateUtils';
 
 const Trips: React.FC = () => {
   const navigate = useNavigate();
@@ -104,8 +104,7 @@ const Trips: React.FC = () => {
     returnTime: '',
     purpose: '',
     purposeType: 'פעילות מבצעית' as 'פעילות מבצעית' | 'נסיעה מנהלתית' | 'פינוי' | 'אחר',
-    purposeOther: '',
-    status: 'מתוכננת' as 'מתוכננת' | 'בביצוע' | 'הסתיימה'
+    purposeOther: ''
   });
   const [error, setError] = useState<string | null>(null);
   const [openVehicleForm, setOpenVehicleForm] = useState(false);
@@ -212,10 +211,14 @@ const Trips: React.FC = () => {
     try {
       setLoading(true);
       
-      // עדכון אוטומטי של סטטוס נסיעות ותורנויות
+      // עדכון אוטומטי של סטטוס נסיעות, תורנויות והפניות
       await Promise.all([
         updateTripStatusesAutomatically(),
-        updateDutyStatusesAutomatically()
+        updateDutyStatusesAutomatically(),
+        (async () => {
+          const { updateReferralStatusesAutomatically } = await import('../services/referralService');
+          await updateReferralStatusesAutomatically();
+        })()
       ]);
       
       // בדיקת הרשאות המשתמש
@@ -384,7 +387,6 @@ const Trips: React.FC = () => {
       purpose: '',
       purposeType: 'פעילות מבצעית',
       purposeOther: '',
-      status: 'מתוכננת'
     });
     setError(null);
     setOpenForm(true);
@@ -413,7 +415,6 @@ const Trips: React.FC = () => {
       purpose: '',
       purposeType: 'פעילות מבצעית',
       purposeOther: '',
-      status: 'מתוכננת'
     });
     setError(null);
     setOpenForm(true);
@@ -500,8 +501,7 @@ const Trips: React.FC = () => {
       returnTime: formatDateTimeForInput(trip.returnTime || ''),
       purpose: trip.purpose,
       purposeType: purposeType,
-      purposeOther: purposeOther,
-      status: trip.status
+      purposeOther: purposeOther
     });
     setError(null);
     setOpenForm(true);
@@ -520,7 +520,6 @@ const Trips: React.FC = () => {
       purpose: '',
       purposeType: 'פעילות מבצעית',
       purposeOther: '',
-      status: 'מתוכננת'
     });
     setError(null);
   };
@@ -628,17 +627,10 @@ const Trips: React.FC = () => {
     }
     
     try {
-      // בדיקת שדות חובה
-      if (!formData.departureTime || !formData.returnTime) {
-        setError('שעת יציאה ושעת חזרה הן שדות חובה');
-        return;
-      }
-
-      // בדיקת זמן חזרה אחרי זמן יציאה
-      const departureDate = new Date(formData.departureTime);
-      const returnDate = new Date(formData.returnTime);
-      if (returnDate <= departureDate) {
-        setError('זמן חזרה חייב להיות אחרי זמן יציאה');
+      // ולידציה של טופס נסיעה
+      const formValidation = validateTripForm();
+      if (!formValidation.isValid) {
+        setError(formValidation.errorMessage || 'שגיאה בולידציה');
         return;
       }
 
@@ -681,7 +673,7 @@ const Trips: React.FC = () => {
         purpose: formData.purposeType === 'אחר' ? formData.purposeOther : formData.purposeType,
         purposeType: formData.purposeType,
         purposeOther: formData.purposeOther,
-        status: formData.status
+        status: editId ? trips.find(t => t.id === editId)?.status || 'מתוכננת' : 'מתוכננת'
       };
 
       // הוספת שדות אופציונליים רק אם יש להם ערכים תקינים
@@ -1032,12 +1024,77 @@ const Trips: React.FC = () => {
     }));
   };
 
+  // פונקציה לולידציה של זמני נסיעה
+  const validateTripTime = (time: string, action: 'start' | 'end'): { isValid: boolean; errorMessage?: string } => {
+    if (!time) {
+      return { isValid: false, errorMessage: 'שדה הזמן הוא חובה' };
+    }
+
+    const selectedTime = new Date(time);
+    const now = getCurrentIsraelTime();
+    
+    // בדיקת זמן עתידי
+    if (selectedTime > now) {
+      const actionText = action === 'start' ? 'להתחיל' : 'לסיים';
+      return { 
+        isValid: false, 
+        errorMessage: `לא ניתן ${actionText} נסיעה בזמן עתידי. הזמן חייב להיות בהווה או בעבר.` 
+      };
+    }
+
+    // בדיקת זמן התחלה מול זמן חזרה (רק בסיום נסיעה)
+    if (action === 'end' && statusFormData.actualDepartureTime) {
+      const departureTime = new Date(statusFormData.actualDepartureTime);
+      if (selectedTime <= departureTime) {
+        return { 
+          isValid: false, 
+          errorMessage: 'זמן החזרה חייב להיות אחרי זמן ההתחלה' 
+        };
+      }
+    }
+
+    return { isValid: true };
+  };
+
+  // פונקציה לולידציה של טופס נסיעה
+  const validateTripForm = (): { isValid: boolean; errorMessage?: string } => {
+    // בדיקת שדות חובה
+    if (!formData.departureTime || !formData.returnTime) {
+      return { isValid: false, errorMessage: 'שעת יציאה ושעת חזרה הן שדות חובה' };
+    }
+
+    // בדיקת זמן חזרה אחרי זמן יציאה
+    const departureDate = new Date(formData.departureTime);
+    const returnDate = new Date(formData.returnTime);
+    if (returnDate <= departureDate) {
+      return { isValid: false, errorMessage: 'זמן חזרה חייב להיות אחרי זמן יציאה' };
+    }
+
+    return { isValid: true };
+  };
+
   const handleStatusSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!selectedTrip || !statusFormData.actualTime) return;
     
     try {
+      // ולידציה של זמן עיקרי
+      const timeValidation = validateTripTime(statusFormData.actualTime, statusAction);
+      if (!timeValidation.isValid) {
+        alert(timeValidation.errorMessage);
+        return;
+      }
+
+      // ולידציה של זמן התחלה בפועל (אם הוזן)
+      if (statusAction === 'end' && statusFormData.actualDepartureTime) {
+        const departureValidation = validateTripTime(statusFormData.actualDepartureTime, 'start');
+        if (!departureValidation.isValid) {
+          alert(`זמן התחלה בפועל: ${departureValidation.errorMessage}`);
+          return;
+        }
+      }
+      
       let updatedTrip: any = { ...selectedTrip };
       
       if (statusAction === 'start') {
@@ -1092,13 +1149,16 @@ const Trips: React.FC = () => {
       if (selectedTrip.driverId) {
         if (statusAction === 'start') {
           // נהג מתחיל נסיעה
-          await updateSoldier(selectedTrip.driverId, { 
-            status: 'on_trip',
-            presence: 'בנסיעה'
+          await updateSoldierStatus(selectedTrip.driverId, 'בנסיעה', { 
+            tripId: selectedTrip.id
           });
         } else if (statusAction === 'end') {
           // נהג מסיים נסיעה - מנוחה של 7 שעות
-          await setDriverRest(selectedTrip.driverId, statusFormData.actualTime);
+          await updateSoldierStatus(selectedTrip.driverId, 'בבסיס', { 
+            tripId: selectedTrip.id,
+            isEnding: true,
+            tripEndTime: statusFormData.actualTime
+          });
         }
       }
 
@@ -1106,13 +1166,14 @@ const Trips: React.FC = () => {
       if (selectedTrip.commanderId) {
         if (statusAction === 'start') {
           // מלווה מתחיל נסיעה
-          await updateSoldier(selectedTrip.commanderId, { 
-            presence: 'בנסיעה'
+          await updateSoldierStatus(selectedTrip.commanderId, 'בנסיעה', { 
+            tripId: selectedTrip.id
           });
         } else if (statusAction === 'end') {
           // מלווה מסיים נסיעה - חזרה לבסיס
-          await updateSoldier(selectedTrip.commanderId, { 
-            presence: 'בבסיס'
+          await updateSoldierStatus(selectedTrip.commanderId, 'בבסיס', { 
+            tripId: selectedTrip.id,
+            isEnding: true
           });
         }
       }
@@ -1487,24 +1548,6 @@ const Trips: React.FC = () => {
             {trip.driverName && (
               <Typography variant="body2" color="textSecondary" gutterBottom>
                 נהג: {trip.driverName}
-                {(() => {
-                  const driver = drivers.find(d => d.id === trip.driverId);
-                  if (driver) {
-                    const currentStatus = getSoldierCurrentStatus(driver);
-                    return (
-                      <Chip 
-                        label={getStatusText(currentStatus)} 
-                        sx={{ 
-                          ml: 1,
-                          bgcolor: getStatusColor(currentStatus),
-                          color: 'white'
-                        }}
-                        size="small" 
-                      />
-                    );
-                  }
-                  return null;
-                })()}
               </Typography>
             )}
             {trip.commanderName && (
@@ -1662,24 +1705,6 @@ const Trips: React.FC = () => {
               <TableCell>{trip.vehicleNumber || '-'}</TableCell>
               <TableCell>
                 {trip.driverName || '-'}
-                {trip.driverId && (() => {
-                  const driver = drivers.find(d => d.id === trip.driverId);
-                  if (driver) {
-                    const currentStatus = getSoldierCurrentStatus(driver);
-                    return (
-                      <Chip 
-                        label={getStatusText(currentStatus)} 
-                        sx={{ 
-                          ml: 1,
-                          bgcolor: getStatusColor(currentStatus),
-                          color: 'white'
-                        }}
-                        size="small" 
-                      />
-                    );
-                  }
-                  return null;
-                })()}
               </TableCell>
               <TableCell>{trip.commanderName || '-'}</TableCell>
               <TableCell>
@@ -2231,11 +2256,11 @@ const Trips: React.FC = () => {
                           }}
                           size="small"
                         />
-                        {driver.restUntil && (
-                          <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 0.5 }}>
-                            מנוחה עד: {formatToIsraelString(driver.restUntil)}
-                          </Typography>
-                        )}
+                          {driver.restUntil && new Date(driver.restUntil) > new Date() && (
+                            <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 0.5 }}>
+                              מנוחה עד: {formatToIsraelString(driver.restUntil)}
+                            </Typography>
+                          )}
                       </Box>
 
                       {driver.drivingLicenses && driver.drivingLicenses.length > 0 && (
@@ -2319,7 +2344,7 @@ const Trips: React.FC = () => {
                             }}
                             size="small"
                           />
-                          {driver.restUntil && (
+                          {driver.restUntil && new Date(driver.restUntil) > new Date() && (
                             <Typography variant="caption" color="textSecondary">
                               מנוחה עד: {formatToIsraelString(driver.restUntil)}
                             </Typography>
@@ -2327,17 +2352,16 @@ const Trips: React.FC = () => {
                         </Box>
                       </TableCell>
                       <TableCell>
-                        {driver.restUntil ? formatToIsraelString(driver.restUntil) : '-'}
+                        {driver.restUntil && new Date(driver.restUntil) > new Date() ? formatToIsraelString(driver.restUntil) : '-'}
                       </TableCell>
                       <TableCell>
-                        <Button
+                        <IconButton
                           size="small"
-                          variant="outlined"
                           onClick={() => handleOpenLicenseDialog(driver)}
-                          sx={{ fontSize: '0.75rem' }}
+                          title="ערוך היתרים"
                         >
-                          ערוך היתרים
-                        </Button>
+                          <EditIcon />
+                        </IconButton>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -2484,19 +2508,6 @@ const Trips: React.FC = () => {
                   helperText="יש להזין פירוט המטרה"
                 />
               )}
-              <FormControl fullWidth>
-                <InputLabel>סטטוס</InputLabel>
-                <Select
-                  name="status"
-                  value={formData.status}
-                  onChange={(e) => handleSelectChange('status', e.target.value)}
-                  label="סטטוס"
-                >
-                  <MenuItem value="מתוכננת">מתוכננת</MenuItem>
-                  <MenuItem value="בביצוע">בביצוע</MenuItem>
-                  <MenuItem value="הסתיימה">הסתיימה</MenuItem>
-                </Select>
-              </FormControl>
 
             </Box>
             {error && (

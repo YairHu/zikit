@@ -12,7 +12,7 @@ import {
   KeyboardArrowDown as ArrowDownIcon,
   KeyboardArrowUp as ArrowUpIcon
 } from '@mui/icons-material';
-import { getStatusColor, PresenceStatus } from '../utils/presenceStatus';
+import { getStatusColor, getStatusLabelWithActivity, PresenceStatus } from '../utils/presenceStatus';
 
 interface FrameworksTreeProps {
   frameworks: Framework[];
@@ -249,7 +249,7 @@ const FrameworkNode: React.FC<{
                         {showPresence && (
                           <Chip 
                             size="small" 
-                            label={s.presence || 'לא מוגדר'} 
+                            label={getStatusLabelWithActivity((s.presence || 'לא מוגדר') as PresenceStatus, s.currentActivityName) || 'לא מוגדר'} 
                             sx={{ 
                               bgcolor: getStatusColor((s.presence || 'לא מוגדר') as PresenceStatus), 
                               color: '#fff', 
@@ -299,7 +299,7 @@ const FrameworkNode: React.FC<{
                         {showPresence && (
                           <Chip 
                             size="small" 
-                            label={s.presence || 'לא מוגדר'} 
+                            label={getStatusLabelWithActivity((s.presence || 'לא מוגדר') as PresenceStatus, s.currentActivityName) || 'לא מוגדר'} 
                             sx={{ 
                               bgcolor: getStatusColor((s.presence || 'לא מוגדר') as PresenceStatus), 
                               color: '#fff', 

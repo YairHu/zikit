@@ -7,7 +7,7 @@ import { Activity, ActivityParticipant } from '../models/Activity';
 import { Soldier } from '../models/Soldier';
 import { Vehicle } from '../models/Vehicle';
 import { Trip } from '../models/Trip';
-import { getAllActivities, addActivity, updateActivity, deleteActivity, getActivityById } from '../services/activityService';
+import { getAllActivities, addActivity, updateActivity, deleteActivity, getActivityById, updateActivityActualTimes } from '../services/activityService';
 import { getAllSoldiers, updateSoldier, getSoldierById, updateSoldierStatus } from '../services/soldierService';
 import { getAllVehicles } from '../services/vehicleService';
 import { getAllTrips, updateTrip } from '../services/tripService';
@@ -117,7 +117,7 @@ const Activities: React.FC = () => {
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showCompletedActivities, setShowCompletedActivities] = useState(false);
+  const [showCompletedActivities, setShowCompletedActivities] = useState(true);
   const [viewMode, setViewMode] = useState<'dashboard' | 'cards' | 'table'>('dashboard');
 
   // הרשאות
@@ -167,6 +167,19 @@ const Activities: React.FC = () => {
     activity: null,
     selectedFiles: [],
     descriptions: {}
+  });
+
+  // State for actual times dialog
+  const [actualTimesDialog, setActualTimesDialog] = useState<{
+    open: boolean;
+    activity: Activity | null;
+    actualStartTime: string;
+    actualEndTime: string;
+  }>({
+    open: false,
+    activity: null,
+    actualStartTime: '',
+    actualEndTime: ''
   });
 
   // פונקציה למציאת החייל של המשתמש
@@ -871,9 +884,12 @@ const Activities: React.FC = () => {
         }
       }
       
-      // אם יש פחות מקומות נסיעה ממשתתפים
-      if (totalSeats > 0 && activity.participants.length > totalSeats) {
-        missingFields.push(`מקומות נסיעה (${totalSeats} מקומות ל-${activity.participants.length} משתתפים)`);
+      // ספירת משתתפים שדורשים ניוד (לא "no_mobility")
+      const participantsRequiringMobility = activity.participants.filter(p => p.vehicleId !== 'no_mobility').length;
+      
+      // אם יש פחות מקומות נסיעה ממשתתפים שדורשים ניוד
+      if (totalSeats > 0 && participantsRequiringMobility > totalSeats) {
+        missingFields.push(`מקומות נסיעה (${totalSeats} מקומות ל-${participantsRequiringMobility} משתתפים שדורשים ניוד)`);
       }
     }
     
@@ -1184,10 +1200,27 @@ const Activities: React.FC = () => {
           const date = new Date(endTime);
           const isoDateTime = date.toISOString();
           
+          // עדכון הנסיעה ללא קריאה לעדכון אוטומטי של כל החיילים
           await updateTrip(trip.id, { 
             status: 'הסתיימה',
             returnTime: isoDateTime
           });
+          
+          // עדכון סטטוס נהג ומלווה נסיעה ישירות (ללא עדכון אוטומטי של כל החיילים)
+          if (trip.driverId) {
+            await updateSoldierStatus(trip.driverId, 'בבסיס', { 
+              tripId: trip.id,
+              isEnding: true,
+              tripEndTime: isoDateTime
+            });
+          }
+          
+          if (trip.commanderId) {
+            await updateSoldierStatus(trip.commanderId, 'בבסיס', { 
+              tripId: trip.id,
+              isEnding: true
+            });
+          }
         }
       }
       
@@ -1250,6 +1283,43 @@ const Activities: React.FC = () => {
     }
   };
 
+  // פונקציות לניהול דיאלוג זמנים בפועל
+  const handleOpenActualTimesDialog = (activity: Activity) => {
+    setActualTimesDialog({
+      open: true,
+      activity: activity,
+      actualStartTime: activity.actualStartTime || activity.plannedTime,
+      actualEndTime: activity.actualEndTime || new Date(new Date(activity.plannedTime).getTime() + (activity.duration * 60 * 60 * 1000)).toISOString()
+    });
+  };
+
+  const handleCloseActualTimesDialog = () => {
+    setActualTimesDialog({
+      open: false,
+      activity: null,
+      actualStartTime: '',
+      actualEndTime: ''
+    });
+  };
+
+  const handleSaveActualTimes = async () => {
+    if (!actualTimesDialog.activity) return;
+
+    try {
+      await updateActivityActualTimes(
+        actualTimesDialog.activity.id,
+        actualTimesDialog.actualStartTime,
+        actualTimesDialog.actualEndTime
+      );
+      
+      // רענון הנתונים
+      await refresh();
+      handleCloseActualTimesDialog();
+    } catch (error) {
+      console.error('שגיאה בעדכון זמנים בפועל:', error);
+    }
+  };
+
   if (loading) {
     return (
       <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 4 } }}>
@@ -1298,24 +1368,22 @@ const Activities: React.FC = () => {
         flexWrap: 'wrap', 
         alignItems: 'center' 
       }}>
-        {viewMode !== 'dashboard' && (
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={showCompletedActivities}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowCompletedActivities(e.target.checked)}
-                size="small"
-              />
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={showCompletedActivities}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowCompletedActivities(e.target.checked)}
+              size="small"
+            />
+          }
+          label="הצג פעילויות שהסתיימו"
+          sx={{ 
+            fontSize: { xs: '0.8rem', sm: '0.875rem' },
+            '& .MuiFormControlLabel-label': {
+              fontSize: { xs: '0.8rem', sm: '0.875rem' }
             }
-            label="הצג פעילויות שהסתיימו"
-            sx={{ 
-              fontSize: { xs: '0.8rem', sm: '0.875rem' },
-              '& .MuiFormControlLabel-label': {
-                fontSize: { xs: '0.8rem', sm: '0.875rem' }
-              }
-            }}
-          />
-        )}
+          }}
+        />
         <Tabs 
           value={viewMode === 'dashboard' ? 0 : viewMode === 'cards' ? 1 : 2} 
           onChange={(_, newValue) => setViewMode(newValue === 0 ? 'dashboard' : newValue === 1 ? 'cards' : 'table')}
@@ -1345,6 +1413,17 @@ const Activities: React.FC = () => {
             if (activity) {
               handleOpenForm(activity);
             }
+          }}
+          onCreateActivity={(frameworkId, date) => {
+            // יצירת פעילות חדשה עם מסגרת ותאריך מוגדרים מראש
+            const newActivity = {
+              ...emptyActivity,
+              frameworkId: frameworkId,
+              plannedDate: date.toISOString().split('T')[0] // YYYY-MM-DD format
+            };
+            setFormData(newActivity);
+            setEditId(null);
+            setShowForm(true);
           }}
         />
       ) : viewMode === 'cards' ? (
@@ -1399,6 +1478,20 @@ const Activities: React.FC = () => {
                           title="הוסף תוצרים"
                         >
                           <ImageIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                      {permissions.canEdit && activity.status === 'הסתיימה' && (
+                        <IconButton
+                          size="small"
+                          color="info"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenActualTimesDialog(activity);
+                          }}
+                          sx={{ padding: { xs: 0.5, sm: 1 } }}
+                          title="עדכון זמנים בפועל"
+                        >
+                          <ScheduleIcon fontSize="small" />
                         </IconButton>
                       )}
                       {permissions.canDelete && (
@@ -2476,24 +2569,6 @@ const Activities: React.FC = () => {
                 })}
               </Box>
             </Box>
-            <Box sx={{ mt: 2 }}>
-              <FormControl fullWidth>
-                <InputLabel sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>סטטוס</InputLabel>
-                                  <Select
-                    name="status"
-                    value={formData.status}
-                    onChange={(e) => handleSelectChange('status', e.target.value)}
-                    label="סטטוס"
-                    sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
-                  >
-                  {statuses.map(status => (
-                    <MenuItem key={status} value={status} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                      {status}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
             
             {/* סיכום פעילות - רק לפעילויות שהסתיימו */}
             {formData.status === 'הסתיימה' && (
@@ -2859,6 +2934,97 @@ const Activities: React.FC = () => {
             sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
           >
             שמור תוצרים
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* דיאלוג עדכון זמנים בפועל */}
+      <Dialog open={actualTimesDialog.open} onClose={handleCloseActualTimesDialog} maxWidth="md" fullWidth>
+        <DialogTitle>
+          עדכון זמנים בפועל - {actualTimesDialog.activity?.name}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}>
+            {/* זמנים מתוכננים */}
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2, color: 'text.secondary' }}>
+                זמנים מתוכננים:
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <TextField
+                  label="זמן התחלה מתוכנן"
+                  value={actualTimesDialog.activity?.plannedTime ? 
+                    formatToIsraelString(actualTimesDialog.activity.plannedTime) : 
+                    'לא מוגדר'
+                  }
+                  InputProps={{ readOnly: true }}
+                  sx={{ flex: 1, minWidth: 200 }}
+                />
+                <TextField
+                  label="זמן סיום מתוכנן"
+                  value={actualTimesDialog.activity ? 
+                    formatToIsraelString(new Date(new Date(actualTimesDialog.activity.plannedTime).getTime() + (actualTimesDialog.activity.duration * 60 * 60 * 1000)).toISOString()) : 
+                    'לא מוגדר'
+                  }
+                  InputProps={{ readOnly: true }}
+                  sx={{ flex: 1, minWidth: 200 }}
+                />
+              </Box>
+            </Box>
+
+            {/* זמנים בפועל */}
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2, color: 'primary.main' }}>
+                זמנים בפועל:
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <TextField
+                  label="זמן התחלה בפועל"
+                  type="datetime-local"
+                  value={actualTimesDialog.actualStartTime}
+                  onChange={(e) => setActualTimesDialog(prev => ({
+                    ...prev,
+                    actualStartTime: e.target.value
+                  }))}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ flex: 1, minWidth: 200 }}
+                  helperText="הזמן בפועל שבו התחילה הפעילות"
+                />
+                <TextField
+                  label="זמן סיום בפועל"
+                  type="datetime-local"
+                  value={actualTimesDialog.actualEndTime}
+                  onChange={(e) => setActualTimesDialog(prev => ({
+                    ...prev,
+                    actualEndTime: e.target.value
+                  }))}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ flex: 1, minWidth: 200 }}
+                  helperText="הזמן בפועל שבו הסתיימה הפעילות"
+                />
+              </Box>
+            </Box>
+
+            {/* מידע נוסף */}
+            {actualTimesDialog.activity && (
+              <Box sx={{ p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>מיקום:</strong> {actualTimesDialog.activity.location}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>מפקד:</strong> {actualTimesDialog.activity.commanderName}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>סטטוס נוכחי:</strong> {actualTimesDialog.activity.status}
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseActualTimesDialog}>ביטול</Button>
+          <Button onClick={handleSaveActualTimes} variant="contained">
+            שמור זמנים בפועל
           </Button>
         </DialogActions>
       </Dialog>

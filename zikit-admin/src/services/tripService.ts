@@ -7,6 +7,7 @@ import { formatToIsraelString, getCurrentIsraelTime } from '../utils/dateUtils';
 import { updateSoldier, getAllSoldiers, updateSoldierStatus } from './soldierService';
 import { updateActivity } from './activityService';
 import { dataLayer } from './dataAccessLayer';
+import { updateTableTimestamp } from './cacheService';
 
 const TRIPS_COLLECTION = 'trips';
 
@@ -531,7 +532,6 @@ export const getVehiclesCompatibleWithDriver = async (driverLicenses: string[]):
 // פונקציה לעדכון סטטוס נסיעות אוטומטי
 export const updateTripStatusesAutomatically = async (): Promise<void> => {
   try {
-    console.log('🔄 [AUTO] מתחיל עדכון סטטוס נסיעות אוטומטי');
     
     const trips = await getAllTrips();
     const now = new Date();
@@ -551,13 +551,11 @@ export const updateTripStatusesAutomatically = async (): Promise<void> => {
         newStatus = 'בביצוע';
         autoStatusChanged = true;
         shouldUpdate = true;
-        console.log(`🔄 [AUTO] עדכון נסיעה ${trip.id} מ-מתוכננת ל-בביצוע`);
       } else if (trip.status === 'בביצוע' && now >= returnTime) {
         // זמן חזרה הגיע - עדכון להסתיימה
         newStatus = 'הסתיימה';
         autoStatusChanged = true;
         shouldUpdate = true;
-        console.log(`🔄 [AUTO] עדכון נסיעה ${trip.id} מ-בביצוע ל-הסתיימה`);
       }
       
       if (shouldUpdate) {
@@ -566,17 +564,55 @@ export const updateTripStatusesAutomatically = async (): Promise<void> => {
           autoStatusChanged: autoStatusChanged,
           autoStatusUpdateTime: now.toISOString()
         });
+        
+        // עדכון סטטוס נהג ומלווה נסיעה
+        if (trip.driverId) {
+          if (newStatus === 'בביצוע') {
+            // נסיעה התחילה - עדכון נהג ל"בנסיעה"
+            await updateSoldierStatus(trip.driverId, 'בנסיעה', { 
+              tripId: trip.id,
+              isAutoUpdate: true 
+            });
+          } else if (newStatus === 'הסתיימה') {
+            // נסיעה הסתיימה - עדכון נהג ל"בבסיס" עם מנוחה
+            await updateSoldierStatus(trip.driverId, 'בבסיס', { 
+              tripId: trip.id,
+              isEnding: true,
+              tripEndTime: trip.returnTime,
+              isAutoUpdate: true
+            });
+          }
+        }
+        
+        // עדכון סטטוס מלווה נסיעה
+        if (trip.commanderId) {
+          if (newStatus === 'בביצוע') {
+            // נסיעה התחילה - עדכון מלווה ל"בנסיעה"
+            await updateSoldierStatus(trip.commanderId, 'בנסיעה', { 
+              tripId: trip.id,
+              isAutoUpdate: true 
+            });
+          } else if (newStatus === 'הסתיימה') {
+            // נסיעה הסתיימה - עדכון מלווה ל"בבסיס"
+            await updateSoldierStatus(trip.commanderId, 'בבסיס', { 
+              tripId: trip.id,
+              isEnding: true,
+              isAutoUpdate: true
+            });
+          }
+        }
+        
         updatedTrips++;
       }
     }
     
     if (updatedTrips > 0) {
-      console.log(`✅ [AUTO] עדכון ${updatedTrips} נסיעות הושלם`);
+      // עדכון זמן טבלת הנסיעות במטמון
+      await updateTableTimestamp('trips');
       // עדכון סטטוס כל החיילים אחרי עדכון נסיעות
       const { updateAllSoldiersStatusesAutomatically } = await import('./soldierService');
       await updateAllSoldiersStatusesAutomatically();
     } else {
-      console.log('✅ [AUTO] אין נסיעות שצריכות עדכון');
     }
   } catch (error) {
     console.error('❌ [AUTO] שגיאה בעדכון סטטוס נסיעות:', error);
@@ -607,7 +643,6 @@ export const updateTripActualTimes = async (
     }
     
     await updateTrip(tripId, updateData);
-    console.log(`✅ [AUTO] עדכון זמנים בפועל לנסיעה ${tripId}`);
   } catch (error) {
     console.error('❌ [AUTO] שגיאה בעדכון זמנים בפועל:', error);
     throw error;

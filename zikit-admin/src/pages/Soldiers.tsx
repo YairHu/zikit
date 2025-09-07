@@ -7,7 +7,7 @@ import { getPresenceColor, getProfileColor } from '../utils/colors';
 import { formatToIsraelString } from '../utils/dateUtils';
 import { getSoldierCurrentStatus, getStatusColor, getStatusText } from '../services/soldierService';
 import { Link } from 'react-router-dom';
-import { getAllStatuses, requiresAbsenceDate, requiresCustomText } from '../utils/presenceStatus';
+import { getAllStatuses, requiresAbsenceDate, requiresCustomText, getStatusLabelWithActivity } from '../utils/presenceStatus';
 import SoldierForm from '../components/SoldierForm';
 
 import { useUser } from '../contexts/UserContext';
@@ -583,7 +583,7 @@ const Soldiers: React.FC = () => {
                           <TableCell key={column.key}>
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                               <Chip 
-                                label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : soldier.presence || 'לא מוגדר'} 
+                                label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : getStatusLabelWithActivity(soldier.presence as any, soldier.currentActivityName) || 'לא מוגדר'} 
                                 size="small" 
                                 sx={{ 
                                   bgcolor: getPresenceColor(soldier.presence),

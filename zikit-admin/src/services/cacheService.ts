@@ -195,7 +195,8 @@ class LocalStorageService {
   async getFromLocalStorage<T>(
     tableName: string, 
     fetchFunction: () => Promise<T[]>,
-    userId?: string
+    userId?: string,
+    forceRefresh: boolean = false
   ): Promise<T[]> {
     // לא יוצרים listeners כאן - הם נוצרים בזמן אתחול האפליקציה
     
@@ -205,28 +206,26 @@ class LocalStorageService {
     // עדכון מטריקות ביצועים
     this.updatePerformanceMetrics(storageKey, entry ? 'hit' : 'miss');
 
-    // אם יש מטמון מקומי תקף, החזר אותו
-    if (entry && this.isStorageValid(entry)) {
-      console.log(`🎯 [CACHE] פגיעה במטמון: ${storageKey}`);
-      return entry.data;
+    // אם יש כפיית רענון או המטמון לא תקף
+    if (forceRefresh || !entry || !this.isStorageValid(entry)) {
+      
+      // טען מהשרת
+      const data = await fetchFunction();
+      
+      // שמור במטמון מקומי
+      this.storage.set(storageKey, {
+        data,
+        lastUpdated: new Date(),
+        isStale: false
+      });
+
+      // שמור ל-localStorage
+      this.saveToStorage();
+
+      return data;
     }
 
-    console.log(`📡 [CACHE] החמצה במטמון, טוען מהשרת: ${storageKey}`);
-    
-    // אם אין מטמון מקומי או שהוא לא תקף, טען מהשרת
-    const data = await fetchFunction();
-    
-    // שמור במטמון מקומי
-    this.storage.set(storageKey, {
-      data,
-      lastUpdated: new Date(),
-      isStale: false
-    });
-
-    // שמור ל-localStorage
-    this.saveToStorage();
-
-    return data;
+    return entry.data;
   }
 
   // עדכון מטמון מקומי ידני
@@ -259,6 +258,17 @@ class LocalStorageService {
     localStorage.removeItem(this.STORAGE_KEY);
   }
 
+  // כפיית רענון עבור טבלה ספציפית
+  forceRefreshTable(tableName: string, userId?: string): void {
+    const storageKey = this.getStorageKey(tableName, userId);
+    const entry = this.storage.get(storageKey);
+    
+    if (entry) {
+      entry.isStale = true;
+      this.saveToStorage();
+    }
+  }
+
 
 
     // קבלת מידע על המטמון המקומי
@@ -269,7 +279,6 @@ class LocalStorageService {
       isStale: entry.isStale
     }));
     
-    // הלוג הוסר כדי להפחית רעש בקונסול
     
     return {
       tableCount: this.storage.size,
@@ -298,7 +307,6 @@ class LocalStorageService {
     
     if (cleanedCount > 0) {
       this.saveToStorage();
-      console.log(`🧹 [CACHE] ניקוי אוטומטי: ${cleanedCount} פריטים נמחקו`);
     }
   }
 
@@ -358,7 +366,6 @@ class LocalStorageService {
   // אפס מטריקות ביצועים
   resetPerformanceMetrics(): void {
     this.performanceMetrics.clear();
-    console.log('🧹 [CACHE] מטריקות ביצועים אופסו');
   }
 
   // סגירת כל ה-listeners
@@ -411,7 +418,6 @@ export const updateTableTimestamp = async (tableName: string): Promise<void> => 
     // עדכון גם במטמון המקומי כדי למנוע סימון שגוי כ"לא מעודכן"
     localStorageService['lastKnownUpdates'].set(tableName, now.toDate());
     
-    console.log(`✅ [LOCAL_STORAGE] עדכון זמן עבור טבלה ${tableName}`);
   } catch (error: any) {
     if (error.code === 'permission-denied') {
       console.warn(`⚠️ [LOCAL_STORAGE] אין הרשאות לעדכון זמן עבור טבלה ${tableName} - ייתכן שהמשתמש לא מחובר`);
@@ -455,7 +461,6 @@ export const checkTableUpdatesStatus = async (): Promise<{
 // פונקציה ליצירת כל הרשומות בטבלת העדכונים
 export const initializeTableUpdates = async (): Promise<void> => {
   try {
-    console.log('🔄 [CACHE] מתחיל אתחול טבלת העדכונים...');
     
     const tables = [
       'soldiers',
@@ -479,13 +484,11 @@ export const initializeTableUpdates = async (): Promise<void> => {
     try {
       const testQuery = query(updatesRef, where('tableName', '==', 'test'));
       await getDocs(testQuery);
-      console.log('✅ [CACHE] טבלת העדכונים קיימת');
     } catch (error: any) {
       if (error.code === 'permission-denied') {
         console.log('⚠️ [CACHE] אין הרשאות לטבלת העדכונים - ייתכן שהמשתמש לא מחובר');
         return; // נצא מהפונקציה אם אין הרשאות
       } else {
-        console.log('⚠️ [CACHE] טבלת העדכונים לא קיימת, יוצרת אותה...');
       }
     }
     
@@ -500,7 +503,6 @@ export const initializeTableUpdates = async (): Promise<void> => {
             tableName,
             lastUpdated: Timestamp.now()
           });
-          console.log(`✅ [CACHE] נוצרה רשומת עדכון עבור ${tableName}`);
         }
       } catch (error: any) {
         if (error.code === 'permission-denied') {
@@ -512,7 +514,6 @@ export const initializeTableUpdates = async (): Promise<void> => {
       }
     }
     
-    console.log('✅ [CACHE] אתחול טבלת העדכונים הושלם בהצלחה');
   } catch (error: any) {
     if (error.code === 'permission-denied') {
       console.error('❌ [CACHE] אין הרשאות לאתחול טבלת העדכונים - ייתכן שהמשתמש לא מחובר');

@@ -90,6 +90,16 @@ export const getStatusLabel = (status: PresenceStatus): string => {
 };
 
 /**
+ * קבלת תווית לסטטוס עם שם פעילות
+ */
+export const getStatusLabelWithActivity = (status: PresenceStatus, currentActivityName?: string): string => {
+  if (status === 'בפעילות' && currentActivityName) {
+    return currentActivityName;
+  }
+  return STATUS_LABELS[status] || status;
+};
+
+/**
  * קבלת כל הסטטוסים הזמינים
  */
 export const getAllStatuses = (): PresenceStatus[] => {

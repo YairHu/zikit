@@ -47,6 +47,9 @@ interface DashboardStats {
   driversResting: number;
   driversOnSickLeave: number;
   driversOnVacation: number;
+  driversOnDuty: number;
+  driversInActivity: number;
+  driversOnReferral: number;
   driversOther: number;
 }
 
@@ -74,6 +77,9 @@ const TripsDashboard: React.FC<TripsDashboardProps> = ({
     const driversResting = drivers.filter(d => getSoldierCurrentStatus(d) === 'במנוחה').length;
     const driversOnSickLeave = drivers.filter(d => getSoldierCurrentStatus(d) === 'גימלים').length;
     const driversOnVacation = drivers.filter(d => getSoldierCurrentStatus(d) === 'חופש').length;
+    const driversOnDuty = drivers.filter(d => getSoldierCurrentStatus(d) === 'בתורנות').length;
+    const driversInActivity = drivers.filter(d => getSoldierCurrentStatus(d) === 'בפעילות').length;
+    const driversOnReferral = drivers.filter(d => getSoldierCurrentStatus(d) === 'בהפניה').length;
     const driversOther = drivers.filter(d => getSoldierCurrentStatus(d) === 'אחר').length;
     const availableDrivers = drivers.filter(d => getSoldierCurrentStatus(d) === 'בבסיס').length;
     
@@ -86,6 +92,9 @@ const TripsDashboard: React.FC<TripsDashboardProps> = ({
       driversResting: driversResting,
       driversOnSickLeave: driversOnSickLeave,
       driversOnVacation: driversOnVacation,
+      driversOnDuty: driversOnDuty,
+      driversInActivity: driversInActivity,
+      driversOnReferral: driversOnReferral,
       driversOther: driversOther
     };
   }, [trips, vehicles, drivers]);
@@ -209,6 +218,27 @@ const TripsDashboard: React.FC<TripsDashboardProps> = ({
                 <Chip size="small" label={`${stats.driversOnVacation} בחופש`} sx={{ 
                   fontSize: { xs: '0.6rem', sm: '0.75rem' },
                   backgroundColor: getStatusColor('חופש' as PresenceStatus),
+                  color: '#fff'
+                }} />
+              )}
+              {stats.driversOnDuty > 0 && (
+                <Chip size="small" label={`${stats.driversOnDuty} בתורנות`} sx={{ 
+                  fontSize: { xs: '0.6rem', sm: '0.75rem' },
+                  backgroundColor: getStatusColor('בתורנות' as PresenceStatus),
+                  color: '#fff'
+                }} />
+              )}
+              {stats.driversInActivity > 0 && (
+                <Chip size="small" label={`${stats.driversInActivity} בפעילות`} sx={{ 
+                  fontSize: { xs: '0.6rem', sm: '0.75rem' },
+                  backgroundColor: getStatusColor('בפעילות' as PresenceStatus),
+                  color: '#fff'
+                }} />
+              )}
+              {stats.driversOnReferral > 0 && (
+                <Chip size="small" label={`${stats.driversOnReferral} בהפניה`} sx={{ 
+                  fontSize: { xs: '0.6rem', sm: '0.75rem' },
+                  backgroundColor: getStatusColor('בהפניה' as PresenceStatus),
                   color: '#fff'
                 }} />
               )}

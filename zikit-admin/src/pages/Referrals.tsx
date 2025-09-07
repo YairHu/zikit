@@ -78,7 +78,8 @@ const Referrals: React.FC = () => {
       );
       
       // עדכון אוטומטי של סטטוס הפניות
-      // await updateReferralStatusesAutomatically(); // This line is removed
+      const { updateReferralStatusesAutomatically } = await import('../services/referralService');
+      await updateReferralStatusesAutomatically();
       
       // טעינת כל הנתונים קודם
       const [allSoldiers, allFrameworks] = await Promise.all([
@@ -370,7 +371,7 @@ const Referrals: React.FC = () => {
                       {referral.soldierName}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {referral.personalNumber} • {referral.team}
+                      {referral.personalNumber} • {frameworks.find(f => f.id === referral.frameworkId)?.name || referral.team || 'לא מוגדר'}
                     </Typography>
                   </Box>
                 </Box>
@@ -429,7 +430,7 @@ const Referrals: React.FC = () => {
             <TableHead>
               <TableRow>
                 <TableCell>חייל</TableCell>
-                <TableCell>צוות</TableCell>
+                <TableCell>מסגרת</TableCell>
                 <TableCell>תאריך</TableCell>
                 <TableCell>שעת יציאה</TableCell>
                 <TableCell>שעת חזרה</TableCell>
@@ -453,7 +454,7 @@ const Referrals: React.FC = () => {
                       </Typography>
                     </Box>
                   </TableCell>
-                  <TableCell>{referral.team}</TableCell>
+                  <TableCell>{frameworks.find(f => f.id === referral.frameworkId)?.name || referral.team || 'לא מוגדר'}</TableCell>
                   <TableCell>{referral.date}</TableCell>
                   <TableCell>{referral.departureTime || '06:00'}</TableCell>
                   <TableCell>{referral.returnTime || '18:00'}</TableCell>

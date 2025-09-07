@@ -33,11 +33,11 @@ import {
 // (הוסרו אייקונים שאינם בשימוש)
 import { useUser } from '../contexts/UserContext';
 import { getAllFrameworks } from '../services/frameworkService';
-import { getAllSoldiers, getAllSoldiersWithFrameworkNames } from '../services/soldierService';
+import { getAllSoldiers, getAllSoldiersWithFrameworkNames, updateAllSoldiersStatusesAutomatically } from '../services/soldierService';
 import { getAllActivities } from '../services/activityService';
-import { getAllDuties } from '../services/dutyService';
+import { getAllDuties, updateDutyStatusesAutomatically } from '../services/dutyService';
 import { getAllReferrals } from '../services/referralService';
-import { getAllTrips } from '../services/tripService';
+import { getAllTrips, updateTripStatusesAutomatically } from '../services/tripService';
 import { Framework } from '../models/Framework';
 import { Soldier } from '../models/Soldier';
 import { Activity } from '../models/Activity';
@@ -53,6 +53,28 @@ import SoldiersTimeline from '../components/SoldiersTimeline';
 import WeeklyActivitiesDashboard from '../components/WeeklyActivitiesDashboard';
 import { getStatusColor, PresenceStatus, parseAbsenceUntilTime } from '../utils/presenceStatus';
 import FrameworksTree from '../components/FrameworksTree';
+import { localStorageService } from '../services/cacheService';
+
+// הוספת אנימציות CSS
+const styles = `
+  @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+`;
+
+// הוספת הסטיילים לראש המסמך
+if (typeof document !== 'undefined') {
+  const styleElement = document.createElement('style');
+  styleElement.textContent = styles;
+  document.head.appendChild(styleElement);
+}
 
 interface OrganizationalStructure {
   frameworks: Framework[];
@@ -70,12 +92,13 @@ const Hamal: React.FC = () => {
   const { user } = useUser();
   const [data, setData] = useState<OrganizationalStructure | null>(null);
   const [loading, setLoading] = useState(true);
-  const [autoRefresh, setAutoRefresh] = useState(true);
   const [zoom, setZoom] = useState(0.5);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showSoldiers, setShowSoldiers] = useState(true);
   const [showPresence, setShowPresence] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
+  const [showCacheInfo, setShowCacheInfo] = useState(false);
+  const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
   const [permissions, setPermissions] = useState({
     canView: false,
     canViewFrameworks: false,
@@ -84,11 +107,18 @@ const Hamal: React.FC = () => {
 
 
   // טעינת נתוני המבנה הארגוני
-  const loadOrganizationalData = useCallback(async () => {
+  const loadOrganizationalData = useCallback(async (forceRefresh: boolean = false) => {
     if (!user) return;
     
     try {
       setLoading(true);
+
+      // אם יש כפיית רענון, סמן את כל הטבלות לרענון
+      if (forceRefresh) {
+        ['soldiers', 'frameworks', 'activities', 'duties', 'referrals', 'trips'].forEach(table => {
+          localStorageService.forceRefreshTable(table);
+        });
+      }
       
       // בדיקת הרשאות המשתמש
       const canViewFrameworks = await canUserAccessPath(user.uid, SystemPath.FRAMEWORKS, PermissionLevel.VIEW);
@@ -106,6 +136,18 @@ const Hamal: React.FC = () => {
         return;
       }
       
+      // עדכון אוטומטי של סטטוסי נוכחות לפני טעינת הנתונים
+      try {
+        await Promise.all([
+          updateAllSoldiersStatusesAutomatically(),
+          updateDutyStatusesAutomatically(),
+          updateTripStatusesAutomatically()
+        ]);
+      } catch (error) {
+        console.warn('⚠️ [HAMAL] שגיאה בעדכון אוטומטי של סטטוסים:', error);
+        // נמשיך גם אם יש שגיאה בעדכון האוטומטי
+      }
+
       // קבלת הרשאות המשתמש לסינון נתונים
       const userPermissions = await getUserPermissions(user.uid);
       const frameworksPolicy = userPermissions.policies.find(policy => 
@@ -325,15 +367,17 @@ const Hamal: React.FC = () => {
 
 
 
-  // Auto-refresh every 60 seconds
+  // Auto-refresh every 60 seconds - תמיד פעיל
   useEffect(() => {
     loadOrganizationalData();
     
-    if (autoRefresh) {
-      const interval = setInterval(loadOrganizationalData, 60000);
-      return () => clearInterval(interval);
-    }
-  }, [loadOrganizationalData, autoRefresh]);
+    const interval = setInterval(async () => {
+      setIsAutoRefreshing(true);
+      await loadOrganizationalData();
+      setTimeout(() => setIsAutoRefreshing(false), 1000); // הסר אינדיקטור אחרי שנייה
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [loadOrganizationalData]);
 
   // Update current time every second
   useEffect(() => {
@@ -343,6 +387,31 @@ const Hamal: React.FC = () => {
     
     return () => clearInterval(timeInterval);
   }, []);
+
+  // מאזין לעדכונים במטמון - רענון מיידי כשיש שינויים
+  useEffect(() => {
+    let lastCacheCheck = new Date();
+    
+    const checkCacheUpdates = () => {
+      const cacheInfo = localStorageService.getLocalStorageInfo();
+      
+      // בדוק אם יש טבלות שהתעדכנו מאז הבדיקה האחרונה
+      const hasRecentUpdates = cacheInfo.entries.some(entry => {
+        return entry.lastUpdated > lastCacheCheck && !entry.isStale;
+      });
+
+      if (hasRecentUpdates && data) {
+        loadOrganizationalData();
+      }
+      
+      lastCacheCheck = new Date();
+    };
+
+    // בדיקה כל 15 שניות - יותר רספונסיבי
+    const cacheCheckInterval = setInterval(checkCacheUpdates, 15000);
+    
+    return () => clearInterval(cacheCheckInterval);
+  }, [data, loadOrganizationalData]);
 
   // Zoom handling
   const handleZoomIn = () => setZoom(z => Math.min(2, +(z + 0.1).toFixed(2)));
@@ -429,30 +498,38 @@ const Hamal: React.FC = () => {
               <Typography variant={"body1"} sx={{ color: 'text.secondary' }}>
                 {formatDate(currentTime)} | {formatTime(currentTime)}
                 {data && ` | עודכן לאחרונה: ${formatTime(data.lastUpdated)}`}
+                <Chip 
+                  size="small" 
+                  label={isAutoRefreshing ? "מרענן..." : "ריענון אוטומטי פעיל"} 
+                  color={isAutoRefreshing ? "warning" : "success"} 
+                  sx={{ 
+                    ml: 1, 
+                    fontSize: '0.7rem', 
+                    height: 20,
+                    animation: isAutoRefreshing ? 'pulse 1s infinite' : 'none'
+                  }}
+                />
               </Typography>
             </Box>
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={autoRefresh}
-                  onChange={(e) => setAutoRefresh(e.target.checked)}
-                  size="small"
-                />
-              }
-              label="רענון אוטומטי"
-              sx={{ 
-                fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                '& .MuiFormControlLabel-label': {
-                  fontSize: { xs: '0.75rem', sm: '0.875rem' }
-                }
-              }}
-            />
-            <Tooltip title="רענן נתונים">
-              <IconButton onClick={loadOrganizationalData} size="small">
-                <RefreshIcon />
+            <Tooltip title="רענן נתונים (כולל כפיית עדכון מהשרת)">
+              <IconButton 
+                onClick={async () => {
+                  setIsAutoRefreshing(true);
+                  await loadOrganizationalData(true);
+                  setTimeout(() => setIsAutoRefreshing(false), 1000);
+                }} 
+                size="small"
+                disabled={loading}
+              >
+                <RefreshIcon sx={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="מידע על מטמון">
+              <IconButton onClick={() => setShowCacheInfo(!showCacheInfo)} size="small">
+                <SettingsIcon />
               </IconButton>
             </Tooltip>
             
@@ -616,6 +693,58 @@ const Hamal: React.FC = () => {
                     }}
                   />
                 ))}
+              </Box>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Cache Information */}
+        {showCacheInfo && (
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                מידע על מטמון מקומי
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {(() => {
+                  const cacheInfo = localStorageService.getLocalStorageInfo();
+                  const performanceMetrics = localStorageService.getPerformanceMetrics();
+                  
+                  return (
+                    <>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        <Chip 
+                          label={`טבלות במטמון: ${cacheInfo.tableCount}`} 
+                          color="info" 
+                          size="small"
+                        />
+                        <Chip 
+                          label={`אחוז פגיעות: ${performanceMetrics.hitRate}%`} 
+                          color={performanceMetrics.hitRate > 70 ? "success" : "warning"} 
+                          size="small"
+                        />
+                        <Chip 
+                          label={`סה"כ בקשות: ${performanceMetrics.totalRequests}`} 
+                          color="primary" 
+                          size="small"
+                        />
+                      </Box>
+                      <Box sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          טבלות אחרונות:
+                        </Typography>
+                        {cacheInfo.entries.slice(0, 5).map(entry => (
+                          <Box key={entry.key} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                            <span>{entry.key}</span>
+                            <span style={{ color: entry.isStale ? 'orange' : 'green' }}>
+                              {entry.isStale ? 'מיושן' : 'מעודכן'} - {formatTime(entry.lastUpdated)}
+                            </span>
+                          </Box>
+                        ))}
+                      </Box>
+                    </>
+                  );
+                })()}
               </Box>
             </CardContent>
           </Card>

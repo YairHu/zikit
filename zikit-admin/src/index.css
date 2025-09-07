@@ -77,13 +77,7 @@ textarea {
   direction: rtl !important;
 }
 
-/* Fix input padding and alignment for RTL */
-.MuiInputBase-input {
-  padding-right: 14px !important;
-  padding-left: 14px !important;
-  text-align: start !important;
-  margin-right: -8px !important;
-}
+
 
 /* Better spacing for RTL layout */
 .MuiOutlinedInput-root {
@@ -91,7 +85,7 @@ textarea {
 }
 
 .MuiInputLabel-outlined {
-  right: 14px !important;
+  right: 25px !important;
   left: auto !important;
 }
 

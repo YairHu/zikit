@@ -104,7 +104,6 @@ const DataImportExport: React.FC = () => {
         if (!user?.uid) throw new Error('משתמש לא מחובר');
         
         // מיפוי כותרות עבריות לאנגליות
-        console.log('📊 נתונים מקוריים:', data[0]); // לוג של השורה הראשונה
         const mappedData = data.map(row => ({
           name: row['שם מלא'] || row.name,
           personalNumber: row['מספר אישי'] || row.personalNumber,
@@ -120,7 +119,6 @@ const DataImportExport: React.FC = () => {
           address: row['כתובת'] || row.address,
           additionalInfo: row['מידע נוסף'] || row.additionalInfo
         }));
-        console.log('📊 נתונים ממופים:', mappedData[0]); // לוג של השורה הראשונה אחרי מיפוי
         
         const result = await importSoldiers(mappedData, user.uid);
         return result;

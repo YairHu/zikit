@@ -35,6 +35,27 @@ export const getCompletedActivities = async (): Promise<Activity[]> => {
   }
 };
 
+// פונקציה לעדכון זמנים בפועל של פעילות
+export const updateActivityActualTimes = async (
+  activityId: string,
+  actualStartTime: string,
+  actualEndTime: string
+): Promise<void> => {
+  try {
+    const updateData = {
+      actualStartTime,
+      actualEndTime,
+      updatedAt: new Date()
+    };
+    
+    await dataLayer.update(COLLECTION_NAME, activityId, updateData);
+    console.log(`זמנים בפועל של פעילות ${activityId} עודכנו`);
+  } catch (error) {
+    console.error('שגיאה בעדכון זמנים בפועל של פעילות:', error);
+    throw error;
+  }
+};
+
 // פונקציה להוספת תוצר לפעילות
 export const addActivityDeliverable = async (
   activityId: string,
@@ -127,7 +148,6 @@ export const getActivitiesBySoldier = async (soldierId: string): Promise<Activit
 // פונקציה לעדכון סטטוס פעילויות אוטומטי - הוסרה לפי בקשה
 // export const updateActivityStatusesAutomatically = async (): Promise<void> => {
 //   try {
-//     console.log('🔄 [AUTO] מתחיל עדכון סטטוס פעילויות אוטומטי');
 //     
 //     const activities = await getAllActivities();
 //     let updatedActivities = 0;
@@ -148,12 +168,10 @@ export const getActivitiesBySoldier = async (soldierId: string): Promise<Activit
 //         // הפעילות התחילה - עדכון לביצוע
 //         newStatus = 'בביצוע';
 //         shouldUpdate = true;
-//         console.log(`🔄 [AUTO] עדכון פעילות ${activity.id} מ-מתוכננת ל-בביצוע`);
 //       } else if (activity.status === 'בביצוע' && !isActive) {
 //         // הפעילות הסתיימה - עדכון להסתיימה
 //         newStatus = 'הסתיימה';
 //         shouldUpdate = true;
-//         console.log(`🔄 [AUTO] עדכון פעילות ${activity.id} מ-בביצוע ל-הסתיימה`);
 //       }
 //       
 //       if (shouldUpdate) {
@@ -186,9 +204,7 @@ export const getActivitiesBySoldier = async (soldierId: string): Promise<Activit
 //     }
 //     
 //     if (updatedActivities > 0) {
-//       console.log(`✅ [AUTO] עדכון ${updatedActivities} פעילויות הושלם`);
 //     } else {
-//       console.log('✅ [AUTO] אין פעילויות שצריכות עדכון');
 //     }
 //   } catch (error) {
 //     console.error('❌ [AUTO] שגיאה בעדכון סטטוס פעילויות:', error);

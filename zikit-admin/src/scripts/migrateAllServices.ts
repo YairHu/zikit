@@ -32,7 +32,6 @@ class ServiceMigrator {
   // מיגרציה של קובץ שירות בודד
   async migrateServiceFile(filePath: string): Promise<MigrationResult> {
     const fileName = path.basename(filePath);
-    console.log(`🔄 מתחיל מיגרציה: ${fileName}`);
 
     try {
       const originalContent = fs.readFileSync(filePath, 'utf8');
@@ -56,7 +55,6 @@ class ServiceMigrator {
       // שמירת הקובץ החדש
       fs.writeFileSync(filePath, newContent);
 
-      console.log(`✅ הושלם: ${fileName} (${changes.length} שינויים)`);
       
       return {
         file: fileName,
@@ -238,7 +236,6 @@ class ServiceMigrator {
   // מיגרציה של קובץ קומפוננט
   async migrateComponentFile(filePath: string): Promise<MigrationResult> {
     const fileName = path.basename(filePath);
-    console.log(`🔄 מתחיל מיגרציה של קומפוננט: ${fileName}`);
 
     try {
       const originalContent = fs.readFileSync(filePath, 'utf8');
@@ -259,7 +256,6 @@ class ServiceMigrator {
       // שמירת הקובץ החדש
       fs.writeFileSync(filePath, newContent);
 
-      console.log(`✅ הושלם קומפוננט: ${fileName} (${changes.length} שינויים)`);
       
       return {
         file: fileName,
@@ -330,7 +326,6 @@ class ServiceMigrator {
 
   // מיגרציה של כל השירותים
   async migrateAllServices(): Promise<void> {
-    console.log('🚀 מתחיל מיגרציה של כל השירותים...');
 
     const servicesDir = './src/services';
     const pagesDir = './src/pages';
@@ -379,13 +374,11 @@ class ServiceMigrator {
 
   // הדפסת סיכום
   private printSummary(): void {
-    console.log('\n📊 סיכום מיגרציה:');
     console.log('='.repeat(50));
 
     const successful = this.results.filter(r => r.success);
     const failed = this.results.filter(r => !r.success);
 
-    console.log(`✅ הצליחו: ${successful.length}`);
     console.log(`❌ נכשלו: ${failed.length}`);
     console.log(`📝 סך שינויים: ${successful.reduce((sum, r) => sum + r.changes.length, 0)}`);
 
@@ -402,7 +395,6 @@ class ServiceMigrator {
 
   // שחזור מ-backups
   async restoreFromBackups(): Promise<void> {
-    console.log('🔄 משחזר מ-backups...');
     
     const dirs = ['./src/services', './src/pages', './src/components'];
     
@@ -419,7 +411,6 @@ class ServiceMigrator {
       });
     });
     
-    console.log('✅ השחזור הושלם');
   }
 }
 

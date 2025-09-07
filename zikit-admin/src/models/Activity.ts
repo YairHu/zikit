@@ -18,6 +18,8 @@ export interface Activity {
   plannedDate: string;
   plannedTime: string;
   duration: number; // בשעות
+  actualStartTime?: string; // זמן התחלה בפועל
+  actualEndTime?: string; // זמן סיום בפועל
   commanderId: string;
   commanderName: string;
   taskLeaderId: string;

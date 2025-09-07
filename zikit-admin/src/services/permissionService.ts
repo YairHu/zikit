@@ -53,7 +53,6 @@ const clearPermissionCache = (type?: 'policies' | 'roles' | 'userPermissions' | 
     permissionCache.userPermissions.clear();
   }
   
-  console.log(`🧹 [PERMISSION_CACHE] Cleared cache: ${type || 'all'}`);
 };
 
 // ===== ניהול מדיניות הרשאות =====
@@ -61,12 +60,10 @@ const clearPermissionCache = (type?: 'policies' | 'roles' | 'userPermissions' | 
 export const getAllPolicies = async (): Promise<PermissionPolicy[]> => {
   // Check in-memory cache first
   if (permissionCache.policies && isCacheValid(permissionCache.lastFetch.policies)) {
-    console.log('🚀 [PERMISSION_CACHE] Using cached policies from memory');
     return permissionCache.policies;
   }
   
   try {
-    console.log('📡 [PERMISSION_CACHE] Fetching policies from server');
     const allPolicies = await dataLayer.getAll('permissionPolicies') as unknown as any[];
     
     const policies = allPolicies.map(d => {
@@ -97,7 +94,6 @@ export const getAllPolicies = async (): Promise<PermissionPolicy[]> => {
     permissionCache.policies = policies;
     permissionCache.lastFetch.policies = Date.now();
     
-    console.log(`✅ [PERMISSION_CACHE] Cached ${policies.length} policies in memory`);
     return policies;
   } catch (error) {
     console.error('❌ [PERMISSION_CACHE] שגיאה בטעינת מדיניות הרשאות:', error);
@@ -137,7 +133,6 @@ export const createPolicy = async (
     // Smart cache invalidation - clear policies and user permissions
     clearPermissionCache('policies');
     
-    console.log('✅ [PERMISSION_CACHE] Created new policy and cleared relevant cache');
     
     return policyId;
   } catch (error) {
@@ -166,7 +161,6 @@ export const updatePolicy = async (
     // Smart cache invalidation - clear policies and user permissions
     clearPermissionCache('policies');
     
-    console.log('✅ [PERMISSION_CACHE] Updated policy and cleared relevant cache');
   } catch (error) {
     console.error('❌ [PERMISSION_CACHE] שגיאה בעדכון מדיניות:', error);
     throw error;
@@ -180,7 +174,6 @@ export const deletePolicy = async (policyId: string): Promise<void> => {
     // Smart cache invalidation - clear policies and user permissions
     clearPermissionCache('policies');
     
-    console.log('✅ [PERMISSION_CACHE] Deleted policy and cleared relevant cache');
   } catch (error) {
     console.error('❌ [PERMISSION_CACHE] שגיאה במחיקת מדיניות:', error);
     throw error;
@@ -192,12 +185,10 @@ export const deletePolicy = async (policyId: string): Promise<void> => {
 export const getAllRoles = async (): Promise<Role[]> => {
   // Check in-memory cache first
   if (permissionCache.roles && isCacheValid(permissionCache.lastFetch.roles)) {
-    console.log('🚀 [PERMISSION_CACHE] Using cached roles from memory');
     return permissionCache.roles;
   }
   
   try {
-    console.log('📡 [PERMISSION_CACHE] Fetching roles from server');
     const allRoles = await dataLayer.getAll('roles') as unknown as any[];
     
     const roles = allRoles.map(role => ({
@@ -211,7 +202,6 @@ export const getAllRoles = async (): Promise<Role[]> => {
     permissionCache.roles = roles;
     permissionCache.lastFetch.roles = Date.now();
     
-    console.log(`✅ [PERMISSION_CACHE] Cached ${roles.length} roles in memory`);
     return roles;
   } catch (error) {
     console.error('❌ [PERMISSION_CACHE] שגיאה בטעינת תפקידים:', error);
@@ -247,7 +237,6 @@ export const createRole = async (
     // Smart cache invalidation - clear roles and user permissions
     clearPermissionCache('roles');
     
-    console.log('✅ [PERMISSION_CACHE] Created new role and cleared relevant cache');
     
     return roleId;
   } catch (error) {
@@ -272,7 +261,6 @@ export const updateRole = async (
     // Smart cache invalidation - clear roles and user permissions
     clearPermissionCache('roles');
     
-    console.log('✅ [PERMISSION_CACHE] Updated role and cleared relevant cache');
   } catch (error) {
     console.error('❌ [PERMISSION_CACHE] שגיאה בעדכון תפקיד:', error);
     throw error;
@@ -286,7 +274,6 @@ export const deleteRole = async (roleId: string): Promise<void> => {
     // Smart cache invalidation - clear roles and user permissions
     clearPermissionCache('roles');
     
-    console.log('✅ [PERMISSION_CACHE] Deleted role and cleared relevant cache');
   } catch (error) {
     console.error('❌ [PERMISSION_CACHE] שגיאה במחיקת תפקיד:', error);
     throw error;
@@ -304,12 +291,10 @@ export const getUserPermissions = async (userId: string): Promise<{
   const cachedPermissions = permissionCache.userPermissions.get(cacheKey);
   
   if (cachedPermissions && isCacheValid(cachedPermissions.timestamp, USER_PERMISSION_CACHE_TTL)) {
-    console.log('🚀 [PERMISSION_CACHE] Using cached user permissions from memory');
     return cachedPermissions.data;
   }
   
   try {
-    console.log('📡 [PERMISSION_CACHE] Fetching user permissions from server');
     
     // קבלת תפקיד המשתמש
     const userData = await dataLayer.getById('users', userId) as unknown as any;
@@ -351,7 +336,6 @@ export const getUserPermissions = async (userId: string): Promise<{
       timestamp: Date.now()
     });
     
-    console.log(`✅ [PERMISSION_CACHE] Cached user permissions for ${userId}`);
     
     return result;
   } catch (error) {
@@ -510,12 +494,10 @@ export const clearUserPermissionsCache = (userId?: string): void => {
       }
     });
   }
-  console.log(`🧹 [PERMISSION_CACHE] Cleared user permissions cache: ${userId || 'all'}`);
 };
 
 // פונקציה לרענון הרשאות משתמש (לשימוש ידני)
 export const refreshUserPermissions = async (userId: string): Promise<void> => {
-  console.log(`🔄 [PERMISSION_CACHE] Manually refreshing permissions for user: ${userId}`);
   
   // ניקוי מטמון קיים
   clearUserPermissionsCache(userId);
@@ -523,12 +505,10 @@ export const refreshUserPermissions = async (userId: string): Promise<void> => {
   // טעינה מחדש מהשרת
   await getUserPermissions(userId);
   
-  console.log(`✅ [PERMISSION_CACHE] Refreshed permissions for user: ${userId}`);
 };
 
 // פונקציה לרענון כל המטמון (לשימוש ידני)
 export const refreshAllPermissionsCache = async (): Promise<void> => {
-  console.log('🔄 [PERMISSION_CACHE] Manually refreshing all permissions cache');
   
   // ניקוי כל המטמון
   clearPermissionCache('all');
@@ -539,7 +519,6 @@ export const refreshAllPermissionsCache = async (): Promise<void> => {
     getAllRoles()
   ]);
   
-  console.log('✅ [PERMISSION_CACHE] Refreshed all permissions cache');
 };
 
 // פונקציה להצגת מידע על מצב המטמון

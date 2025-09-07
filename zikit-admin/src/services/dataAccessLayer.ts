@@ -56,15 +56,14 @@ export class DataAccessLayer {
     options: QueryOptions = {},
     cacheOptions: CacheOptions = { useCache: true }
   ): Promise<T[]> {
-    const { useCache = true, cacheKey } = cacheOptions;
+    const { useCache = true, cacheKey, invalidateAfter = false } = cacheOptions;
     const finalCacheKey = cacheKey || collectionName;
 
-    console.log(`🔍 [DAL] מבקש רשימת ${collectionName}`);
 
     if (useCache) {
       return localStorageService.getFromLocalStorage(finalCacheKey, async () => {
         return this.fetchFromFirestore<T>(collectionName, options);
-      });
+      }, undefined, invalidateAfter);
     } else {
       return this.fetchFromFirestore<T>(collectionName, options);
     }
@@ -76,7 +75,6 @@ export class DataAccessLayer {
     id: string,
     cacheOptions: CacheOptions = { useCache: false }
   ): Promise<T | null> {
-    console.log(`🔍 [DAL] מבקש ${collectionName}/${id}`);
 
     try {
       if (cacheOptions.useCache) {
@@ -84,21 +82,17 @@ export class DataAccessLayer {
         const cached = await this.getAll<T>(collectionName, {}, cacheOptions);
         const found = cached.find(item => item.id === id);
         if (found) {
-          console.log(`✅ [DAL] נמצא במטמון: ${collectionName}/${id}`);
           return found;
         }
       }
 
-      console.log(`📡 [DAL] טוען מהשרת: ${collectionName}/${id}`);
       const docRef = doc(db, collectionName, id);
       const docSnap = await getDoc(docRef);
       
       if (docSnap.exists()) {
         const data = { id: docSnap.id, ...docSnap.data() } as T;
-        console.log(`✅ [DAL] נטען מהשרת: ${collectionName}/${id}`);
         return data;
       } else {
-        console.log(`⚠️ [DAL] לא נמצא: ${collectionName}/${id}`);
         return null;
       }
     } catch (error) {
@@ -113,7 +107,6 @@ export class DataAccessLayer {
     data: T,
     cacheOptions: CacheOptions = { useCache: true, invalidateAfter: true }
   ): Promise<string> {
-    console.log(`➕ [DAL] יוצר חדש ב-${collectionName}`);
 
     try {
       const now = Timestamp.now();
@@ -124,7 +117,6 @@ export class DataAccessLayer {
       };
 
       const docRef = await addDoc(collection(db, collectionName), dataWithTimestamps);
-      console.log(`✅ [DAL] נוצר בהצלחה: ${collectionName}/${docRef.id}`);
 
       // עדכון מטמון וטבלת העדכונים
       if (cacheOptions.invalidateAfter) {
@@ -145,7 +137,6 @@ export class DataAccessLayer {
     data: T,
     cacheOptions: CacheOptions = { useCache: true, invalidateAfter: true }
   ): Promise<void> {
-    console.log(`✏️ [DAL] מעדכן ${collectionName}/${id}`);
 
     try {
       const dataWithTimestamp = {
@@ -155,7 +146,6 @@ export class DataAccessLayer {
 
       const docRef = doc(db, collectionName, id);
       await updateDoc(docRef, dataWithTimestamp);
-      console.log(`✅ [DAL] עודכן בהצלחה: ${collectionName}/${id}`);
 
       // עדכון מטמון וטבלת העדכונים
       if (cacheOptions.invalidateAfter) {
@@ -173,12 +163,10 @@ export class DataAccessLayer {
     id: string,
     cacheOptions: CacheOptions = { useCache: true, invalidateAfter: true }
   ): Promise<void> {
-    console.log(`🗑️ [DAL] מוחק ${collectionName}/${id}`);
 
     try {
       const docRef = doc(db, collectionName, id);
       await deleteDoc(docRef);
-      console.log(`✅ [DAL] נמחק בהצלחה: ${collectionName}/${id}`);
 
       // עדכון מטמון וטבלת העדכונים
       if (cacheOptions.invalidateAfter) {
@@ -196,7 +184,6 @@ export class DataAccessLayer {
     options: QueryOptions,
     cacheOptions: CacheOptions = { useCache: false }
   ): Promise<T[]> {
-    console.log(`🔍 [DAL] מבצע שאילתה ב-${collectionName}`);
 
     if (cacheOptions.useCache && !options.where && !options.orderBy) {
       // אם זו שאילתה פשוטה, השתמש במטמון
@@ -212,7 +199,6 @@ export class DataAccessLayer {
     callback: (data: T[]) => void,
     options: QueryOptions = {}
   ): () => void {
-    console.log(`👂 [DAL] מוסיף מאזין לעדכונים: ${collectionName}`);
 
     const q = this.buildQuery(collectionName, options);
     
@@ -222,7 +208,6 @@ export class DataAccessLayer {
         ...doc.data()
       })) as T[];
       
-      console.log(`🔄 [DAL] עדכון בזמן אמת: ${collectionName} (${data.length} פריטים)`);
       callback(data);
     }, (error) => {
       console.error(`❌ [DAL] שגיאה במאזין ${collectionName}:`, error);
@@ -238,7 +223,6 @@ export class DataAccessLayer {
     id?: string;
     data?: any;
   }>): Promise<void> {
-    console.log(`🔄 [DAL] מבצע פעולות batch (${operations.length} פעולות)`);
 
     try {
       const batch = writeBatch(db);
@@ -277,7 +261,6 @@ export class DataAccessLayer {
       });
 
       await batch.commit();
-      console.log(`✅ [DAL] פעולות batch הושלמו בהצלחה`);
 
       // עדכון מטמון לכל הקולקציות המעורבות
       const collectionNames = operations.map(op => op.collectionName);
@@ -298,7 +281,6 @@ export class DataAccessLayer {
     options: QueryOptions = {}
   ): Promise<T[]> {
     try {
-      console.log(`📡 [DAL] טוען מהשרת: ${collectionName}`);
       
       const q = this.buildQuery(collectionName, options);
       const querySnapshot = await getDocs(q);
@@ -308,7 +290,6 @@ export class DataAccessLayer {
         ...doc.data()
       })) as T[];
       
-      console.log(`✅ [DAL] נטענו ${data.length} פריטים מ-${collectionName}`);
       return data;
     } catch (error: any) {
       // אם השגיאה היא חוסר אינדקס ויש orderBy ו-where יחד
@@ -316,7 +297,6 @@ export class DataAccessLayer {
           error?.message?.includes('index') && 
           options.where && options.orderBy) {
         
-        console.log(`⚠️ [DAL] שגיאת אינדקס - מנסה בלי orderBy: ${collectionName}`);
         
         try {
           // נסה שוב בלי orderBy
@@ -336,7 +316,6 @@ export class DataAccessLayer {
             data = this.sortDataOnClient(data, options.orderBy);
           }
           
-          console.log(`✅ [DAL] נטענו ${data.length} פריטים מ-${collectionName} (מיון בצד הלקוח)`);
           return data;
         } catch (fallbackError) {
           console.error(`❌ [DAL] גם שאילתת הגיבוי נכשלה עבור ${collectionName}:`, fallbackError);
@@ -402,7 +381,6 @@ export class DataAccessLayer {
     // אפס מטמון
     localStorageService.invalidateLocalStorage(finalCacheKey);
     
-    console.log(`🧹 [DAL] מטמון אופס עבור ${finalCacheKey}`);
   }
 }
 

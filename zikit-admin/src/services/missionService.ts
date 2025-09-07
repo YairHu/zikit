@@ -229,7 +229,6 @@ export const createDefaultMissionPolicies = async (): Promise<void> => {
       createdBy: 'system'
     }, 'system');
 
-    console.log('✅ מדיניות הרשאות ברירת מחדל למשימות נוצרה בהצלחה');
   } catch (error) {
     console.error('❌ שגיאה ביצירת מדיניות הרשאות למשימות:', error);
   }

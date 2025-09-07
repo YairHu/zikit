@@ -72,6 +72,7 @@ import {
   requiresCustomText,
   mapStatusForReport as mapStatusForReportUtil,
   getStatusLabel,
+  getStatusLabelWithActivity,
   isAbsenceActive
 } from '../utils/presenceStatus';
 import { createIsraelDate, isTodayInIsrael, getCurrentIsraelTime } from '../utils/dateUtils';
@@ -214,6 +215,12 @@ const FrameworkDetails: React.FC = () => {
       }
     }
     return soldier.presence;
+  };
+
+  // פונקציה לקבלת הטקסט של הנוכחות עם שם פעילות
+  const getActualPresenceText = (soldier: any) => {
+    const presence = getActualPresence(soldier);
+    return getStatusLabelWithActivity(presence as any, soldier.currentActivityName);
   };
 
   const handleSoldierClick = (soldierId: string) => {
@@ -547,7 +554,7 @@ const FrameworkDetails: React.FC = () => {
                           </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Chip 
-                              label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : getActualPresence(soldier) || 'לא מוגדר'} 
+                              label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : getActualPresenceText(soldier) || 'לא מוגדר'} 
                               sx={{ 
                                 bgcolor: getPresenceColor(getActualPresence(soldier) || ''),
                                 color: 'white',
@@ -681,7 +688,7 @@ const FrameworkDetails: React.FC = () => {
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Chip 
-                        label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : getActualPresence(soldier) || 'לא מוגדר'} 
+                        label={soldier.presence === 'אחר' && soldier.presenceOther ? `${soldier.presence} - ${soldier.presenceOther}` : getActualPresenceText(soldier) || 'לא מוגדר'} 
                         sx={{ 
                           bgcolor: getPresenceColor(getActualPresence(soldier) || ''),
                           color: 'white',

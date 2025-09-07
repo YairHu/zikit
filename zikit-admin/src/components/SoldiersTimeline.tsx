@@ -20,7 +20,8 @@ import {
   MenuItem,
   TextField,
   Switch,
-  FormControlLabel
+  FormControlLabel,
+  Checkbox
 } from '@mui/material';
 import {
   Person as SoldierIcon,
@@ -77,6 +78,9 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
     qualifications: [] as string[],
     searchTerm: ''
   });
+  
+  // מתג להצגת כל החיילים או רק חיילים עם פעילויות
+  const [showAllSoldiers, setShowAllSoldiers] = useState(false);
   const [selectionStart, setSelectionStart] = useState<{
     x: number;
     yItem: Soldier;
@@ -188,13 +192,13 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
         referral.soldierId === soldier.id
       );
       const hasTrips = trips.some(trip => 
-        trip.driverId === soldier.id
+        trip.driverId === soldier.id || trip.commanderId === soldier.id
       );
       const hasAbsence = soldier.presence && ['קורס', 'גימלים', 'חופש'].includes(soldier.presence);
       const hasRest = soldier.qualifications?.includes('נהג') && (soldier.restUntil || trips.some(trip => trip.driverId === soldier.id));
       
-      // הצג חייל רק אם יש לו פעילויות או שהוא לא בבסיס
-      if (soldier.presence === 'בבסיס' && !hasActivities && !hasDuties && !hasReferrals && !hasTrips && !hasAbsence && !hasRest) {
+      // הצג חייל רק אם יש לו פעילויות או שהוא לא בבסיס (אלא אם המתג מופעל)
+      if (!showAllSoldiers && soldier.presence === 'בבסיס' && !hasActivities && !hasDuties && !hasReferrals && !hasTrips && !hasAbsence && !hasRest) {
         return;
       }
       
@@ -278,7 +282,7 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
         // הוספת נסיעות לחייל בבסיס
         if (hasTrips) {
           const soldierTrips = trips.filter(trip => 
-            trip.driverId === soldier.id
+            trip.driverId === soldier.id || trip.commanderId === soldier.id
           );
           
           soldierTrips.forEach(trip => {
@@ -286,9 +290,12 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
               const startTime = new Date(trip.departureTime);
               const endTime = new Date(trip.returnTime);
               
+              // קביעת תפקיד החייל בנסיעה
+              const role = trip.driverId === soldier.id ? 'נהג' : 'מלווה';
+              
               items.push({
                 id: `trip-${trip.id}-${soldier.id}`,
-                title: `נסיעה: ${trip.purpose}`,
+                title: `נסיעה (${role}): ${trip.purpose}`,
                 start: startTime,
                 end: endTime,
                 type: 'trip',
@@ -371,9 +378,9 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
         }
       });
       
-      // נסיעות (רק אם החייל הוא הנהג)
+      // נסיעות (נהג או מלווה)
       const soldierTrips = trips.filter(trip => 
-        trip.driverId === soldier.id
+        trip.driverId === soldier.id || trip.commanderId === soldier.id
       );
       
       soldierTrips.forEach(trip => {
@@ -381,9 +388,12 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
           const startTime = new Date(trip.departureTime);
           const endTime = new Date(trip.returnTime);
           
+          // קביעת תפקיד החייל בנסיעה
+          const role = trip.driverId === soldier.id ? 'נהג' : 'מלווה';
+          
           items.push({
             id: `trip-${trip.id}-${soldier.id}`,
-            title: `נסיעה: ${trip.purpose}`,
+            title: `נסיעה (${role}): ${trip.purpose}`,
             start: startTime,
             end: endTime,
             type: 'trip',
@@ -514,13 +524,13 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
         referral.soldierId === soldier.id
       );
       const hasTrips = trips.some(trip => 
-        trip.driverId === soldier.id
+        trip.driverId === soldier.id || trip.commanderId === soldier.id
       );
       const hasAbsence = soldier.presence && ['קורס', 'גימלים', 'חופש'].includes(soldier.presence);
       const hasRest = soldier.qualifications?.includes('נהג') && (soldier.restUntil || trips.some(trip => trip.driverId === soldier.id));
       
-      // הצג חייל רק אם יש לו פעילויות או שהוא לא בבסיס
-      if (soldier.presence === 'בבסיס' && !hasActivities && !hasDuties && !hasReferrals && !hasTrips && !hasAbsence && !hasRest) {
+      // הצג חייל רק אם יש לו פעילויות או שהוא לא בבסיס (אלא אם המתג מופעל)
+      if (!showAllSoldiers && soldier.presence === 'בבסיס' && !hasActivities && !hasDuties && !hasReferrals && !hasTrips && !hasAbsence && !hasRest) {
         return false;
       }
       
@@ -1163,6 +1173,26 @@ const SoldiersTimeline: React.FC<SoldiersTimelineProps> = ({
               >
                 נקה פילטרים
               </Button>
+            </Box>
+            
+            {/* מתג להצגת כל החיילים */}
+            <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={showAllSoldiers}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowAllSoldiers(e.target.checked)}
+                    size="small"
+                  />
+                }
+                label="הצג כל החיילים (כולל חיילים בבסיס ללא פעילויות)"
+                sx={{ 
+                  fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                  '& .MuiFormControlLabel-label': {
+                    fontSize: { xs: '0.8rem', sm: '0.875rem' }
+                  }
+                }}
+              />
             </Box>
           </CardContent>
         </Card>

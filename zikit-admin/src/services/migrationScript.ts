@@ -101,7 +101,6 @@ export class ServiceMigrationTool {
 
   // מעבר קובץ בודד
   async migrateFile(filePath: string): Promise<MigrationResult> {
-    console.log(`🔄 [MIGRATION] מתחיל מעבר: ${filePath}`);
     
     try {
       const originalContent = fs.readFileSync(filePath, 'utf8');
@@ -125,8 +124,6 @@ export class ServiceMigrationTool {
       // שמירת הקובץ החדש
       fs.writeFileSync(filePath, newContent);
       
-      console.log(`✅ [MIGRATION] הושלם בהצלחה: ${filePath}`);
-      console.log(`📝 [MIGRATION] שינויים: ${changes.length}`);
       changes.forEach(change => console.log(`   - ${change}`));
       
       return {
@@ -255,7 +252,6 @@ export class ServiceMigrationTool {
   // מעבר כל הקבצים
   async migrateAllFiles(): Promise<{ successful: string[]; failed: string[] }> {
     const filesToMigrate = await this.findFilesToMigrate();
-    console.log(`🎯 [MIGRATION] נמצאו ${filesToMigrate.length} קבצים למעבר`);
     
     const successful: string[] = [];
     const failed: string[] = [];
@@ -269,7 +265,6 @@ export class ServiceMigrationTool {
       }
     }
     
-    console.log(`📊 [MIGRATION] סיכום: ${successful.length} הצליחו, ${failed.length} נכשלו`);
     
     return { successful, failed };
   }
@@ -282,7 +277,6 @@ export class ServiceMigrationTool {
       if (fs.existsSync(backupPath)) {
         const backupContent = fs.readFileSync(backupPath, 'utf8');
         fs.writeFileSync(filePath, backupContent);
-        console.log(`🔄 [MIGRATION] שוחזר מ-backup: ${filePath}`);
         return true;
       } else {
         console.error(`❌ [MIGRATION] לא נמצא backup עבור: ${filePath}`);
@@ -301,7 +295,6 @@ export class ServiceMigrationTool {
     for (const backupFile of backupFiles) {
       try {
         fs.unlinkSync(backupFile);
-        console.log(`🗑️ [MIGRATION] נמחק backup: ${backupFile}`);
       } catch (error) {
         console.error(`❌ [MIGRATION] שגיאה במחיקת backup ${backupFile}:`, error);
       }

@@ -1,5 +1,6 @@
 import { Duty, DutyParticipant } from '../models/Duty';
 import { dataLayer } from './dataAccessLayer';
+import { updateTableTimestamp } from './cacheService';
 import { updateSoldierStatus } from './soldierService';
 import { isDutyActive, getCurrentIsraelTime } from '../utils/dateUtils';
 
@@ -69,7 +70,6 @@ export const getDutiesBySoldier = async (soldierId: string): Promise<Duty[]> => 
 // פונקציה לעדכון סטטוס תורנויות אוטומטי
 export const updateDutyStatusesAutomatically = async (): Promise<void> => {
   try {
-    console.log('🔄 [AUTO] מתחיל עדכון סטטוס תורנויות אוטומטי');
     
     const duties = await getAllDuties();
     let updatedDuties = 0;
@@ -89,14 +89,12 @@ export const updateDutyStatusesAutomatically = async (): Promise<void> => {
       const isDutyEnded = now > endDateTime;
       const isDutyStarted = now >= startDateTime;
       
-      console.log(`🔍 [AUTO] בדיקת תורנות ${duty.id}: תאריך=${duty.startDate}, זמן=${duty.startTime}-${duty.endTime}, התחילה=${isDutyStarted}, הסתיימה=${isDutyEnded}, סטטוס=${duty.status}`);
       
       // בדיקה אם צריך לעדכן סטטוס
       if (duty.status === 'פעילה' && isDutyEnded) {
         // זמן סיום הגיע - עדכון להסתיימה
         newStatus = 'הסתיימה';
         shouldUpdate = true;
-        console.log(`🔄 [AUTO] עדכון תורנות ${duty.id} להסתיימה`);
       }
       
       if (shouldUpdate) {
@@ -127,7 +125,6 @@ export const updateDutyStatusesAutomatically = async (): Promise<void> => {
               const currentStatus = getSoldierCurrentStatus(soldier);
               
               if (currentStatus !== 'בתורנות') {
-                console.log(`🔄 [AUTO] עדכון חייל ${participant.soldierName} לסטטוס בתורנות`);
                 await updateSoldierStatus(participant.soldierId, 'בתורנות', { 
                   dutyId: duty.id
                 });
@@ -138,12 +135,12 @@ export const updateDutyStatusesAutomatically = async (): Promise<void> => {
     }
     
     if (updatedDuties > 0) {
-      console.log(`✅ [AUTO] עדכון ${updatedDuties} תורנויות הושלם`);
+      // עדכון זמן טבלת התורנויות במטמון
+      await updateTableTimestamp('duties');
       // עדכון סטטוס כל החיילים אחרי עדכון תורנויות
       const { updateAllSoldiersStatusesAutomatically } = await import('./soldierService');
       await updateAllSoldiersStatusesAutomatically();
     } else {
-      console.log('✅ [AUTO] אין תורנויות שצריכות עדכון');
     }
   } catch (error) {
     console.error('❌ [AUTO] שגיאה בעדכון סטטוס תורנויות:', error);
