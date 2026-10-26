@@ -1,0 +1,9 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // הפרויקט אינו פעיל - כל הגישה לקבצים חסומה
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

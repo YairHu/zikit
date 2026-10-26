@@ -1,114 +1,25 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // משתמשים - כל משתמש מחובר יכול לקרוא ולעדכן את עצמו
+    // הפרויקט אינו פעיל - כל המידע חסום, גישה לאדמין בלבד.
+    // אין כאן כלל לכתיבה עצמית למשתמשים, כדי שמשתמש לא יוכל לשנות לעצמו תפקיד.
+
+    // משתמש מחובר יכול לקרוא רק את המסמך של עצמו
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // כל שאר הגישה - אדמין בלבד
+    match /{document=**} {
       allow read, write: if isAdmin();
     }
-    
-    // חיילים ממתינים לשיבוץ
-    match /soldiers/{soldierId} {
-      allow read: if request.auth != null; // כל משתמש מחובר יכול לקרוא
-      allow write: if request.auth != null; // כל משתמש מחובר יכול לעדכן (הרשאות ייבדקו ברמת האפליקציה)
-    }
-    
-    // צוותים
-    match /teams/{teamId} {
-      allow read: if request.auth != null; // כל משתמש מחובר יכול לקרוא
-      allow write: if isAdmin();
-    }
-    
-    // נהגים (לא בשימוש כרגע - נשמר למקרה עתידי)
-    match /drivers/{driverId} {
-      allow read: if request.auth != null;
-      allow write: if isAdmin();
-    }
-    
-    // רכבים
-    match /vehicles/{vehicleId} {
-      allow read: if request.auth != null;
-      allow write: if isAdmin();
-    }
-    
-    // משימות
-    match /missions/{missionId} {
-      allow read: if request.auth != null;
-      allow write: if isAdmin();
-    }
-    
-    // פעילויות מבצעיות
-    match /activities/{activityId} {
-      allow read: if request.auth != null;
-      allow write: if isAdmin();
-    }
-    
-    // תורנויות
-    match /duties/{dutyId} {
-      allow read: if request.auth != null;
-      allow write: if isAdmin();
-    }
-    
-    // נסיעות
-    match /trips/{tripId} {
-      allow read: if request.auth != null;
-      allow write: if isAdmin();
-    }
-    
-    // הפניות
-    match /referrals/{referralId} {
-      allow read: if request.auth != null;
-      allow write: if isAdmin();
-    }
-    
-    // טפסים
-    match /forms/{formId} {
-      allow read: if request.auth != null;
-      allow write: if isAdmin();
-    }
-    
-    // מבנה פלגה
-    match /plagaStructure/{structureId} {
-      allow read: if request.auth != null;
-      allow write: if isAdmin();
-    }
-    
-    // מסגרות ארגוניות
-    match /frameworks/{frameworkId} {
-      allow read: if request.auth != null;
-      allow write: if isAdmin();
-    }
-    
-    // מדיניות הרשאות
-    match /permissionPolicies/{policyId} {
-      allow read, write: if request.auth != null;
-    }
-    
-    // תפקידים
-    match /roles/{roleId} {
-      allow read, write: if request.auth != null;
-    }
-    
-    // טבלת עדכונים למטמון
-    match /tableUpdates/{updateId} {
-      allow read, write: if request.auth != null;
-    }
-    
-    // פניות משתמשים
-    match /contactRequests/{requestId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update, delete: if isAdmin();
-    }
-    
-    
+
     // פונקציות עזר
     function isAdmin() {
-      return request.auth != null && 
-             (request.auth.token.role == 'admin' || 
-              request.auth.token.email == 'yair.hutterer@gmail.com');
+      return request.auth != null &&
+             (request.auth.token.role == 'admin' ||
+              (request.auth.token.email == 'yair.hutterer@gmail.com' &&
+               request.auth.token.email_verified == true));
     }
-    
-
   }
-} 
+}

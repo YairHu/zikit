@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteUserAccount = exports.updateSoldierAssignment = exports.createSoldierFromUser = exports.createUserFromSoldier = exports.processGoogleFormSubmission = exports.setCustomClaims = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
+const crypto = __importStar(require("crypto"));
 // Initialize Firebase Admin
 admin.initializeApp();
 // Set Custom Claims for users (fix CORS issue)
@@ -49,10 +50,8 @@ exports.setCustomClaims = functions.https.onCall(async (data, context) => {
         // בדיקה שהמשתמש המבקש יכול לשנות claims
         const requesterRecord = await admin.auth().getUser(context.auth.uid);
         const requesterClaims = requesterRecord.customClaims || {};
-        // בדיקה לפי התפקיד - רק אדמין, מ"פ וסמ"פ יכולים לשנות תפקידים
-        if (requesterClaims.role !== "admin" &&
-            requesterClaims.role !== "mefaked_pluga" &&
-            requesterClaims.role !== "samal_pluga") {
+        // רק אדמין יכול לשנות תפקידים
+        if (requesterClaims.role !== "admin") {
             throw new functions.https.HttpsError("permission-denied", "אין הרשאה לשנות תפקידים");
         }
         // עדכון Custom Claims
@@ -61,40 +60,31 @@ exports.setCustomClaims = functions.https.onCall(async (data, context) => {
         return { success: true, message: "Claims updated successfully" };
     }
     catch (error) {
+        if (error instanceof functions.https.HttpsError) {
+            throw error;
+        }
         functions.logger.error("Error setting custom claims:", error);
         throw new functions.https.HttpsError("internal", "שגיאה בעדכון התפקיד");
     }
 });
 // Function to handle Google Forms submissions
 exports.processGoogleFormSubmission = functions.https.onRequest(async (req, res) => {
-    // הגדרת CORS
-    res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Methods", "GET, POST");
-    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    if (req.method === "OPTIONS") {
-        res.status(204).send("");
-        return;
-    }
     if (req.method !== "POST") {
         res.status(405).send("Method Not Allowed");
         return;
     }
+    // אימות סוד משותף - ללא FORM_WEBHOOK_SECRET מוגדר, כל הבקשות נדחות
+    const expectedSecret = process.env.FORM_WEBHOOK_SECRET;
+    const provided = Buffer.from(req.get("X-Form-Secret") || "");
+    const expected = Buffer.from(expectedSecret || "");
+    if (!expectedSecret ||
+        provided.length !== expected.length ||
+        !crypto.timingSafeEqual(provided, expected)) {
+        res.status(403).send("Forbidden");
+        return;
+    }
     try {
         const formData = req.body;
-        // לוג מפורט של הנתונים שהתקבלו מהטופס
-        functions.logger.info("=== נתונים שהתקבלו מהטופס ===");
-        functions.logger.info("Raw formData:", JSON.stringify(formData, null, 2));
-        functions.logger.info("Email:", formData.email);
-        functions.logger.info("FullName:", formData.fullName);
-        functions.logger.info("PersonalNumber:", formData.personalNumber);
-        functions.logger.info("Phone:", formData.phone);
-        functions.logger.info("BirthDate:", formData.birthDate);
-        functions.logger.info("Address:", formData.address);
-        functions.logger.info("Family:", formData.family);
-        functions.logger.info("Skills:", formData.skills);
-        functions.logger.info("MedicalProfile:", formData.medicalProfile);
-        functions.logger.info("AdditionalInfo:", formData.additionalInfo);
-        functions.logger.info("=== סוף נתוני הטופס ===");
         // בדיקת נתונים חובה
         if (!formData.email || !formData.fullName || !formData.personalNumber) {
             res.status(400).json({
@@ -171,17 +161,9 @@ exports.processGoogleFormSubmission = functions.https.onRequest(async (req, res)
             createdAt: admin.firestore.Timestamp.now(),
             updatedAt: admin.firestore.Timestamp.now()
         };
-        // לוג של הנתונים שנשמרים בפיירבס
-        functions.logger.info("=== נתונים שנשמרים בפיירבס ===");
-        functions.logger.info("SoldierData to save:", JSON.stringify(soldierData, null, 2));
-        functions.logger.info("=== סוף נתוני השמירה ===");
         // שמירה ב-Firestore
         const docRef = await admin.firestore().collection("soldiers").add(soldierData);
-        functions.logger.info("New soldier created from form:", {
-            docId: docRef.id,
-            email: formData.email,
-            fullName: formData.fullName
-        });
+        functions.logger.info("New soldier created from form:", { docId: docRef.id });
         // החזרת תשובה מוצלחת
         res.status(200).json({
             success: true,
@@ -191,10 +173,7 @@ exports.processGoogleFormSubmission = functions.https.onRequest(async (req, res)
     }
     catch (error) {
         functions.logger.error("Error processing form submission:", error);
-        res.status(500).json({
-            error: "שגיאה בעיבוד הטופס",
-            message: error instanceof Error ? error.message : "Unknown error"
-        });
+        res.status(500).json({ error: "שגיאה בעיבוד הטופס" });
     }
 });
 // Function to sync soldier data with user account
@@ -247,7 +226,7 @@ exports.createUserFromSoldier = functions.firestore
                 }
                 // אל תעדכן תפקיד והרשאות אם המשתמש כבר קיים
                 if (!existingData.role) {
-                    updateData.role = "chayal";
+                    updateData.role = "טרם הוזנו פרטים";
                 }
                 if (!existingData.canAssignRoles) {
                     updateData.canAssignRoles = false;
@@ -265,7 +244,7 @@ exports.createUserFromSoldier = functions.firestore
                 uid: userRecord.uid,
                 displayName: soldierData.fullName,
                 email: soldierData.email,
-                role: "chayal", // ברירת מחדל
+                role: "טרם הוזנו פרטים", // ברירת מחדל
                 personalNumber: soldierData.personalNumber,
                 // קישור לרשומת החייל
                 soldierDocId: soldierId,

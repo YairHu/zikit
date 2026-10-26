@@ -82,6 +82,8 @@ function onFormSubmit(e) {
   const options = {
     method: 'POST',
     contentType: 'application/json',
+    // הסוד נשמר ב-Script Properties ולא בקוד, וחייב להתאים ל-FORM_WEBHOOK_SECRET של ה-Cloud Function
+    headers: { 'X-Form-Secret': PropertiesService.getScriptProperties().getProperty('FORM_WEBHOOK_SECRET') },
     payload: JSON.stringify(formData)
   };
 
